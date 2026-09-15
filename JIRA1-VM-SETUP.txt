@@ -1,0 +1,169 @@
+JIRA-1 — WHAT WAS IMPLEMENTED
+==============================
+
+1. Broker (infra)
+   - infra/kafka/docker-compose.yml
+     Kafka 3.8 KRaft combined node, auto.create.topics.enable=false,
+     host listener localhost:9092, internal listener kafka:29092,
+     on the shared trading_platform_net.
+     Health check: kafka-topics.sh --list succeeds.
+
+2. Six topics, created explicitly
+   - infra/kafka/create-topics.ps1   (PowerShell — primary on Windows)
+   - infra/kafka/create-topics.sh    (bash — Git Bash / macOS / Linux)
+   Idempotent: safe to run any number of times (uses --if-not-exists).
+   Created live and verified with kafka-topics.sh --describe:
+     orders           3 partitions  retention 604800000   (7 days)
+     trade-events     3 partitions  retention 2592000000 (30 days)
+     market-data      6 partitions  retention 86400000   (1 day)
+     orders.DLT       3 partitions  retention 604800000
+     trade-events.DLT 3 partitions  retention 2592000000
+     market-data.DLT  6 partitions  retention 86400000
+
+3. Auto-creation off — proven
+   A produce to a topic that does not exist (should-not-exist) fails
+   with UNKNOWN_TOPIC_OR_PARTITION; the topic list is unchanged after.
+
+4. Written justification (design doc)
+   - sprint-07/design/kafka.md
+   Covers: key -> partition -> ordering, per-account and per-symbol,
+   never by orderId, 3/3/6 rationale, partitions increase-only,
+   envelope field list, additive-change policy, consumer ignore-unknown,
+   producer/consumer contract, dead-letter handling, creation commands,
+   security plan (TLS/SASL/ACLs — documented only, not implemented),
+   folder-mapping decision.
+
+5. Shared envelope + tolerance tests
+   - sprint-07/eventbus/pom.xml
+     Minimal Maven module: Jackson + JUnit 5, Java 17.
+   - sprint-07/eventbus/src/main/java/com/team1/eventbus/Envelope.java
+     @JsonIgnoreProperties(ignoreUnknown = true) record.
+   - sprint-07/eventbus/src/test/java/.../EnvelopeToleranceTest.java
+     3 tests proving unknown fields, extra payload fields, and
+     minimal envelopes all pass without error.
+   (Consumers do not exist yet; JIRA-4 must use this module.)
+
+6. Stack operations
+   - infra/README.md
+     Start / stop / reset / health / diagnosis for the full local stack.
+   - .env.example updated with KAFKA_PORT and KAFKA_BOOTSTRAP_SERVERS.
+
+
+WHAT REMAINS (GAPS)
+-------------------
+1. Nothing is committed/pushed yet.
+   All JIRA-1 files are untracked or modified in the working tree.
+   This is the single real gap. Everything below assumes the commit is done.
+
+2. The Docker Desktop WSL integration for your Ubuntu distro is off.
+   The .sh script fails inside WSL because WSL cannot see the docker CLI.
+   Mitigation: use the .ps1 from Windows PowerShell (works now),
+   or enable integration once: Docker Desktop -> Settings -> Resources ->
+   WSL Integration -> toggle Ubuntu -> Apply & Restart.
+
+3. The .env file in the repo is gitignored.
+   .env.example is committed and contains defaults for Kafka.
+   If you later stand up the Postgres stack (trade-api), you must
+   set JWT_SECRET in .env — infra/postgres/docker-compose.yml
+   requires it with no default.
+
+4. Eventbus jar is not installed to the local Maven repo.
+   The JIRA-1 deliverable (the module + tests) exists and passes;
+   no other service uses it yet.  `mvn install` is only needed when
+   JIRA-3 or JIRA-4 declares a dependency on it.
+
+
+STEP-BY-STEP: WHAT TO DO ON THE REVIEW VM
+==========================================
+
+After pulling the changes, follow this from the repo root.
+
+WINDOWS POWERSHELL (Docker Desktop running)
+-------------------------------------------
+
+Step 1 — Environment
+  copy .env.example .env
+
+Step 2 — Start the broker
+  docker compose -f infra/kafka/docker-compose.yml up -d
+
+  Wait for healthy. Takes about 30-60 seconds on first run (image pull).
+
+Step 3 — Verify broker is healthy
+  docker compose -f infra/kafka/docker-compose.yml ps
+  Look for STATUS "healthy".
+
+Step 4 — Create the six topics
+  infra\kafka\create-topics.ps1
+
+Step 5 — Show the result on screen (for review)
+  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe
+
+  Read out the partitions and retention values — they must match the contract.
+
+Step 6 — Prove auto-creation is off (optional, strong at review)
+  "test" | docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+    /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server localhost:9092 --topic should-not-exist 2>&1
+
+  Expect UNKNOWN_TOPIC_OR_PARTITION. The topic list is unchanged.
+
+Step 7 — Stop the stack when done
+  docker compose -f infra/kafka/docker-compose.yml down
+
+
+LINUX / macOS (Docker Engine running)
+--------------------------------------
+
+Replace the PowerShell commands with the bash equivalents:
+
+  cp .env.example .env
+  docker compose -f infra/kafka/docker-compose.yml up -d
+  bash infra/kafka/create-topics.sh
+  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe
+  docker compose -f infra/kafka/docker-compose.yml down
+
+
+OFFLINE VM (no internet for image pull)
+----------------------------------------
+
+First time, on a machine that HAS internet:
+
+  docker save apache/kafka:3.8.0 -o kafka-3.8.0.tar
+
+Copy kafka-3.8.0.tar to the review VM, then:
+
+  docker load -i kafka-3.8.0.tar
+
+After that, the stack starts without a network pull.
+
+
+BUILDING THE EVENTBUS MODULE (only if another module depends on it)
+-------------------------------------------------------------------
+
+  mvn -f sprint-07/eventbus/pom.xml install
+
+Requires Java 17+.  The three tolerance tests run automatically
+as part of the build.
+
+
+TROUBLESHOOTING
+---------------
+- "docker not found": close and reopen the terminal after installing
+  Docker Desktop, or prepend the full path:
+  $env:PATH = "C:\Program Files\Docker\Docker\resources\bin;" + $env:PATH
+- Broker stays unhealthy: check `docker compose -f infra/kafka/docker-compose.yml logs kafka`.
+  First boot takes time; wait at least 30 seconds.
+- Port 9092 already in use: stop whatever is using it, or change
+  KAFKA_PORT in .env and re-run up + create-topics.
+- WSL + .sh script hangs: enable Docker Desktop WSL integration for
+  Ubuntu, or just use the .ps1 from Windows PowerShell.
+- Reset Kafka to empty: docker compose -f infra/kafka/docker-compose.yml down -v
+  then re-create topics with the script.
