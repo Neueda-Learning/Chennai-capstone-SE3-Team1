@@ -1,8 +1,8 @@
 package com.team1.trading.api.service;
 
 import com.team1.trading.api.dto.OrderResponse;
+import com.team1.trading.api.event.OrderPlacedEvent;
 import com.team1.trading.api.mapper.AccountMapper;
-import com.team1.trading.api.mapper.AccountMapper.AccountCashUpdate;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.InstrumentMapper;
 import com.team1.trading.api.mapper.InstrumentMapper.InstrumentRow;
@@ -11,7 +11,6 @@ import com.team1.trading.api.mapper.OrderMapper.OrderInsert;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
 import com.team1.trading.api.mapper.PositionMapper;
 import com.team1.trading.api.mapper.PositionMapper.PositionRow;
-import com.team1.trading.api.mapper.PositionMapper.PositionWrite;
 import com.team1.trading.domain.dto.PlaceOrderRequest;
 import com.team1.trading.domain.entity.Client;
 import com.team1.trading.domain.entity.Instrument;
@@ -26,9 +25,9 @@ import com.team1.trading.domain.exception.InsufficientFundsException;
 import com.team1.trading.domain.exception.InsufficientHoldingsException;
 import com.team1.trading.domain.exception.InstrumentNotFoundException;
 import com.team1.trading.domain.exception.InvalidOrderException;
-import com.team1.trading.domain.exception.OrderConflictException;
 import com.team1.trading.domain.exception.OrderNotCancellableException;
 import com.team1.trading.domain.exception.OrderNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +42,10 @@ import java.util.UUID;
  * <p>The business rules are the domain's own behaviour and exceptions: the account and
  * instrument entities decide {@code canTrade}/{@code canAfford}/{@code isTradable}, and every
  * rejection is a {@code DomainException} from the shared jar. This service orders those checks
- * exactly as the contract's rule table does - first failure wins - and then files the order, the
- * cash change and the position update in one transaction.
+ * exactly as the contract's rule table does - first failure wins - and then files the order at
+ * {@code NEW}. The synchronous fill (the cash move and the position change) is not done here any
+ * more: pricing is the Trade Executor's job, driven by an {@code ORDER_PLACED} event published
+ * once this transaction has committed (see {@link com.team1.trading.api.event.KafkaOrderEventPublisher}).
  */
 @Service
 public class OrderService {
@@ -53,18 +54,23 @@ public class OrderService {
     private final InstrumentMapper instrumentMapper;
     private final OrderMapper orderMapper;
     private final PositionMapper positionMapper;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public OrderService(AccountMapper accountMapper, InstrumentMapper instrumentMapper,
-                        OrderMapper orderMapper, PositionMapper positionMapper) {
+                        OrderMapper orderMapper, PositionMapper positionMapper,
+                        ApplicationEventPublisher applicationEventPublisher) {
         this.accountMapper = accountMapper;
         this.instrumentMapper = instrumentMapper;
         this.orderMapper = orderMapper;
         this.positionMapper = positionMapper;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
-     * Validates rules 1 to 8 in order, then fills synchronously: the order, the cash move and
-     * the position change commit in one transaction (rules 9 and 10).
+     * Validates rules 1 to 8 in order, then files the order at {@code NEW} and returns it. The
+     * fill is not this endpoint's job: there is no execution price in the request, pricing is the
+     * Trade Executor's, and the order leaves as {@code ORDER_PLACED} on the {@code orders} topic
+     * once the transaction that wrote it has committed (rules 9 and 10 move to the executor).
      *
      * <p>Rule 8 is enforced by the {@code uq_orders_idempotency_key} constraint, not by a read
      * then a write, so two concurrent requests with the same key cannot both pass a pre-check.
@@ -117,7 +123,6 @@ public class OrderService {
         String orderUuid = UUID.randomUUID().toString();
         Order order = new Order(accountId, accountId, request.getSymbol(), OrderType.POSITION,
                 request.getSide(), BigDecimal.valueOf(quantity), price, request.getIdempotencyKey());
-        order.markCompleted(price);                                                   // synchronous fill
         try {
             orderMapper.insert(toInsert(order, orderUuid));                           // rule 8
         } catch (DataIntegrityViolationException e) {
@@ -127,27 +132,11 @@ public class OrderService {
             throw e;
         }
 
-        BigDecimal newBalance = request.getSide() == OrderSide.BUY
-                ? client.getWalletBalance().subtract(cost)
-                : client.getWalletBalance().add(money(BigDecimal.valueOf(quantity).multiply(price)));
-        int cashRows = accountMapper.updateCashGuarded(
-                new AccountCashUpdate(accountId, newBalance, accountRow.getVersion()));
-        if (cashRows == 0) {
-            throw new OrderConflictException("account version changed concurrently");
-        }
+        applicationEventPublisher.publishEvent(OrderPlacedEvent.of(
+                orderUuid, accountId, request.getSymbol(), request.getSide(), quantity, price,
+                request.getIdempotencyKey(), order.getCreatedAt()));
 
-        PositionWrite position = new PositionWrite(accountId, request.getSymbol(), quantity, price);
-        if (request.getSide() == OrderSide.BUY) {
-            positionMapper.upsertBuy(position);
-            positionMapper.upsertBuyHolding(position);
-        } else {
-            if (positionMapper.reduceSell(position) == 0
-                    || positionMapper.reduceSellHolding(position) == 0) {
-                throw new OrderConflictException("position changed concurrently");
-            }
-        }
-
-        return new OrderResponse(displayId(orderUuid), OrderStatus.FILLED, "Order executed",
+        return new OrderResponse(displayId(orderUuid), OrderStatus.NEW, "Order accepted",
                 request.getSymbol(), request.getSide(), quantity, price);
     }
 

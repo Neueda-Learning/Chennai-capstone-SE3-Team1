@@ -1,7 +1,7 @@
 package com.team1.trading.api.service;
 
+import com.team1.trading.api.event.OrderPlacedEvent;
 import com.team1.trading.api.mapper.AccountMapper;
-import com.team1.trading.api.mapper.AccountMapper.AccountCashUpdate;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.InstrumentMapper;
 import com.team1.trading.api.mapper.InstrumentMapper.InstrumentRow;
@@ -10,7 +10,6 @@ import com.team1.trading.api.mapper.OrderMapper.OrderInsert;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
 import com.team1.trading.api.mapper.PositionMapper;
 import com.team1.trading.api.mapper.PositionMapper.PositionRow;
-import com.team1.trading.api.mapper.PositionMapper.PositionWrite;
 import com.team1.trading.domain.dto.PlaceOrderRequest;
 import com.team1.trading.domain.entity.types.OrderSide;
 import com.team1.trading.domain.entity.types.OrderStatus;
@@ -21,7 +20,6 @@ import com.team1.trading.domain.exception.InsufficientFundsException;
 import com.team1.trading.domain.exception.InsufficientHoldingsException;
 import com.team1.trading.domain.exception.InstrumentNotFoundException;
 import com.team1.trading.domain.exception.InvalidOrderException;
-import com.team1.trading.domain.exception.OrderConflictException;
 import com.team1.trading.domain.exception.OrderNotCancellableException;
 import com.team1.trading.domain.exception.OrderNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
@@ -46,10 +45,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * Unit tests of the order rules and the synchronous fill, against mocked mappers. The rule
- * table of contracts/trade-api.yaml is exercised in order - the first failure wins - and every
- * rejection is the domain's own exception, so the HTTP layer needs no container to be proven
- * correct here.
+ * Unit tests of the order rules and the acceptance (write at NEW, publish {@code ORDER_PLACED}),
+ * against mocked mappers. The rule table of contracts/trade-api.yaml is exercised in order - the
+ * first failure wins - and every rejection is the domain's own exception, so the HTTP layer needs
+ * no container to be proven correct here.
  */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -66,12 +65,15 @@ class OrderServiceTest {
     private OrderMapper orderMapper;
     @Mock
     private PositionMapper positionMapper;
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(accountMapper, instrumentMapper, orderMapper, positionMapper);
+        orderService = new OrderService(accountMapper, instrumentMapper, orderMapper, positionMapper,
+                applicationEventPublisher);
     }
 
     private AccountRow activeAccount() {
@@ -119,6 +121,7 @@ class OrderServiceTest {
                     .isInstanceOf(AccountNotFoundException.class)
                     .hasMessage("Account not found");
             verify(instrumentMapper, never()).findRowBySymbol(any());
+            verify(applicationEventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -189,6 +192,7 @@ class OrderServiceTest {
             assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, BigDecimal.ZERO), null))
                     .isInstanceOf(InvalidOrderException.class)
                     .hasMessage("Invalid input");
+            verify(applicationEventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -201,6 +205,7 @@ class OrderServiceTest {
                     .isInstanceOf(InsufficientFundsException.class)
                     .hasMessage("Insufficient funds");
             verify(orderMapper, never()).insert(any());
+            verify(applicationEventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -214,6 +219,7 @@ class OrderServiceTest {
                     .isInstanceOf(InsufficientHoldingsException.class)
                     .hasMessage("Insufficient holdings");
             verify(orderMapper, never()).insert(any());
+            verify(applicationEventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -229,6 +235,7 @@ class OrderServiceTest {
                     .isInstanceOf(DuplicateOrderException.class)
                     .hasMessage("Duplicate order");
             verify(accountMapper, never()).updateCashGuarded(any());
+            verify(applicationEventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -250,24 +257,21 @@ class OrderServiceTest {
     }
 
     @Nested
-    @DisplayName("The synchronous fill commit")
-    class FillTests {
+    @DisplayName("Order acceptance: written at NEW and published ORDER_PLACED")
+    class AcceptanceTests {
 
         @Test
-        @DisplayName("A funded buy files the order FILLED, debits cash and upserts the position in one flow")
-        void fundedBuyFills() {
+        @DisplayName("A funded buy files the order NEW, publishes ORDER_PLACED and never touches cash or positions")
+        void acceptedBuyWritesNewAndPublishes() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
             given(orderMapper.insert(any())).willReturn(1);
-            given(accountMapper.updateCashGuarded(any())).willReturn(1);
-            given(positionMapper.upsertBuy(any())).willReturn(1);
-            given(positionMapper.upsertBuyHolding(any())).willReturn(1);
 
             var response = orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null);
 
             assertThat(response.getOrderId()).startsWith("ORD-");
-            assertThat(response.getStatus()).isEqualTo(OrderStatus.FILLED);
-            assertThat(response.getMessage()).isEqualTo("Order executed");
+            assertThat(response.getStatus()).isEqualTo(OrderStatus.NEW);
+            assertThat(response.getMessage()).isEqualTo("Order accepted");
             assertThat(response.getSymbol()).isEqualTo(SYMBOL);
             assertThat(response.getSide()).isEqualTo(OrderSide.BUY);
             assertThat(response.getQuantity()).isEqualTo(100);
@@ -276,28 +280,34 @@ class OrderServiceTest {
             ArgumentCaptor<OrderInsert> insertCaptor = ArgumentCaptor.forClass(OrderInsert.class);
             verify(orderMapper).insert(insertCaptor.capture());
             OrderInsert insert = insertCaptor.getValue();
-            assertThat(insert.getStatus()).isEqualTo("FILLED");
-            assertThat(insert.getExecutedPrice()).isEqualByComparingTo(new BigDecimal("25.00"));
+            assertThat(insert.getStatus()).isEqualTo("NEW");
+            assertThat(insert.getExecutedPrice()).isNull();
             assertThat(insert.getOrderType()).isEqualTo("POSITION");
             assertThat(insert.getSide()).isEqualTo(OrderSide.BUY);
             assertThat(insert.getIdempotencyKey()).isEqualTo(IDEMPOTENCY_KEY);
 
-            ArgumentCaptor<AccountCashUpdate> cashCaptor = ArgumentCaptor.forClass(AccountCashUpdate.class);
-            verify(accountMapper).updateCashGuarded(cashCaptor.capture());
-            AccountCashUpdate cash = cashCaptor.getValue();
-            assertThat(cash.getClientId()).isEqualTo(ACCOUNT_ID);
-            assertThat(cash.getNewBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
-            assertThat(cash.getExpectedVersion()).isEqualTo(7);
+            ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+            verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
+            OrderPlacedEvent event = eventCaptor.getValue();
+            assertThat(event.orderUuid()).isEqualTo(response.getOrderId().substring("ORD-".length()));
+            assertThat(event.accountId()).isEqualTo(ACCOUNT_ID);
+            assertThat(event.symbol()).isEqualTo(SYMBOL);
+            assertThat(event.side()).isEqualTo(OrderSide.BUY);
+            assertThat(event.quantity()).isEqualTo(100);
+            assertThat(event.price()).isEqualByComparingTo(new BigDecimal("25.00"));
+            assertThat(event.idempotencyKey()).isEqualTo(IDEMPOTENCY_KEY);
+            assertThat(event.key()).isEqualTo("1");
 
-            verify(positionMapper).upsertBuy(any());
-            verify(positionMapper).upsertBuyHolding(any());
+            verify(accountMapper, never()).updateCashGuarded(any());
+            verify(positionMapper, never()).upsertBuy(any());
+            verify(positionMapper, never()).upsertBuyHolding(any());
             verify(positionMapper, never()).reduceSell(any());
             verify(positionMapper, never()).reduceSellHolding(any());
         }
 
         @Test
-        @DisplayName("A sell out of cash returns cash, reduces the position and never upserts a buy")
-        void fundedSellFills() {
+        @DisplayName("An accepted sell still checks rule 7, files the order NEW and publishes a SELL event")
+        void acceptedSellWritesNewAndPublishes() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
             PositionRow held = new PositionRow();
@@ -305,55 +315,21 @@ class OrderServiceTest {
             held.setPricePerUnit(new BigDecimal("20.00"));
             given(positionMapper.findHeld(ACCOUNT_ID, SYMBOL)).willReturn(Optional.of(held));
             given(orderMapper.insert(any())).willReturn(1);
-            given(accountMapper.updateCashGuarded(any())).willReturn(1);
-            given(positionMapper.reduceSell(any())).willReturn(1);
-            given(positionMapper.reduceSellHolding(any())).willReturn(1);
 
             var response = orderService.placeOrder(sellRequest(40, new BigDecimal("25.00")), null);
 
-            assertThat(response.getStatus()).isEqualTo(OrderStatus.FILLED);
+            assertThat(response.getStatus()).isEqualTo(OrderStatus.NEW);
+            assertThat(response.getMessage()).isEqualTo("Order accepted");
 
-            ArgumentCaptor<AccountCashUpdate> cashCaptor = ArgumentCaptor.forClass(AccountCashUpdate.class);
-            verify(accountMapper).updateCashGuarded(cashCaptor.capture());
-            assertThat(cashCaptor.getValue().getNewBalance()).isEqualByComparingTo(new BigDecimal("3500.00"));
+            ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+            verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
+            assertThat(eventCaptor.getValue().side()).isEqualTo(OrderSide.SELL);
 
-            ArgumentCaptor<PositionWrite> sellCaptor = ArgumentCaptor.forClass(PositionWrite.class);
-            verify(positionMapper).reduceSell(sellCaptor.capture());
-            assertThat(sellCaptor.getValue().getQuantity()).isEqualTo(40);
+            verify(accountMapper, never()).updateCashGuarded(any());
+            verify(positionMapper, never()).reduceSell(any());
+            verify(positionMapper, never()).reduceSellHolding(any());
             verify(positionMapper, never()).upsertBuy(any());
             verify(positionMapper, never()).upsertBuyHolding(any());
-        }
-
-        @Test
-        @DisplayName("A moved account version aborts the fill as ORD-409 and nothing else is written")
-        void staleVersionAbortsFill() {
-            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
-            given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
-            given(orderMapper.insert(any())).willReturn(1);
-            given(accountMapper.updateCashGuarded(any())).willReturn(0);
-
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
-                    .isInstanceOf(OrderConflictException.class)
-                    .hasMessage("Order rejected");
-            verify(positionMapper, never()).upsertBuy(any());
-        }
-
-        @Test
-        @DisplayName("A concurrent sell on the same position aborts the fill as ORD-409")
-        void stalePositionAbortsFill() {
-            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
-            given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
-            PositionRow held = new PositionRow();
-            held.setQuantity(100);
-            held.setPricePerUnit(new BigDecimal("20.00"));
-            given(positionMapper.findHeld(ACCOUNT_ID, SYMBOL)).willReturn(Optional.of(held));
-            given(orderMapper.insert(any())).willReturn(1);
-            given(accountMapper.updateCashGuarded(any())).willReturn(1);
-            given(positionMapper.reduceSell(any())).willReturn(0);
-
-            assertThatThrownBy(() -> orderService.placeOrder(sellRequest(40, new BigDecimal("25.00")), null))
-                    .isInstanceOf(OrderConflictException.class)
-                    .hasMessage("Order rejected");
         }
     }
 

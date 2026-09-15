@@ -4,17 +4,21 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.team1.trading.api.event.OrderPlacedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -25,30 +29,40 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Characterisation tests that pin the Sprint 6 order placement path as it behaves TODAY,
- * before the Sprint 7 change (NEW + Kafka publish) touches any source.
+ * Characterisation tests that pin the Sprint 7 order placement path: an accepted order is
+ * written at {@code NEW}, answered {@code NEW} with message "Order accepted", and an
+ * {@link OrderPlacedEvent} is published to the {@code orders} Kafka topic keyed by the account.
  *
- * <p>These tests record what the Sprint 6 service does, not what it should do. The
- * observations they deliberately freeze are:
+ * <p>The observations they deliberately freeze are:
  *
  * <ul>
- *   <li>an accepted order is synchronously FILLED and the response is HTTP 200,
- *       message "Order executed" (not 201, not "accepted", not NEW);</li>
+ *   <li>an accepted order answers HTTP 200 with status {@code NEW}, message "Order accepted";</li>
  *   <li>the order row stores {@code client_id = account_id}, {@code order_type = POSITION},
- *       {@code status = FILLED} and an {@code executed_price} equal to the submitted limit,
- *       and a null {@code external_order_id};</li>
- *   <li>the cash move is not a naive subtraction: the position upsert overwrites
- *       {@code price_per_unit} with the new price rather than a true weighted average,
- *       and the sell path would leave it unchanged;</li>
- *   <li>an unaffordable buy answers ORD-400 before writing anything, and a reused
- *       idempotency key answers ORD-409 and writes nothing twice.</li>
+ *       {@code status = NEW}, a null {@code executed_price}, the submitted limit price and a null
+ *       {@code external_order_id};</li>
+ *   <li>the placement moves no cash and writes no position books: the wallet and version are
+ *       untouched and no {@code portfolio_positions} / {@code portfolio_holding} row appears;</li>
+ *   <li>the event is delivered to the {@code orders} topic, keyed by the account id, carrying the
+ *       order uuid, symbol, side, quantity, limit price, the idempotency key and a placed-at
+ *       timestamp;</li>
+ *   <li>an unaffordable buy answers ORD-400, an unknown symbol INS-404, an inactive account
+ *       ACC-403, and none of them write an order or publish an event;</li>
+ *   <li>a reused idempotency key answers ORD-409, writes nothing twice and publishes nothing
+ *       again.</li>
  * </ul>
  *
- * <p>Any of these pins that the Sprint 7 change deliberately alters must be updated in the
- * same commit as the source change, and the commit message must say so.
+ * <p>These pins changed together with the Sprint 7 source change (the previous baseline pinned
+ * a synchronous FILLED, a cash debit and a started position). The Kafka template is a mock - the
+ * pin is about what is sent and when, not about a broker.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -62,6 +76,8 @@ class OrderPlacementCharacterisationTest {
 
     static final String TEST_SECRET = "characterisation-test-secret-for-sprint-7-only";
 
+    private static final String ORDERS_TOPIC = "orders";
+
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
 
     @Autowired
@@ -73,10 +89,12 @@ class OrderPlacementCharacterisationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockitoBean
+    private KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
+
     private String tokenAccountOne;
     private String tokenAccountTwo;
     private String tokenAccountThree;
-    private String tokenAccountFour;
     private String tokenAccountFive;
 
     @BeforeEach
@@ -84,12 +102,12 @@ class OrderPlacementCharacterisationTest {
         tokenAccountOne = tokenFor(1L);
         tokenAccountTwo = tokenFor(2L);
         tokenAccountThree = tokenFor(3L);
-        tokenAccountFour = tokenFor(4L);
         tokenAccountFive = tokenFor(5L);
+        clearInvocations(kafkaTemplate);
     }
 
     @Test
-    @DisplayName("Pinned: an affordable order answers each response field, status FILLED")
+    @DisplayName("Pinned: an affordable order answers each response field, status NEW")
     void pinAcceptedOrderResponseFieldByField() throws Exception {
         String idempotencyKey = "charact-1-pin-response-fields-0001";
 
@@ -100,8 +118,8 @@ class OrderPlacementCharacterisationTest {
         JsonNode body = bodyOf(result);
         assertThat(body.path("orderId").asText()).startsWith("ORD-");
         assertThat(body.path("orderId").asText()).hasSize("ORD-".length() + 36);
-        assertThat(body.path("status").asText()).as("pinned status").isEqualTo("FILLED");
-        assertThat(body.path("message").asText()).as("pinned message").isEqualTo("Order executed");
+        assertThat(body.path("status").asText()).as("pinned status").isEqualTo("NEW");
+        assertThat(body.path("message").asText()).as("pinned message").isEqualTo("Order accepted");
         assertThat(body.path("symbol").asText()).isEqualTo("INFY");
         assertThat(body.path("side").asText()).isEqualTo("BUY");
         assertThat(body.path("quantity").asInt()).isEqualTo(10);
@@ -109,8 +127,8 @@ class OrderPlacementCharacterisationTest {
     }
 
     @Test
-    @DisplayName("Pinned: an accepted order writes the order row, the cash and the two position books")
-    void pinOrderRowCashAndPosition() throws Exception {
+    @DisplayName("Pinned: an accepted order writes a NEW row and moves neither cash nor positions")
+    void pinAcceptedOrderWritesNewRowAndNothingElse() throws Exception {
         String idempotencyKey = "charact-2-pin-db-writes-0002";
 
         MvcResult result = postOrder(tokenAccountThree,
@@ -131,39 +149,56 @@ class OrderPlacementCharacterisationTest {
         assertThat(order.get("side")).isEqualTo("BUY");
         assertThat(number(order.get("quantity"))).isEqualByComparingTo(BigDecimal.valueOf(5));
         assertThat(number(order.get("price"))).isEqualByComparingTo(ONE_HUNDRED);
-        assertThat(number(order.get("executed_price"))).isEqualByComparingTo(ONE_HUNDRED);
-        assertThat(order.get("status")).isEqualTo("FILLED");
+        assertThat(order.get("executed_price")).as("no execution price until the executor fills")
+                .isNull();
+        assertThat(order.get("status")).isEqualTo("NEW");
         assertThat(order.get("idempotency_key")).isEqualTo(idempotencyKey);
         assertThat(order.get("external_order_id")).isNull();
 
         Map<String, Object> client = jdbc.queryForMap(
                 "SELECT wallet_balance, version FROM clients WHERE client_id = 3");
-        assertThat(number(client.get("wallet_balance"))).isEqualByComparingTo(new BigDecimal("309900.75"));
-        assertThat(((Number) client.get("version")).intValue()).isEqualTo(1);
+        assertThat(number(client.get("wallet_balance"))).isEqualByComparingTo(new BigDecimal("310400.75"));
+        assertThat(((Number) client.get("version")).intValue()).isEqualTo(0);
 
-        Map<String, Object> position = jdbc.queryForMap(
-                "SELECT quantity, price_per_unit FROM portfolio_positions "
-                        + "WHERE client_id = 3 AND instrument_id = 'INFY'");
-        assertThat(number(position.get("quantity"))).isEqualByComparingTo(BigDecimal.valueOf(5));
-        assertThat(number(position.get("price_per_unit"))).isEqualByComparingTo(ONE_HUNDRED);
-
-        Map<String, Object> holding = jdbc.queryForMap(
-                "SELECT quantity, price_per_unit FROM portfolio_holding "
-                        + "WHERE client_id = 3 AND instrument_id = 'INFY'");
-        assertThat(number(holding.get("quantity"))).isEqualByComparingTo(BigDecimal.valueOf(5));
-        assertThat(number(holding.get("price_per_unit"))).isEqualByComparingTo(ONE_HUNDRED);
+        assertThat(positionCount(3L, "portfolio_positions")).as("no position book row").isZero();
+        assertThat(positionCount(3L, "portfolio_holding")).as("no holdings row").isZero();
     }
 
     @Test
-    @DisplayName("Pinned: a reused idempotency key answers ORD-409 and debits cash only once")
+    @DisplayName("Pinned: an accepted order publishes ORDER_PLACED to the orders topic keyed by the account")
+    void pinOrderPlacedPublishedKeyedByAccount() throws Exception {
+        String idempotencyKey = "charact-2b-pin-event-0012";
+
+        MvcResult result = postOrder(tokenAccountTwo,
+                requestBody(2L, "INFY", "BUY", 10, "100.00", idempotencyKey));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String orderUuid = orderUuidFrom(result).toString();
+
+        ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+        verify(kafkaTemplate).send(eq(ORDERS_TOPIC), eq("2"), eventCaptor.capture());
+
+        OrderPlacedEvent event = eventCaptor.getValue();
+        assertThat(event.orderUuid()).isEqualTo(orderUuid);
+        assertThat(event.accountId()).isEqualTo(2L);
+        assertThat(event.symbol()).isEqualTo("INFY");
+        assertThat(event.side().name()).isEqualTo("BUY");
+        assertThat(event.quantity()).isEqualTo(10);
+        assertThat(event.price()).isEqualByComparingTo(ONE_HUNDRED);
+        assertThat(event.idempotencyKey()).isEqualTo(idempotencyKey);
+        assertThat(event.placedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Pinned: a reused idempotency key answers ORD-409, debits nothing and publishes only once")
     void pinReusedIdempotencyKey() throws Exception {
         String idempotencyKey = "charact-3-pin-idempotency-0003";
         String request = requestBody(5L, "INFY", "BUY", 1, "50.00", idempotencyKey);
 
         MvcResult first = postOrder(tokenAccountFive, request);
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
-        BigDecimal balanceAfterFirst = walletBalance(5L);
-        assertThat(balanceAfterFirst).isEqualByComparingTo(new BigDecimal("92700.25"));
+        assertThat(walletBalance(5L)).as("cash untouched by acceptance")
+                .isEqualByComparingTo(new BigDecimal("92750.25"));
 
         MvcResult second = postOrder(tokenAccountFive, request);
         assertThat(second.getResponse().getStatus()).as("HTTP status").isEqualTo(409);
@@ -171,11 +206,16 @@ class OrderPlacementCharacterisationTest {
         assertThat(body.path("errorCode").asText()).isEqualTo("ORD-409");
         assertThat(body.path("message").asText()).isEqualTo("Duplicate order");
 
-        assertThat(walletBalance(5L)).as("no second debit").isEqualByComparingTo(balanceAfterFirst);
+        assertThat(walletBalance(5L)).as("no second cash move").isEqualByComparingTo(new BigDecimal("92750.25"));
+        assertThat(ordersWithKey(idempotencyKey)).as("one order row only").isEqualTo(1);
+
+        ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+        verify(kafkaTemplate, times(1)).send(eq(ORDERS_TOPIC), eq("5"), eventCaptor.capture());
+        assertThat(eventCaptor.getValue().idempotencyKey()).isEqualTo(idempotencyKey);
     }
 
     @Test
-    @DisplayName("Pinned: an unaffordable buy answers ORD-400 and writes no order")
+    @DisplayName("Pinned: an unaffordable buy answers ORD-400 and writes no order, no event")
     void pinUnaffordableBuy() throws Exception {
         String idempotencyKey = "charact-4-pin-unaffordable-0004";
         MvcResult result = postOrder(tokenAccountOne,
@@ -187,10 +227,11 @@ class OrderPlacementCharacterisationTest {
         assertThat(body.path("message").asText()).isEqualTo("Insufficient funds");
 
         assertThat(ordersWithKey(idempotencyKey)).as("unaffordable buy writes no order row").isZero();
+        verify(kafkaTemplate, never()).send(any(), any(), any());
     }
 
     @Test
-    @DisplayName("Pinned: an unknown symbol answers INS-404 and writes no order")
+    @DisplayName("Pinned: an unknown symbol answers INS-404 and writes no order, no event")
     void pinUnknownSymbol() throws Exception {
         String idempotencyKey = "charact-5-pin-unknown-sym-0005";
         MvcResult result = postOrder(tokenAccountOne,
@@ -202,13 +243,14 @@ class OrderPlacementCharacterisationTest {
         assertThat(body.path("message").asText()).isEqualTo("Instrument not found");
 
         assertThat(ordersWithKey(idempotencyKey)).isZero();
+        verify(kafkaTemplate, never()).send(any(), any(), any());
     }
 
     @Test
-    @DisplayName("Pinned: an account that is not ACTIVE answers ACC-403 and writes no order")
+    @DisplayName("Pinned: an account that is not ACTIVE answers ACC-403 and writes no order, no event")
     void pinInactiveAccount() throws Exception {
         String idempotencyKey = "charact-6-pin-inactive-acct-0006";
-        MvcResult result = postOrder(tokenAccountFour,
+        MvcResult result = postOrder(tokenFor(4L),
                 requestBody(4L, "INFY", "BUY", 1, "10.00", idempotencyKey));
 
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
@@ -217,6 +259,7 @@ class OrderPlacementCharacterisationTest {
         assertThat(body.path("message").asText()).isEqualTo("Account not active");
 
         assertThat(ordersWithKey(idempotencyKey)).isZero();
+        verify(kafkaTemplate, never()).send(any(), any(), any());
     }
 
     private MvcResult postOrder(String token, String requestBody) throws Exception {
@@ -252,6 +295,12 @@ class OrderPlacementCharacterisationTest {
     private Integer ordersWithKey(String idempotencyKey) {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM orders WHERE idempotency_key = ?", Integer.class, idempotencyKey);
+        return count == null ? 0 : count;
+    }
+
+    private Integer positionCount(Long clientId, String table) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + table + " WHERE client_id = ?", Integer.class, clientId);
         return count == null ? 0 : count;
     }
 
