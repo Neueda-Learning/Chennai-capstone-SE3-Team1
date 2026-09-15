@@ -10,6 +10,7 @@ import trustme_secrets as trustme
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
+ANALYTICS_MIGRATIONS_DIR = REPO_ROOT / "fact-trades" / "migrations"
 SEED_DIR = REPO_ROOT / "seed"
 ENV_FILE = REPO_ROOT / ".env"
 
@@ -94,10 +95,11 @@ class DbConfig:
         dotenv = _read_env_file()
         settings = {}
         for name, env_key in ENV_KEYS.items():
-            cli_value = trustme.get(env_key) if args is not None else None
+            cli_value = getattr(args, name, None) if args is not None else None
             settings[name] = (
                 cli_value
                 or os.environ.get(env_key)
+                or trustme.get(env_key)
                 or dotenv.get(env_key)
                 or DEFAULTS[name]
             )

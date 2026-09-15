@@ -12,7 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from db_config import (
+    ANALYTICS_MIGRATIONS_DIR,
     MIGRATIONS_DIR,
+    REPO_ROOT,
     SEED_DIR,
     DbConfig,
     DbError,
@@ -44,12 +46,13 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def discover_migrations():
-    if not MIGRATIONS_DIR.is_dir():
-        raise DbError("migrations/ directory not found at " + str(MIGRATIONS_DIR))
-    files = sorted(MIGRATIONS_DIR.glob("*.sql"), key=lambda p: p.name)
+def discover_migrations(directory=MIGRATIONS_DIR):
+    label = directory.relative_to(REPO_ROOT).as_posix() + "/"
+    if not directory.is_dir():
+        raise DbError(label + " directory not found at " + str(directory))
+    files = sorted(directory.glob("*.sql"), key=lambda p: p.name)
     if not files:
-        raise DbError("migrations/ contains no .sql files")
+        raise DbError(label + " contains no .sql files")
 
     bad = [f.name for f in files if not re.match(r"^\d{3}_", f.name)]
     if bad:
@@ -136,22 +139,25 @@ def read_ledger(cfg: DbConfig):
     return {r[0]: r[1] for r in rows if len(r) >= 2}
 
 
-def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
-    files = discover_migrations()
-    say("  " + str(len(files)) + " migration file(s) in " + str(MIGRATIONS_DIR))
+def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False,
+                     directory=MIGRATIONS_DIR, ledger_prefix=""):
+    files = discover_migrations(directory)
+    say("  " + str(len(files)) + " migration file(s) in " + str(directory))
 
     if dry_run:
         for f in files:
             step("would apply " + f.name)
         return {"applied": 0, "skipped": 0, "total": len(files)}
 
-    bootstrap_ledger(cfg, files)
+    if not ledger_prefix:
+        bootstrap_ledger(cfg, files)
     ledger = read_ledger(cfg)
 
     applied = skipped = 0
     for path in files:
         digest = sha256_of(path)
-        recorded = ledger.get(path.name)
+        ledger_key = ledger_prefix + path.name
+        recorded = ledger.get(ledger_key)
 
         if recorded == digest:
             step("skip    " + path.name + "  (already applied)")
@@ -176,7 +182,7 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
                 "updating the ledger for " + path.name,
                 sql=(
                     "UPDATE schema_migrations SET checksum = " + quote_literal(digest)
-                    + ", applied_at = now() WHERE filename = " + quote_literal(path.name) + ";"
+                    + ", applied_at = now() WHERE filename = " + quote_literal(ledger_key) + ";"
                 ),
             )
             skipped += 1
@@ -188,7 +194,7 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
             "recording " + path.name + " in schema_migrations",
             sql=(
                 "INSERT INTO schema_migrations (filename, checksum) VALUES ("
-                + quote_literal(path.name) + ", " + quote_literal(digest) + ") "
+                + quote_literal(ledger_key) + ", " + quote_literal(digest) + ") "
                 "ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum, "
                 "applied_at = now();"
             ),
@@ -374,6 +380,8 @@ def build_parser():
                    help="truncate the seeded tables and load seed/ again")
     g.add_argument("--migrations-only", action="store_true", help="apply migrations, skip seed/")
     g.add_argument("--seed-only", action="store_true", help="load seed/, skip migrations")
+    g.add_argument("--analytics", action="store_true",
+                   help="also apply fact-trades/migrations/ (the analytics schema) after migrations/")
     g.add_argument("--allow-modified", action="store_true",
                    help="accept a migration whose contents changed after it was applied")
     g.add_argument("--dry-run", action="store_true",
@@ -437,6 +445,14 @@ def main(argv=None):
                 cfg, allow_modified=args.allow_modified, dry_run=args.dry_run
             )
 
+        analytics = {"applied": 0, "skipped": 0, "total": 0}
+        if args.analytics and not args.seed_only:
+            head("Analytics migrations")
+            analytics = apply_migrations(
+                cfg, allow_modified=args.allow_modified, dry_run=args.dry_run,
+                directory=ANALYTICS_MIGRATIONS_DIR, ledger_prefix="fact-trades/",
+            )
+
         seed = {"loaded": 0, "skipped": 0, "rows": 0}
         if not args.migrations_only:
             head("Seed data")
@@ -456,6 +472,10 @@ def main(argv=None):
     head("Summary")
     say("  migrations : " + str(mig["applied"]) + " applied, "
         + str(mig["skipped"]) + " already up to date, " + str(mig["total"]) + " total")
+    if args.analytics:
+        say("  analytics  : " + str(analytics["applied"]) + " applied, "
+            + str(analytics["skipped"]) + " already up to date, "
+            + str(analytics["total"]) + " total")
     say("  seed       : " + str(seed["loaded"]) + " file(s) loaded, "
         + str(seed["rows"]) + " row(s), " + str(seed["skipped"]) + " file(s) skipped")
     say("  elapsed    : " + format(time.time() - started, ".1f") + "s")
