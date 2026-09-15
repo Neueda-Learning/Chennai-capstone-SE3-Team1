@@ -6,6 +6,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+import trustme_secrets as trustme
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
@@ -21,11 +22,11 @@ DEFAULTS = {
 }
 
 ENV_KEYS = {
-    "host": "PGHOST",
-    "port": "PGPORT",
-    "dbname": "PGDATABASE",
-    "user": "PGUSER",
-    "password": "PGPASSWORD",
+    "host": "PostGres_Host",
+    "port": "Postgres_Port",
+    "dbname": "Postgres_DB",
+    "user": "PostGres_User",
+    "password": "PostGres",
 }
 
 _WINDOWS_PSQL_GLOBS = [
@@ -93,7 +94,7 @@ class DbConfig:
         dotenv = _read_env_file()
         settings = {}
         for name, env_key in ENV_KEYS.items():
-            cli_value = getattr(args, name, None) if args is not None else None
+            cli_value = trustme.get(env_key) if args is not None else None
             settings[name] = (
                 cli_value
                 or os.environ.get(env_key)
