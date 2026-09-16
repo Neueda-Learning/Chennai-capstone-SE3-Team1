@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: trade-executor
+
+  datasource:
+    url: jdbc:postgresql://${trustme.secret.PostGres_Host}:${trustme.secret.Postgres_Port}/${trustme.secret.Postgres_DB}
+    username: ${trustme.secret.PostGres_User}
+    password: ${trustme.secret.PostGres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: trade-executor
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.team1.trading.api.event,com.team1.eventbus,com.team1.executor.model"
+        spring.json.value.default.type: com.team1.eventbus.Envelope
+    producer:
+      acks: all
+      enable.idempotence: true
+      retries: 2147483647
+      max.in.flight.requests.per.connection: 5
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  mybatis:
+    mapper-locations: classpath*:/mapper/**/*.xml
+    type-aliases-package: com.team1.executor.mapper
+    configuration:
+      map-underscore-to-camel-case: true
+
+trustme:
+  key-file: ../leapcapstoneteam1-720d03.TM
+
+fauxnance:
+  base-url: ${FAUXNANCE_BASE_URL:http://localhost:8082}
+  api-key: ${FAUXNANCE_API_KEY:}
+  timeout-seconds: 5
+  max-retries: 3
+  retry-backoff-ms: 1000
+
+executor:
+  poll-interval-seconds: ${POLL_INTERVAL_SECONDS:60}
+  optimistic-lock-max-retries: 3
+
+server:
+  port: 8083
+
+logging:
+  level:
+    com.team1.executor: DEBUG
+    org.springframework.kafka: DEBUG
