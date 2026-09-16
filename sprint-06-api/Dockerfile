@@ -2,21 +2,18 @@
 # Maven + full JDK 21. Resolved dependencies are cached before the source is
 # copied, so changing a source file does not invalidate the dependency layer.
 #
-# The Sprint 5 domain engine is a Maven artifact, not source: a pre-built jar
-# is provided in ./lib (see lib/README.md) and installed into the Maven
-# repository before dependency resolution and the build.
+# Build both sprint-05-domain-engine and sprint-06-api inside the image build
+# because it starts with an empty local Maven repository.
 FROM maven:3.9.16-eclipse-temurin-21 AS build
 WORKDIR /src
 
-COPY pom.xml .
-COPY lib/domain-engine-1.0-SNAPSHOT.jar /lib/domain-engine-1.0-SNAPSHOT.jar
-RUN mvn -B -q install:install-file \
-    -Dfile=/lib/domain-engine-1.0-SNAPSHOT.jar \
-    -DgroupId=com.team1.trading \
-    -DartifactId=domain-engine \
-    -Dversion=1.0-SNAPSHOT \
-    -Dpackaging=jar
+# Build sprint-05-domain-engine first
+COPY ../sprint-05-domain-engine/pom.xml ./sprint-05-domain-engine/pom.xml
+COPY ../sprint-05-domain-engine/src ./sprint-05-domain-engine/src
+RUN mvn -B -q -f ./sprint-05-domain-engine/pom.xml clean install
 
+# Now build sprint-06-api
+COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
 
 COPY src ./src
