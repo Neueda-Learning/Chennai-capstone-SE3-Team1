@@ -69,26 +69,26 @@ Step 3 — Verify broker is healthy
   Look for STATUS "healthy".
 
 Step 4 — Create the six topics
-  infra\kafka\create-topics.ps1
+  bash infra/kafka/create-topics.ps1
 
 Step 5 — Show the result on screen (for review)
   docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
     /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
-  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+  docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
     /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe
 
   Read out the partitions and retention values — they must match the contract.
 
 Step 6 — Prove auto-creation is off (optional, strong at review)
-  "test" | docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+  "test" | docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
     /opt/kafka/bin/kafka-console-producer.sh \
     --bootstrap-server localhost:9092 --topic should-not-exist 2>&1
 
   Expect UNKNOWN_TOPIC_OR_PARTITION. The topic list is unchanged.
 
 Step 7 — Stop the stack when done
-  docker compose -f infra/kafka/docker-compose.yml down
+  docker-compose -f infra/kafka/docker-compose.yml down
 
 
 LINUX / macOS (Docker Engine running)
