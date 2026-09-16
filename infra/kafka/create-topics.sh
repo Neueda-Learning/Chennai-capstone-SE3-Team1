@@ -23,8 +23,8 @@ else
 fi
 
 kafka_topics() {
-    if "$DOCKER" compose -f "$COMPOSE_FILE" ps -q kafka >/dev/null 2>&1; then
-        "$DOCKER" compose -f "$COMPOSE_FILE" exec -T kafka \
+    if "$DOCKER"-compose -f "$COMPOSE_FILE" ps -q kafka >/dev/null 2>&1; then
+        "$DOCKER"-compose -f "$COMPOSE_FILE" exec -T kafka \
             /opt/kafka/bin/kafka-topics.sh "$@"
     else
         /opt/kafka/bin/kafka-topics.sh "$@"

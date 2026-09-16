@@ -48,31 +48,6 @@ JIRA-1 — WHAT WAS IMPLEMENTED
      Start / stop / reset / health / diagnosis for the full local stack.
    - .env.example updated with KAFKA_PORT and KAFKA_BOOTSTRAP_SERVERS.
 
-
-WHAT REMAINS (GAPS)
--------------------
-1. Nothing is committed/pushed yet.
-   All JIRA-1 files are untracked or modified in the working tree.
-   This is the single real gap. Everything below assumes the commit is done.
-
-2. The Docker Desktop WSL integration for your Ubuntu distro is off.
-   The .sh script fails inside WSL because WSL cannot see the docker CLI.
-   Mitigation: use the .ps1 from Windows PowerShell (works now),
-   or enable integration once: Docker Desktop -> Settings -> Resources ->
-   WSL Integration -> toggle Ubuntu -> Apply & Restart.
-
-3. The .env file in the repo is gitignored.
-   .env.example is committed and contains defaults for Kafka.
-   If you later stand up the Postgres stack (trade-api), you must
-   set JWT_SECRET in .env — infra/postgres/docker-compose.yml
-   requires it with no default.
-
-4. Eventbus jar is not installed to the local Maven repo.
-   The JIRA-1 deliverable (the module + tests) exists and passes;
-   no other service uses it yet.  `mvn install` is only needed when
-   JIRA-3 or JIRA-4 declares a dependency on it.
-
-
 STEP-BY-STEP: WHAT TO DO ON THE REVIEW VM
 ==========================================
 
@@ -85,19 +60,19 @@ Step 1 — Environment
   copy .env.example .env
 
 Step 2 — Start the broker
-  docker compose -f infra/kafka/docker-compose.yml up -d
+  docker-compose -f infra/kafka/docker-compose.yml up -d
 
   Wait for healthy. Takes about 30-60 seconds on first run (image pull).
 
 Step 3 — Verify broker is healthy
-  docker compose -f infra/kafka/docker-compose.yml ps
+  docker-compose -f infra/kafka/docker-compose.yml ps
   Look for STATUS "healthy".
 
 Step 4 — Create the six topics
   infra\kafka\create-topics.ps1
 
 Step 5 — Show the result on screen (for review)
-  docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
+  docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
     /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
   docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
