@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.InstrumentMapper">
+
+    <resultMap id="instrumentResultMap" type="com.team1.executor.model.InstrumentRow">
+        <id property="instrumentId" column="instrument_id"/>
+        <result property="instrumentName" column="instrument_name"/>
+        <result property="active" column="active"/>
+        <result property="updatedOn" column="updated_on"/>
+    </resultMap>
+
+    <select id="findBySymbol" resultMap="instrumentResultMap">
+        SELECT instrument_id, instrument_name, active, updated_on
+        FROM instruments
+        WHERE instrument_id = #{symbol}
+    </select>
+
+</mapper>
