@@ -31,8 +31,8 @@ services:
 
   trade-api:
     build:
-      context: .
-      dockerfile: sprint-06-api/Dockerfile
+      context: ./sprint-06-api
+      dockerfile: Dockerfile
     container_name: team1_trade_api
     restart: unless-stopped
     profiles:
