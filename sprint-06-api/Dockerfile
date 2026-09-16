@@ -13,10 +13,10 @@ COPY ../sprint-05-domain-engine/src ./sprint-05-domain-engine/src
 RUN mvn -B -q -f ./sprint-05-domain-engine/pom.xml clean install
 
 # Now build sprint-06-api
-COPY pom.xml .
+COPY sprint-06-api/pom.xml .
 RUN mvn -B -q dependency:go-offline
 
-COPY src ./src
+COPY sprint-06-api/src ./src
 RUN mvn -B -q clean package -DskipTests
 
 # ---- Stage 2: runtime -------------------------------------------------------
