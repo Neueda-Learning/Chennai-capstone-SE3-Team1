@@ -60,6 +60,7 @@ Step 1 — Environment
   copy .env.example .env
 
 Step 2 — Start the broker
+  Before Starting the Broker, change the <PRIVATE_IP> in the docker-compose.yml to your private IP
   docker-compose -f infra/kafka/docker-compose.yml up -d
 
   Wait for healthy. Takes about 30-60 seconds on first run (image pull).
