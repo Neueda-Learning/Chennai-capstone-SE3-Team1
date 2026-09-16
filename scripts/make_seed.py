@@ -101,7 +101,7 @@ ORDER_KEYS = (
 ORDER_FIELDS = (
     "order_id", "client_id", "account_id", "instrument_id", "order_type", "side",
     "quantity", "price", "executed_price", "status", "idempotency_key",
-    "external_order_id",
+    "external_order_id", "created_at", "updated_at",
 )
 
 HOLDING_BOOK = "HOLDING"
@@ -116,6 +116,13 @@ TERMINAL_EVENT = {
 
 def order_dict(row):
     return dict(zip(ORDER_KEYS, row))
+
+
+# orders.order_id is a UUID (migration 009). The dataset is keyed by a small
+# integer, so derive the UUID from it: the seed stays deterministic and an
+# order's id is still readable at a glance.
+def order_uuid(order_id):
+    return "550e8400-e29b-41d4-a716-44665544" + format(order_id, "04d")
 
 
 def account_id_for(order):
@@ -204,13 +211,39 @@ def build_instruments():
     return header, [list(r) for r in INSTRUMENTS]
 
 
+def stamp(sequence):
+    minute_of_day = 9 * 60 + 15 + sequence
+    return "2026-01-05 " + format(minute_of_day // 60, "02d") + ":"         + format(minute_of_day % 60, "02d") + ":00"
+
+
+def order_timestamps():
+    """When each order was created and when it reached its terminal state.
+
+    orders and order_history have to agree: an order cannot be filled before it
+    was placed. Both builders read this one clock, so the two files cannot drift.
+    """
+    stamps = {}
+    history_id = 0
+    for raw in ORDERS:
+        o = order_dict(raw)
+        history_id += 1
+        created = stamp(history_id)
+        terminal = None
+        if TERMINAL_EVENT.get(o["status"]) is not None:
+            history_id += 1
+            terminal = stamp(history_id)
+        stamps[o["order_id"]] = (created, terminal)
+    return stamps
+
+
 def build_orders():
     header = list(ORDER_FIELDS)
+    stamps = order_timestamps()
     rows = []
     for raw in ORDERS:
         o = order_dict(raw)
         record = {
-            "order_id": o["order_id"],
+            "order_id": order_uuid(o["order_id"]),
             "client_id": o["client_id"],
             "account_id": account_id_for(o),
             "instrument_id": o["instrument_id"],
@@ -222,6 +255,8 @@ def build_orders():
             "status": o["status"],
             "idempotency_key": o["idempotency_key"],
             "external_order_id": external_order_id_for(o),
+            "created_at": stamps[o["order_id"]][0],
+            "updated_at": stamps[o["order_id"]][1] or stamps[o["order_id"]][0],
         }
         rows.append([record[field] for field in ORDER_FIELDS])
     return header, rows
@@ -234,18 +269,15 @@ def build_order_history():
     rows = []
     history_id = 0
 
-    def stamp(sequence):
-        minute_of_day = 9 * 60 + 15 + sequence
-        return "2026-01-05 " + format(minute_of_day // 60, "02d") + ":" \
-            + format(minute_of_day % 60, "02d") + ":00"
+    stamps = order_timestamps()
 
     for raw in ORDERS:
         o = order_dict(raw)
 
         history_id += 1
-        created_stamp = stamp(history_id)
+        created_stamp = stamps[o["order_id"]][0]
         rows.append([
-            history_id, o["order_id"], "CREATED", None, "NEW", None, None,
+            history_id, order_uuid(o["order_id"]), "CREATED", None, "NEW", None, None,
             "req-" + format(o["order_id"], "06d"), None, None,
             created_stamp, created_stamp,
         ])
@@ -255,9 +287,9 @@ def build_order_history():
             continue
 
         history_id += 1
-        terminal_stamp = stamp(history_id)
+        terminal_stamp = stamps[o["order_id"]][1]
         rows.append([
-            history_id, o["order_id"], event, "NEW", o["status"],
+            history_id, order_uuid(o["order_id"]), event, "NEW", o["status"],
             event if o["status"] == "FILLED" else None,
             external_order_id_for(o),
             "req-" + format(o["order_id"], "06d"),

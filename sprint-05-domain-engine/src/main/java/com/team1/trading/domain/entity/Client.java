@@ -17,6 +17,8 @@ public class Client {
     private LocalDateTime createdOn;
     private String accountState;
     private BigDecimal walletBalance;
+    private Integer version;
+    private LocalDateTime updatedOn;
 
     public Client(Long clientId, String accountNumber, String name, String email, String phone) {
         this.clientId = clientId;
@@ -27,6 +29,8 @@ public class Client {
         this.createdOn = LocalDateTime.now();
         this.accountState = "ACTIVE";
         this.walletBalance = BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY);
+        this.version = 0;
+        this.updatedOn = this.createdOn;
     }
 
     public Client(Long clientId, String accountNumber, String name, String email, String phone,
@@ -39,6 +43,16 @@ public class Client {
         this.createdOn = createdOn;
         this.accountState = accountState;
         this.walletBalance = walletBalance;
+        this.version = 0;
+        this.updatedOn = createdOn;
+    }
+
+    public Client(Long clientId, String accountNumber, String name, String email, String phone,
+                  LocalDateTime createdOn, String accountState, BigDecimal walletBalance,
+                  Integer version, LocalDateTime updatedOn) {
+        this(clientId, accountNumber, name, email, phone, createdOn, accountState, walletBalance);
+        this.version = Objects.requireNonNull(version, "version must not be null");
+        this.updatedOn = Objects.requireNonNull(updatedOn, "updatedOn must not be null");
     }
 
     public Long getClientId() {
@@ -73,10 +87,19 @@ public class Client {
         return walletBalance;
     }
 
+    public Integer getVersion() {
+        return version;
+    }
+
+    public LocalDateTime getUpdatedOn() {
+        return updatedOn;
+    }
+
     public void updateProfile(String name, String email, String phone) {
         this.name = name;
         this.email = email;
         this.phone = phone;
+        touch();
     }
 
     public boolean canTrade() {
@@ -85,14 +108,17 @@ public class Client {
 
     public void activate() {
         this.accountState = AccountStatus.ACTIVE.name();
+        touch();
     }
 
     public void suspend() {
         this.accountState = AccountStatus.SUSPENDED.name();
+        touch();
     }
 
     public void close() {
         this.accountState = AccountStatus.CLOSED.name();
+        touch();
     }
 
     public boolean canAfford(BigDecimal amount) {
@@ -101,6 +127,7 @@ public class Client {
 
     public void credit(BigDecimal amount) {
         this.walletBalance = money(walletBalance.add(money(amount)));
+        touch();
     }
 
     public void debit(BigDecimal amount) {
@@ -110,6 +137,12 @@ public class Client {
                     "balance " + walletBalance + " cannot cover a debit of " + value);
         }
         this.walletBalance = money(walletBalance.subtract(value));
+        touch();
+    }
+
+    private void touch() {
+        this.version++;
+        this.updatedOn = LocalDateTime.now();
     }
 
     private static BigDecimal money(BigDecimal amount) {

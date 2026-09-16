@@ -172,11 +172,16 @@ existing `apply_db.py` ledger track the DDL.
 ## Something this found on the first run
 
 Against a database seeded from `seed/`, every seeded order was dead-lettered
-under `terminal_after_created`: `050_orders.csv` carries no `created_at`, so
-the orders were stamped with the seed time, while `060_order_history.csv` says
-they filled on 2026-01-05. That is a seed inconsistency, not a loader bug; it
-belongs in `make_seed.py`, and `python scripts/make_seed.py --check` already
-reports both files as out of date.
+under `terminal_after_created`: `050_orders.csv` carried no `created_at`, so the
+orders were stamped with the seed time while `060_order_history.csv` said they
+had filled on 2026-01-05 — months earlier. The quarantine table is what made
+that visible; a loader that dropped bad rows would have reported a clean run
+over an empty fact table.
+
+Fixed in `make_seed.py`: `order_timestamps()` is now the single clock both
+builders read, so an order's `created_at` is by construction the timestamp of
+its own `CREATED` event and the two files cannot drift again. The seeded data
+now loads with no dead letters, and `fill_rate` over it comes out at 85.7%.
 
 ## Tests
 

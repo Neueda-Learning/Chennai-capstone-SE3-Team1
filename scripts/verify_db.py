@@ -608,7 +608,8 @@ def c13_deactivating_without_a_date_is_accepted(v):
 
 def c14_bad_order_status_rejected(v):
     v.expect_rejected(
-        "UPDATE orders SET status = 'SUCCESS' WHERE order_id = 1;",
+        "UPDATE orders SET status = 'SUCCESS' "
+        "WHERE order_id = (SELECT order_id FROM orders LIMIT 1);",
         "23514",
         "an order status outside the OrderStatus enum",
     )
@@ -712,23 +713,30 @@ def c22_negative_wallet_balance_rejected(v):
     )
 
 
-def c23_sequences_resynced_past_seed(v):
-    max_id = v.count("SELECT coalesce(max(order_id), 0) FROM orders;")
+def c23_generated_order_id_does_not_collide(v):
+    """orders.order_id defaults to gen_random_uuid() (migration 009).
+
+    There is no sequence left to fall behind the seed, but the property that
+    check stood for still matters: an insert that does not name an id must be
+    given one that is not already taken.
+    """
     out = v.expect_accepted(
         "BEGIN;\n"
         + _NEW_ORDER
-        + "(1, 1, 'RELIANCE', 'HOLDING', 'BUY', 1, 100.0000, 'verify-sequence-probe') "
+        + "(1, 1, 'RELIANCE', 'HOLDING', 'BUY', 1, 100.0000, 'verify-uuid-probe') "
           "RETURNING order_id;\n"
         "ROLLBACK;\n",
         "inserting an order without an explicit id",
     )
-    numbers = [int(t) for t in re.findall(r"^\s*(\d+)\s*$", out, re.M)]
-    require(numbers, "did not get an order_id back: " + repr(out))
-    require(
-        max(numbers) > max_id,
-        "orders_order_id_seq is behind the seeded data: next id would be "
-        + str(max(numbers)) + " but max(order_id) is " + str(max_id),
+    generated = re.findall(
+        r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", out, re.I
     )
+    require(generated, "did not get a UUID order_id back: " + repr(out))
+    taken = v.count(
+        "SELECT count(*) FROM orders WHERE order_id = "
+        + quote_literal(generated[0]) + "::uuid;"
+    )
+    equal(taken, 0, "the generated order_id already exists in orders")
 
 
 def c24_blank_password_rejected(v):
@@ -743,7 +751,7 @@ def c24_blank_password_rejected(v):
 def c25_history_for_a_missing_order_rejected(v):
     v.expect_rejected(
         "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-        "VALUES (99999, 'FILLED', 'NEW', 'FILLED');",
+        "VALUES ('00000000-0000-4000-8000-000000000000', 'FILLED', 'NEW', 'FILLED');",
         "23503",
         "an audit row for an order that does not exist",
     )
@@ -755,7 +763,7 @@ def c26_history_accepts_a_real_transition(v):
     v.expect_accepted(
         rollback_script(
             "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-            "VALUES (" + order_id + ", 'CANCELLED', 'NEW', 'CANCELLED');"
+            "VALUES (" + quote_literal(order_id) + ", 'CANCELLED', 'NEW', 'CANCELLED');"
         ),
         "recording a NEW -> CANCELLED transition",
     )
@@ -765,7 +773,7 @@ def c27_history_rejects_an_unknown_status(v):
     order_id = v.scalar("SELECT order_id FROM orders LIMIT 1;")
     v.expect_rejected(
         "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-        "VALUES (" + order_id + ", 'SETTLED', 'NEW', 'SETTLED');",
+        "VALUES (" + quote_literal(order_id) + ", 'SETTLED', 'NEW', 'SETTLED');",
         "23514",
         "an audit row naming a status outside the OrderStatus enum",
     )
@@ -979,7 +987,7 @@ CHECKS = [
     ("C", "stale credential writer detects it lost", c20_optimistic_concurrency_detects_the_loser),
     ("C", "negative bank balance rejected", c21_negative_bank_balance_rejected),
     ("C", "negative wallet balance rejected", c22_negative_wallet_balance_rejected),
-    ("C", "sequences are past the seeded ids", c23_sequences_resynced_past_seed),
+    ("C", "a generated order_id does not collide", c23_generated_order_id_does_not_collide),
     ("C", "blank auth password rejected", c24_blank_password_rejected),
     ("C", "audit row for a missing order rejected", c25_history_for_a_missing_order_rejected),
     ("C", "audit row for a real transition accepted", c26_history_accepts_a_real_transition),
