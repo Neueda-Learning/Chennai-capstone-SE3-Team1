@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.PositionMapper">
+
+    <resultMap id="positionResultMap" type="com.team1.executor.model.PositionRow">
+        <id property="holdingId" column="holding_id"/>
+        <result property="clientId" column="client_id"/>
+        <result property="instrumentId" column="instrument_id"/>
+        <result property="quantity" column="quantity"/>
+        <result property="pricePerUnit" column="price_per_unit"/>
+        <result property="overallGains" column="overall_gains"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findHolding" resultMap="positionResultMap">
+        SELECT holding_id, client_id, instrument_id, quantity, price_per_unit,
+               overall_gains, created_at, updated_at
+        FROM portfolio_holding
+        WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}
+    </select>
+
+    <select id="findHoldingForUpdate" resultMap="positionResultMap">
+        SELECT holding_id, client_id, instrument_id, quantity, price_per_unit,
+               overall_gains, created_at, updated_at
+        FROM portfolio_holding
+        WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}
+        FOR UPDATE
+    </select>
+
+    <insert id="insertHolding">
+        INSERT INTO portfolio_holding (client_id, instrument_id, quantity, price_per_unit, overall_gains, created_at, updated_at)
+        VALUES (#{clientId}, #{instrumentId}, #{quantity}, #{pricePerUnit}, 0, now(), now())
+    </insert>
+
+    <update id="updateHoldingBuy">
+        UPDATE portfolio_holding
+        SET quantity = quantity + #{quantity},
+            price_per_unit = ((price_per_unit * (quantity - #{quantity})) + (#{pricePerUnit} * #{quantity})) / quantity,
+            overall_gains = overall_gains,
+            updated_at = now()
+        WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}
+    </update>
+
+    <update id="updateHoldingSell">
+        UPDATE portfolio_holding
+        SET quantity = quantity - #{quantity},
+            updated_at = now()
+        WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}
+    </update>
+
+</mapper>
