@@ -1,6 +1,9 @@
 package com.team1.trading.domain.entity;
 
 import com.team1.trading.domain.entity.types.OrderStatus;
+import java.math.BigDecimal;
+import com.team1.trading.domain.entity.types.OrderSide;
+import com.team1.trading.domain.entity.types.OrderType;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -20,6 +23,20 @@ public class OrderHistory {
     private String apiResponse;
     private LocalDateTime eventTimestamp;
     private LocalDateTime createdAt;
+
+    // Migration 010: orders holds live orders only, and the row is deleted once an order
+    // settles. The terminal history row is therefore the only surviving record of the order
+    // itself, so it carries the order's own fields. They are null on a non-terminal event.
+    private Long clientId;
+    private Long accountId;
+    private String instrumentId;
+    private OrderType orderType;
+    private OrderSide side;
+    private BigDecimal quantity;
+    private BigDecimal price;
+    private BigDecimal executedPrice;
+    private String idempotencyKey;
+    private LocalDateTime orderCreatedAt;
 
     public OrderHistory(Long historyId, Long orderId, String eventType,
                         OrderStatus previousStatus, OrderStatus newStatus,
@@ -54,4 +71,29 @@ public class OrderHistory {
     public LocalDateTime getEventTimestamp() { return eventTimestamp; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
+
+    public Long getClientId() { return clientId; }
+
+    public Long getAccountId() { return accountId; }
+
+    public String getInstrumentId() { return instrumentId; }
+
+    public OrderType getOrderType() { return orderType; }
+
+    public OrderSide getSide() { return side; }
+
+    public BigDecimal getQuantity() { return quantity; }
+
+    public BigDecimal getPrice() { return price; }
+
+    public BigDecimal getExecutedPrice() { return executedPrice; }
+
+    public String getIdempotencyKey() { return idempotencyKey; }
+
+    public LocalDateTime getOrderCreatedAt() { return orderCreatedAt; }
+
+    /** True when this row is an order that has left the live book, not a bare transition. */
+    public boolean isTerminalRecord() {
+        return idempotencyKey != null;
+    }
 }

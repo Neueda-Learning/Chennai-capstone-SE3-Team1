@@ -12,7 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from db_config import (
-    ANALYTICS_MIGRATIONS_DIR,
     MIGRATIONS_DIR,
     REPO_ROOT,
     SEED_DIR,
@@ -380,8 +379,6 @@ def build_parser():
                    help="truncate the seeded tables and load seed/ again")
     g.add_argument("--migrations-only", action="store_true", help="apply migrations, skip seed/")
     g.add_argument("--seed-only", action="store_true", help="load seed/, skip migrations")
-    g.add_argument("--analytics", action="store_true",
-                   help="also apply fact-trades/migrations/ (the analytics schema) after migrations/")
     g.add_argument("--allow-modified", action="store_true",
                    help="accept a migration whose contents changed after it was applied")
     g.add_argument("--dry-run", action="store_true",
@@ -445,14 +442,6 @@ def main(argv=None):
                 cfg, allow_modified=args.allow_modified, dry_run=args.dry_run
             )
 
-        analytics = {"applied": 0, "skipped": 0, "total": 0}
-        if args.analytics and not args.seed_only:
-            head("Analytics migrations")
-            analytics = apply_migrations(
-                cfg, allow_modified=args.allow_modified, dry_run=args.dry_run,
-                directory=ANALYTICS_MIGRATIONS_DIR, ledger_prefix="fact-trades/",
-            )
-
         seed = {"loaded": 0, "skipped": 0, "rows": 0}
         if not args.migrations_only:
             head("Seed data")
@@ -472,10 +461,6 @@ def main(argv=None):
     head("Summary")
     say("  migrations : " + str(mig["applied"]) + " applied, "
         + str(mig["skipped"]) + " already up to date, " + str(mig["total"]) + " total")
-    if args.analytics:
-        say("  analytics  : " + str(analytics["applied"]) + " applied, "
-            + str(analytics["skipped"]) + " already up to date, "
-            + str(analytics["total"]) + " total")
     say("  seed       : " + str(seed["loaded"]) + " file(s) loaded, "
         + str(seed["rows"]) + " row(s), " + str(seed["skipped"]) + " file(s) skipped")
     say("  elapsed    : " + format(time.time() - started, ".1f") + "s")

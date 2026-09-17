@@ -36,8 +36,25 @@ ENTITY_TABLES = {
     "portfolio_positions": ("PortfolioPosition", {"portifolioid": "position_id"}),
 }
 
+# Since migration 010 an order lives in `orders` while it is NEW and becomes its terminal
+# order_history row on settlement, at which point the orders row is deleted. A check that
+# means "every order ever placed" has to read both halves; one that means "the live book"
+# reads orders alone.
+ALL_ORDERS = """(
+    SELECT order_id, client_id, instrument_id, order_type, side, quantity, price,
+           executed_price, status, idempotency_key, created_at
+    FROM orders
+    UNION ALL
+    SELECT order_id, client_id, instrument_id, order_type, side, quantity, price,
+           executed_price, new_status, idempotency_key, order_created_at
+    FROM order_history
+    WHERE idempotency_key IS NOT NULL
+)"""
+
 ENUM_CONSTRAINTS = [
-    ("chk_orders_status", "OrderStatus"),
+    # chk_orders_status is intentionally absent: orders is the live book since migration
+    # 010 and may only hold NEW, so its CHECK is narrower than OrderStatus by design. The
+    # full vocabulary is still asserted on order_history, where settled orders now live.
     ("chk_orders_order_type", "OrderType"),
     ("chk_orders_side", "OrderSide"),
     ("chk_clients_account_state", "AccountStatus"),
@@ -406,7 +423,8 @@ def b04_foreign_keys_present(v):
         ("auth", "clients"),
         ("orders", "clients"),
         ("orders", "instruments"),
-        ("order_history", "orders"),
+        # order_history -> orders was dropped in migration 010. The history row survives
+        # the order it records, so it cannot reference a row that is deleted on settlement.
         ("portfolio_holding", "clients"),
         ("portfolio_holding", "instruments"),
         ("portfolio_positions", "clients"),
@@ -585,7 +603,7 @@ def c12_delisting_keeps_orders_resolvable(v):
         "BEGIN;\n"
         "UPDATE instruments SET active = FALSE, updated_on = now() "
         "WHERE instrument_id = 'RELIANCE';\n"
-        "SELECT count(*) FROM orders o JOIN instruments i USING (instrument_id) "
+        "SELECT count(*) FROM " + ALL_ORDERS + " o JOIN instruments i USING (instrument_id) "
         "WHERE i.instrument_id = 'RELIANCE';\n"
         "ROLLBACK;\n",
         "delisting RELIANCE",
@@ -748,12 +766,30 @@ def c24_blank_password_rejected(v):
     )
 
 
-def c25_history_for_a_missing_order_rejected(v):
+def c25_duplicate_settled_idempotency_key_rejected(v):
+    """Migration 010 moved the idempotency guarantee, and this checks its new home.
+
+    It used to be a foreign key: an order_history row for an order that does not exist was
+    refused. That cannot hold any more, because a settled order is deleted from orders and
+    its history row is meant to outlive it - so the key was dropped deliberately.
+
+    What still has to hold is the rule that key protected in practice: a client retrying a
+    request must not place a second trade. orders.idempotency_key is UNIQUE and covers
+    orders still in the live book; uq_order_history_idempotency_key covers the settled
+    ones, and that is what this asserts.
+    """
+    existing = v.scalar(
+        "SELECT idempotency_key FROM order_history WHERE idempotency_key IS NOT NULL LIMIT 1;"
+    )
+    require(existing, "no settled order to test the idempotency guard with")
     v.expect_rejected(
-        "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-        "VALUES ('00000000-0000-4000-8000-000000000000', 'FILLED', 'NEW', 'FILLED');",
-        "23503",
-        "an audit row for an order that does not exist",
+        # CANCELLED rather than FILLED so the row does not trip
+        # chk_order_history_filled_has_executed_price before reaching the unique index.
+        "INSERT INTO order_history (order_id, event_type, previous_status, new_status, "
+        "idempotency_key) VALUES ('00000000-0000-4000-8000-000000000000', 'CANCELLED', 'NEW', "
+        "'CANCELLED', " + quote_literal(existing) + ");",
+        "23505",
+        "a second settled order reusing an idempotency key",
     )
 
 
@@ -835,21 +871,21 @@ def d06_all_three_client_states_present(v):
 
 
 def d07_every_order_status_exercised(v):
-    found = {r[0] for r in v.rows("SELECT DISTINCT status FROM orders;")}
+    found = {r[0] for r in v.rows("SELECT DISTINCT status FROM " + ALL_ORDERS + " o;")}
     missing = enum_constants("OrderStatus") - found
     require(not missing,
             "seed data never reaches order status: " + ", ".join(sorted(missing)))
 
 
 def d08_both_order_types_used(v):
-    found = {r[0] for r in v.rows("SELECT DISTINCT order_type FROM orders;")}
+    found = {r[0] for r in v.rows("SELECT DISTINCT order_type FROM " + ALL_ORDERS + " o;")}
     missing = enum_constants("OrderType") - found
     require(not missing, "seed data has no " + ", ".join(sorted(missing)) + " orders")
 
 
 def d09_delisted_instrument_still_referenced(v):
     n = v.count(
-        "SELECT count(*) FROM orders o JOIN instruments i USING (instrument_id) "
+        "SELECT count(*) FROM " + ALL_ORDERS + " o JOIN instruments i USING (instrument_id) "
         "WHERE i.active = FALSE;"
     )
     require(n > 0, "no orders point at a delisted instrument, so the case is untested")
@@ -868,7 +904,7 @@ def d11_holding_has_no_negatives(v):
 def _replay_from_db(v):
     rows = v.rows(
         "SELECT client_id, instrument_id, order_type, side, quantity, executed_price "
-        "FROM orders WHERE status = 'FILLED' ORDER BY order_id;"
+        "FROM " + ALL_ORDERS + " o WHERE status = 'FILLED' ORDER BY order_id;"
     )
     holding, positions = {}, {}
     for client_id, instrument_id, order_type, side, quantity, executed in rows:
@@ -989,7 +1025,7 @@ CHECKS = [
     ("C", "negative wallet balance rejected", c22_negative_wallet_balance_rejected),
     ("C", "a generated order_id does not collide", c23_generated_order_id_does_not_collide),
     ("C", "blank auth password rejected", c24_blank_password_rejected),
-    ("C", "audit row for a missing order rejected", c25_history_for_a_missing_order_rejected),
+    ("C", "duplicate settled idempotency key rejected", c25_duplicate_settled_idempotency_key_rejected),
     ("C", "audit row for a real transition accepted", c26_history_accepts_a_real_transition),
     ("C", "audit row with an unknown status rejected", c27_history_rejects_an_unknown_status),
 

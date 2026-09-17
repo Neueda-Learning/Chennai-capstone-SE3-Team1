@@ -23,13 +23,16 @@ public class OrderHistoryEntry {
     private OrderStatus status;
     private String idempotencyKey;
     private LocalDateTime createdOn;
+    /** Why a REJECTED order was refused. Null for every other status. */
+    private String reason;
 
     public OrderHistoryEntry() {
     }
 
     public OrderHistoryEntry(String orderId, Long accountId, String symbol, OrderSide side,
                              Integer quantity, BigDecimal price, BigDecimal executedPrice,
-                             OrderStatus status, String idempotencyKey, LocalDateTime createdOn) {
+                             OrderStatus status, String idempotencyKey, LocalDateTime createdOn,
+                             String reason) {
         this.orderId = orderId;
         this.accountId = accountId;
         this.symbol = symbol;
@@ -40,6 +43,15 @@ public class OrderHistoryEntry {
         this.status = status;
         this.idempotencyKey = idempotencyKey;
         this.createdOn = createdOn;
+        this.reason = reason;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
     public String getOrderId() {

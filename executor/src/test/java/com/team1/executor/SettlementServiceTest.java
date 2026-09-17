@@ -1,6 +1,7 @@
 package com.team1.executor;
 
 import com.team1.executor.mapper.AccountMapper;
+import com.team1.executor.mapper.OrderHistoryMapper;
 import com.team1.executor.mapper.OrderMapper;
 import com.team1.executor.mapper.PositionMapper;
 import com.team1.executor.model.AccountRow;
@@ -37,12 +38,15 @@ class SettlementServiceTest {
     private AccountMapper accountMapper;
     @Mock
     private PositionMapper positionMapper;
+    @Mock
+    private OrderHistoryMapper orderHistoryMapper;
 
     private SettlementService settlementService;
 
     @BeforeEach
     void setUp() {
-        settlementService = new SettlementService(orderMapper, accountMapper, positionMapper, 3);
+        settlementService = new SettlementService(orderMapper, orderHistoryMapper, accountMapper,
+                positionMapper, 3);
     }
 
     private Order createOrder(UUID orderId, Long clientId, OrderSide side, BigDecimal price) {
@@ -80,7 +84,7 @@ class SettlementServiceTest {
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
         when(accountMapper.findByClientIdForUpdate(clientId)).thenReturn(Optional.of(accountRow));
-        when(orderMapper.updateStatusAndExecutedPrice(eq(orderId), eq("FILLED"), eq(executedPrice), any()))
+        when(orderMapper.deleteIfNew(eq(orderId)))
                 .thenReturn(1);
         when(accountMapper.updateWalletBalanceGuarded(eq(clientId), eq(cashDelta), eq(1)))
                 .thenReturn(1);
@@ -96,7 +100,7 @@ class SettlementServiceTest {
         assertThat(result.decision()).isEqualTo(FillDecision.FILL);
         assertThat(result.executedPrice()).isEqualByComparingTo(executedPrice);
 
-        verify(orderMapper).updateStatusAndExecutedPrice(eq(orderId), eq("FILLED"), eq(executedPrice), any());
+        verify(orderMapper).deleteIfNew(eq(orderId));
         verify(accountMapper).updateWalletBalanceGuarded(eq(clientId), eq(cashDelta), eq(1));
         verify(positionMapper).insertHolding(any(PositionRow.class));
     }
@@ -118,7 +122,7 @@ class SettlementServiceTest {
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
         when(accountMapper.findByClientIdForUpdate(clientId)).thenReturn(Optional.of(accountRow));
-        when(orderMapper.updateStatusAndExecutedPrice(eq(orderId), eq("FILLED"), eq(executedPrice), any()))
+        when(orderMapper.deleteIfNew(eq(orderId)))
                 .thenReturn(1);
         when(accountMapper.updateWalletBalanceGuarded(eq(clientId), any(), eq(1)))
                 .thenReturn(0)
@@ -162,7 +166,7 @@ class SettlementServiceTest {
         assertThat(result.success()).isFalse();
         assertThat(result.reason()).isEqualTo("ALREADY_SETTLED_FILLED");
 
-        verify(orderMapper, never()).updateStatusAndExecutedPrice(any(), any(), any(), any());
+        verify(orderMapper, never()).deleteIfNew(any());
         verify(accountMapper, never()).updateWalletBalanceGuarded(any(), any(), anyInt());
     }
 
@@ -183,7 +187,7 @@ class SettlementServiceTest {
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
         when(accountMapper.findByClientIdForUpdate(clientId)).thenReturn(Optional.of(accountRow));
-        when(orderMapper.updateStatusAndExecutedPrice(eq(orderId), eq("FILLED"), eq(executedPrice), any()))
+        when(orderMapper.deleteIfNew(eq(orderId)))
                 .thenReturn(1);
         when(accountMapper.updateWalletBalanceGuarded(eq(clientId), any(), anyInt())).thenReturn(0);
 

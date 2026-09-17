@@ -14,15 +14,10 @@ public interface OrderMapper {
 
     Optional<OrderRow> findByOrderId(UUID orderId);
 
-    int updateStatusAndExecutedPrice(
-            @Param("orderId") UUID orderId,
-            @Param("status") String status,
-            @Param("executedPrice") BigDecimal executedPrice,
-            @Param("executedOn") LocalDateTime executedOn
-    );
-
-    int updateStatusAndReason(
-            @Param("orderId") UUID orderId,
-            @Param("status") String status
-    );
+    /**
+     * Removes an order from the live book, but only while it is still NEW.
+     *
+     * @return 1 if this caller settled it, 0 if someone else already did
+     */
+    int deleteIfNew(@Param("orderId") UUID orderId);
 }

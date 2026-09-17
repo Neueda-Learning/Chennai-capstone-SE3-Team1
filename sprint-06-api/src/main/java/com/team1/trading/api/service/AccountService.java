@@ -111,7 +111,7 @@ public class AccountService {
     private static OrderHistoryEntry toHistoryEntry(OrderRow row) {
         return new OrderHistoryEntry(displayId(row.getOrderUuid()), row.getAccountId(), row.getSymbol(),
                 row.getSide(), row.getQuantity(), row.getPrice(), row.getExecutedPrice(),
-                row.getStatus(), row.getIdempotencyKey(), row.getCreatedAt());
+                row.getStatus(), row.getIdempotencyKey(), row.getCreatedAt(), row.getReason());
     }
 
     private static String displayId(String orderUuid) {

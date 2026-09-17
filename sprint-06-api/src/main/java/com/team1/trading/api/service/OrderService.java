@@ -74,6 +74,9 @@ public class OrderService {
      *
      * <p>Rule 8 is enforced by the {@code uq_orders_idempotency_key} constraint, not by a read
      * then a write, so two concurrent requests with the same key cannot both pass a pre-check.
+     * That constraint only covers orders still in the live book, though: since migration 010 a
+     * settled order is deleted from it and its key lives on in order_history. A key already
+     * used by a settled order therefore has to be caught by an explicit read.
      */
     @Transactional
     public OrderResponse placeOrder(PlaceOrderRequest request, Long tokenAccountId) {
@@ -120,6 +123,10 @@ public class OrderService {
             }
         }
 
+        if (orderMapper.countSettledWithIdempotencyKey(request.getIdempotencyKey()) > 0) {
+            throw new DuplicateOrderException(request.getIdempotencyKey());            // rule 8
+        }
+
         String orderUuid = UUID.randomUUID().toString();
         Order order = new Order(accountId, accountId, request.getSymbol(), OrderType.HOLDING,
                 request.getSide(), BigDecimal.valueOf(quantity), price, request.getIdempotencyKey());
@@ -152,7 +159,10 @@ public class OrderService {
         if (tokenAccountId != null && !tokenAccountId.equals(row.getAccountId())) {
             throw new AccountNotActiveException(row.getAccountId(), "TOKEN");
         }
-        if (orderMapper.markCancelled(orderUuid) == 0) {
+        // Cancelling is terminal, so the order moves to order_history and leaves the live
+        // book. The delete's rowcount is the guard: 0 means it had already settled.
+        orderMapper.archiveCancelled(orderUuid);
+        if (orderMapper.deleteIfNew(orderUuid) == 0) {
             throw new OrderNotCancellableException(displayId(orderUuid), row.getStatus().name());
         }
         return new OrderResponse(displayId(orderUuid), OrderStatus.CANCELLED, "Order cancelled",

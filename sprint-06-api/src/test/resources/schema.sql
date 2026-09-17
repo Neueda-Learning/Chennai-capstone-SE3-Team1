@@ -86,8 +86,25 @@ CREATE TABLE order_history (
     failure_reason    VARCHAR(255),
     api_response      TEXT,
     event_timestamp   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- migration 010: the terminal row carries the order itself, because orders holds
+    -- live orders only and the row is deleted once it settles.
+    client_id         BIGINT,
+    account_id        BIGINT,
+    instrument_id     VARCHAR(20),
+    order_type        VARCHAR(8),
+    side              VARCHAR(4),
+    quantity          DECIMAL(18,4),
+    price             DECIMAL(18,4),
+    executed_price    DECIMAL(18,4),
+    idempotency_key   VARCHAR(100),
+    order_created_at  TIMESTAMP
 );
+
+-- Partial unique index: only the terminal row carries a key, and it is what refuses a
+-- duplicate submission now that the orders row does not outlive settlement.
+CREATE UNIQUE INDEX uq_order_history_idempotency_key
+    ON order_history (idempotency_key);
 
 CREATE TABLE portfolio_holding (
     holding_id      BIGINT AUTO_INCREMENT PRIMARY KEY,

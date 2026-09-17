@@ -31,21 +31,14 @@
         WHERE order_id = #{orderId}
     </select>
 
-    <update id="updateStatusAndExecutedPrice">
-        UPDATE orders
-        SET status = #{status},
-            executed_price = #{executedPrice},
-            updated_at = now()
+    <!-- The order leaves the live book on reaching a terminal state; its details are
+         written onto the terminal order_history row first. The `status = 'NEW'` guard is
+         what makes a replayed Kafka message harmless: the second delete affects zero rows
+         and the caller treats that as "already settled". -->
+    <delete id="deleteIfNew">
+        DELETE FROM orders
         WHERE order_id = #{orderId}
           AND status = 'NEW'
-    </update>
-
-    <update id="updateStatusAndReason">
-        UPDATE orders
-        SET status = #{status},
-            updated_at = now()
-        WHERE order_id = #{orderId}
-          AND status = 'NEW'
-    </update>
+    </delete>
 
 </mapper>

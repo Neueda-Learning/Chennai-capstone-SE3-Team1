@@ -237,11 +237,19 @@ def order_timestamps():
 
 
 def build_orders():
+    """The live book: orders that have not settled.
+
+    Migration 010 made orders NEW-only - a settled order is deleted from it and lives on
+    as its terminal order_history row - so a seeded FILLED order here would be refused by
+    chk_orders_status. The terminal ones are emitted by build_order_history() instead.
+    """
     header = list(ORDER_FIELDS)
     stamps = order_timestamps()
     rows = []
     for raw in ORDERS:
         o = order_dict(raw)
+        if TERMINAL_EVENT.get(o["status"]) is not None:
+            continue
         record = {
             "order_id": order_uuid(o["order_id"]),
             "client_id": o["client_id"],
@@ -265,7 +273,10 @@ def build_orders():
 def build_order_history():
     header = ["history_id", "order_id", "event_type", "previous_status", "new_status",
               "external_status", "external_order_id", "request_id", "failure_code",
-              "failure_reason", "event_timestamp", "created_at"]
+              "failure_reason", "event_timestamp", "created_at",
+              # migration 010: the terminal row is the settled order itself
+              "client_id", "account_id", "instrument_id", "order_type", "side",
+              "quantity", "price", "executed_price", "idempotency_key", "order_created_at"]
     rows = []
     history_id = 0
 
@@ -280,6 +291,8 @@ def build_order_history():
             history_id, order_uuid(o["order_id"]), "CREATED", None, "NEW", None, None,
             "req-" + format(o["order_id"], "06d"), None, None,
             created_stamp, created_stamp,
+            # a CREATED event is a transition, not the order: detail columns stay empty
+            None, None, None, None, None, None, None, None, None, None,
         ])
 
         event = TERMINAL_EVENT.get(o["status"])
@@ -295,6 +308,9 @@ def build_order_history():
             "req-" + format(o["order_id"], "06d"),
             o["failure_code"], o["failure_reason"],
             terminal_stamp, terminal_stamp,
+            o["client_id"], account_id_for(o), o["instrument_id"], o["order_type"], o["side"],
+            o["quantity"], price(o["price"]), executed_price_for(o),
+            o["idempotency_key"], stamps[o["order_id"]][0],
         ])
 
     return header, rows

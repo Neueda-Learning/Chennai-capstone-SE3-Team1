@@ -288,7 +288,7 @@ class TradeApiControllerWebTest {
                     nullable(String.class), nullable(LocalDateTime.class), nullable(LocalDateTime.class)))
                     .willReturn(List.of(new OrderHistoryEntry("ORD-" + ORDER_UUID, 1L, "ACME",
                             OrderSide.BUY, 100, new BigDecimal("25.50"), new BigDecimal("25.50"),
-                            OrderStatus.FILLED, IDEMPOTENCY_KEY, LocalDateTime.of(2026, 9, 28, 9, 14, 22))));
+                            OrderStatus.FILLED, IDEMPOTENCY_KEY, LocalDateTime.of(2026, 9, 28, 9, 14, 22), null)));
 
             mockMvc.perform(get("/api/v1/accounts/{id}/orders", 1L))
                     .andExpect(status().isOk())
@@ -296,7 +296,7 @@ class TradeApiControllerWebTest {
                             [{"orderId":"ORD-%s","accountId":1,"symbol":"ACME","side":"BUY",
                               "quantity":100,"price":25.50,"executedPrice":25.50,
                               "status":"FILLED","idempotencyKey":"%s",
-                              "createdOn":"2026-09-28T09:14:22"}]
+                              "createdOn":"2026-09-28T09:14:22","reason":null}]
                             """.formatted(ORDER_UUID, IDEMPOTENCY_KEY), true));
         }
 

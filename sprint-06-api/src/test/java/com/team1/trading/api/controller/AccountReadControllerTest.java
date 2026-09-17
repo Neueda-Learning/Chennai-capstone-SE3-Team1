@@ -101,7 +101,7 @@ class AccountReadControllerTest {
         // Setup Order History Response
         OrderHistoryEntry historyEntry = new OrderHistoryEntry(
                 "ORD-12345", ACCOUNT_ID, "INFY", OrderSide.BUY, 100, new BigDecimal("1500.00"),
-                new BigDecimal("1500.00"), OrderStatus.FILLED, "IDEM-1", LocalDateTime.now()
+                new BigDecimal("1500.00"), OrderStatus.FILLED, "IDEM-1", LocalDateTime.now(), null
         );
         given(accountService.getOrderHistory(eq(ACCOUNT_ID), any(), any(), any(), any())).willReturn(List.of(historyEntry));
 

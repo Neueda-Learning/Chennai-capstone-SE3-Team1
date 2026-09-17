@@ -26,6 +26,7 @@ def config_for(dbname):
 
 @pytest.fixture(scope="session")
 def server():
+    """The PostgreSQL source. Skips the whole suite when none is reachable."""
     try:
         cfg = config_for("postgres")
     except DbError as exc:
@@ -38,14 +39,14 @@ def server():
 
 
 @pytest.fixture(scope="session")
-def schema_db(server):
-    """A database with the operational and analytics schemas applied and no seed."""
+def source_db(server):
+    """A PostgreSQL database with the operational schema applied and no seed rows."""
     import apply_db
 
     cfg = config_for(TEST_DB)
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        code = apply_db.main(["--dbname", TEST_DB, "--reset", "--analytics", "--migrations-only"])
+        code = apply_db.main(["--dbname", TEST_DB, "--reset", "--migrations-only"])
     if code != 0:
         raise AssertionError("could not build " + TEST_DB + ":\n" + out.getvalue()[-2000:])
     yield cfg
@@ -53,18 +54,30 @@ def schema_db(server):
 
 
 @pytest.fixture
-def db(schema_db):
-    """schema_db with every data table emptied, so each test starts from nothing."""
-    schema_db.run_or_die(
-        "resetting test data",
+def pg(source_db):
+    """source_db with every data table emptied, so each test starts from nothing."""
+    source_db.run_or_die(
+        "resetting source data",
         sql=(
-            "TRUNCATE analytics.fact_trades, analytics.dead_letter_trades, "
-            "analytics.dim_instrument, analytics.dim_account, analytics.dim_date "
-            "RESTART IDENTITY CASCADE; "
-            "UPDATE analytics.load_watermark SET last_watermark = NULL, last_load_id = NULL, "
-            "last_run_at = NULL, rows_merged = 0, rows_dead_lettered = 0; "
             "TRUNCATE order_history, orders, portfolio_holding, portfolio_positions, auth, "
             "clients, bank_account, instruments RESTART IDENTITY CASCADE;"
         ),
     )
-    return schema_db
+    return source_db
+
+
+@pytest.fixture
+def warehouse(tmp_path):
+    """A DuckDB warehouse of its own per test, with the analytics schema applied.
+
+    A file rather than :memory: because that is how it runs for real, and because the
+    loader opens the path it is given.
+    """
+    import load_fact_trades as loader
+
+    db_path = tmp_path / "warehouse.duckdb"
+    con = loader.connect_duckdb(db_path)
+    with contextlib.redirect_stdout(io.StringIO()):
+        loader.apply_schema(con, db_path)
+    yield con
+    con.close()

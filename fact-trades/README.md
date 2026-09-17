@@ -1,14 +1,18 @@
 # fact-trades — incremental load into FACT_TRADES
 
-Moves every order that reached a terminal state out of the trade database
-(`public.orders` + `public.order_history`) into a star schema under the
-`analytics` schema of the same PostgreSQL database: `fact_trades` and its three
-dimensions `dim_date`, `dim_instrument`, `dim_account`. The load is driven by a
-watermark on `orders.created_at`, merges on `order_id`, and dead-letters any row
-that fails a quality check instead of dropping it.
+Moves every order that reached a terminal state out of the operational
+PostgreSQL database (`public.orders` + `public.order_history`) into a star schema
+in a **DuckDB** warehouse: `analytics.fact_trades` and its three dimensions
+`dim_date`, `dim_instrument`, `dim_account`. The load is driven by a watermark on
+`orders.created_at`, merges on `order_id`, and dead-letters any row that fails a
+quality check instead of dropping it.
 
-Needs the same things `scripts/apply_db.py` needs: `psql` and Python 3.8+. No
-third-party packages (`pytest` to run the tests).
+The warehouse defaults to `warehouse.duckdb` at the repo root — the same file
+`ETL_Analysis` writes `daily_price` into — so a trade can be joined against the
+price series without crossing a database boundary. Override it with `--db`.
+
+Needs `psql` (to read the source), Python 3.8+ and `duckdb`
+(`pip install duckdb`). `pytest` to run the tests.
 
 ## The three pipeline commands
 
@@ -16,8 +20,8 @@ Each stage can be run on its own. Connection flags, `PG*`-style env vars and
 `.env` work exactly as for `apply_db.py`.
 
 ```
-# 1. schema — creates analytics.* (idempotent; tracked in schema_migrations as fact-trades/…)
-python scripts/apply_db.py --analytics --migrations-only
+# 1. schema — create analytics.* in the DuckDB warehouse (idempotent)
+python fact-trades/load_fact_trades.py schema
 
 # 2. dimensions — dim_date for the whole range, then dim_instrument, then dim_account
 python fact-trades/load_fact_trades.py dims
@@ -26,13 +30,17 @@ python fact-trades/load_fact_trades.py dims
 python fact-trades/load_fact_trades.py facts
 ```
 
-`load_fact_trades.py all` runs 2 then 3. Useful flags on the facts stage:
+`load_fact_trades.py all` runs all three in order. Useful flags:
 
 ```
---dry-run                 validate and report; write nothing
+--db path/to.duckdb       warehouse file (default: warehouse.duckdb at the repo root)
+--dry-run                 facts stage: validate and report; write nothing
 --since 2026-01-01        ignore the stored watermark and re-extract from here
 --load-id my-run          stamp every row this run writes with a name you choose
 ```
+
+Connection flags for the PostgreSQL *source* (`--host`, `--dbname`, `--password`,
+…) work exactly as they do for `apply_db.py`.
 
 Run the dimensions before the facts, every time. The fact stage refuses a row
 whose instrument, client or date is not in its dimension and never inserts a
@@ -73,8 +81,8 @@ The summary it prints tells you what to expect from the next load.
 ```
 fact-trades/
   migrations/
-    001_analytics_dimensions.sql   analytics schema, dim_date, dim_instrument, dim_account
-    002_fact_trades.sql            fact_trades, dead_letter_trades, load_watermark
+    001_analytics_dimensions.sql   DuckDB DDL: dim_date, dim_instrument, dim_account
+    002_fact_trades.sql            DuckDB DDL: fact_trades, dead_letter_trades, load_watermark
   transform.py                     the row checks; pure functions, no database
   simulate_orders.py               writes new good / failed / bad orders to load
   load_fact_trades.py              the dims / facts / all stages
@@ -110,7 +118,7 @@ Rejected and cancelled orders are loaded deliberately: fill rate is
    `dead_letter_trades` with `check_name`, `reason`, `load_id` and the whole
    source row as JSONB; a row that passes becomes an
    `INSERT … ON CONFLICT (order_id) DO UPDATE`.
-5. Run all of those plus the watermark update as one `psql` transaction, so
+5. Run all of those plus the watermark update as one DuckDB transaction, so
    either everything from this run lands or nothing does.
 
 ### The checks, in order
@@ -162,12 +170,18 @@ the row is picked up on `--since` replay. If that becomes routine the watermark
 should move to `order_history.event_timestamp`; the schema already carries
 `terminal_at` for it.
 
-**Separate `analytics` schema in the same database**, not a second database
-and not DuckDB. It keeps the load a single-server transaction and lets the
-existing `apply_db.py` ledger track the DDL.
+**DuckDB for the warehouse, PostgreSQL for the source.** The operational
+database stays the system of record; the star schema is derived from it and can
+be rebuilt at any time. Putting it in the same DuckDB file as `ETL_Analysis`
+leaves `fact_trades` and `daily_price` one join apart, which is the point of
+having a warehouse at all.
 
-**No third-party driver.** The loader goes through the same `psql`-based
-`DbConfig` as every other script in this repo, so it runs wherever they run.
+DuckDB allows many readers or one writer, not both. If a load cannot open the
+file, something else is holding it — usually the ETL_Analysis dashboard.
+
+**No third-party driver on the source side.** Reads go through the same
+`psql`-based `DbConfig` as every other script in this repo; only the warehouse
+side needs the `duckdb` package.
 
 ## Something this found on the first run
 

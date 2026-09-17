@@ -10,7 +10,6 @@ import trustme_secrets as trustme
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
-ANALYTICS_MIGRATIONS_DIR = REPO_ROOT / "fact-trades" / "migrations"
 SEED_DIR = REPO_ROOT / "seed"
 ENV_FILE = REPO_ROOT / ".env"
 

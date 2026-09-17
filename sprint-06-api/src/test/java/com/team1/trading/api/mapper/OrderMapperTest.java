@@ -97,12 +97,14 @@ class OrderMapperTest {
 
         orderMapper.insert(insert);
 
-        // Cancel order for status = 'NEW'
-        int cancelCount = orderMapper.markCancelled(uuidStr);
+        // Cancelling moves the order to order_history, then removes it from the live book
+        orderMapper.archiveCancelled(uuidStr);
+        int cancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(cancelCount).isEqualTo(1);
 
-        // Repeat cancel attempt on already cancelled order (guard should fail)
-        int secondCancelCount = orderMapper.markCancelled(uuidStr);
+        // Repeat cancel attempt: the order has left the live book, so the guard reports zero
+        orderMapper.archiveCancelled(uuidStr);
+        int secondCancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(secondCancelCount).isEqualTo(0);
     }
 

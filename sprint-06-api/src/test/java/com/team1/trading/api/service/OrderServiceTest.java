@@ -358,7 +358,7 @@ class OrderServiceTest {
         void cancelNewOrder() {
             given(orderMapper.findByUuid("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e"))
                     .willReturn(Optional.of(newOrderRow()));
-            given(orderMapper.markCancelled("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
+            given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
 
             var response = orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null);
 
@@ -386,7 +386,7 @@ class OrderServiceTest {
             assertThatThrownBy(() -> orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", 5L))
                     .isInstanceOf(AccountNotActiveException.class)
                     .hasMessage("Account not active");
-            verify(orderMapper, never()).markCancelled(any());
+            verify(orderMapper, never()).deleteIfNew(any());
         }
 
         @Test
@@ -396,7 +396,7 @@ class OrderServiceTest {
             row.setStatus(OrderStatus.FILLED);
             given(orderMapper.findByUuid("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e"))
                     .willReturn(Optional.of(row));
-            given(orderMapper.markCancelled("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(0);
+            given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(0);
 
             assertThatThrownBy(() -> orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null))
                     .isInstanceOf(OrderNotCancellableException.class)

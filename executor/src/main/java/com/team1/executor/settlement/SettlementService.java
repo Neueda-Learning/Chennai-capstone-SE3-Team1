@@ -1,6 +1,7 @@
 package com.team1.executor.settlement;
 
 import com.team1.executor.mapper.AccountMapper;
+import com.team1.executor.mapper.OrderHistoryMapper;
 import com.team1.executor.mapper.OrderMapper;
 import com.team1.executor.mapper.PositionMapper;
 import com.team1.executor.model.AccountRow;
@@ -28,15 +29,18 @@ import java.util.Optional;
 public class SettlementService {
 
     private final OrderMapper orderMapper;
+    private final OrderHistoryMapper orderHistoryMapper;
     private final AccountMapper accountMapper;
     private final PositionMapper positionMapper;
     private final int maxOptimisticLockRetries;
 
     public SettlementService(OrderMapper orderMapper,
+                             OrderHistoryMapper orderHistoryMapper,
                              AccountMapper accountMapper,
                              PositionMapper positionMapper,
                              @org.springframework.beans.factory.annotation.Value("${executor.optimistic-lock-max-retries}") int maxOptimisticLockRetries) {
         this.orderMapper = orderMapper;
+        this.orderHistoryMapper = orderHistoryMapper;
         this.accountMapper = accountMapper;
         this.positionMapper = positionMapper;
         this.maxOptimisticLockRetries = maxOptimisticLockRetries;
@@ -101,11 +105,16 @@ public class SettlementService {
             throw new InsufficientFundsException(accountRow.clientId(), cashDelta.abs(), accountRow.walletBalance());
         }
 
-        int rows = orderMapper.updateStatusAndExecutedPrice(
-                order.getOrderId(), "FILLED", executedPrice, LocalDateTime.now());
+        // The guarded delete is the idempotency check: a replayed message finds the order
+        // already gone from the live book and affects zero rows.
+        int rows = orderMapper.deleteIfNew(order.getOrderId());
         if (rows == 0) {
             return 0;
         }
+
+        // Same transaction as the delete. orderRow was read before the delete, so it still
+        // carries everything the order was - this row is now its only record.
+        orderHistoryMapper.insertTerminal(orderRow, "FILLED", "FILLED", executedPrice, null, null);
 
         boolean balanceUpdated = updateAccountBalanceWithRetry(accountRow.clientId(), cashDelta, accountRow.version());
         if (!balanceUpdated) {
@@ -118,11 +127,27 @@ public class SettlementService {
     }
 
     private int executeReject(Order order, OrderRow orderRow, FillRuleResult fillResult) {
-        int rows = orderMapper.updateStatusAndReason(order.getOrderId(), "REJECTED");
+        int rows = orderMapper.deleteIfNew(order.getOrderId());
         if (rows == 0) {
             return 0;
         }
+        // The rule name is the only record of why this order was refused, and this row is
+        // now the only record that the order existed at all.
+        orderHistoryMapper.insertTerminal(orderRow, "REJECTED", "REJECTED", null,
+                fillResult.reason(), describeReason(fillResult.reason()));
         return 1;
+    }
+
+    /** Turns a rule name into the sentence order_history.failure_reason is meant to hold. */
+    private static String describeReason(String code) {
+        if (code == null) {
+            return null;
+        }
+        return switch (code) {
+            case "BUY_LIMIT_BELOW_ASK" -> "Limit price is below the current ask, so the buy cannot be filled";
+            case "SELL_LIMIT_ABOVE_BID" -> "Limit price is above the current bid, so the sell cannot be filled";
+            default -> code;
+        };
     }
 
     private BigDecimal calculateCashDelta(Order order, BigDecimal executedPrice) {
