@@ -4,7 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.team1.trading.api.event.OrderPlacedEvent;
+import com.team1.eventbus.Envelope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 /**
  * Characterisation tests that pin the Sprint 7 order placement path: an accepted order is
  * written at {@code NEW}, answered {@code NEW} with message "Order accepted", and an
- * {@link OrderPlacedEvent} is published to the {@code orders} Kafka topic keyed by the account.
+ * {@link Envelope} wrapping the {@code ORDER_PLACED} payload is published to the {@code orders}
+ * Kafka topic keyed by the account.
  *
  * <p>The observations they deliberately freeze are:
  *
@@ -51,9 +52,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       {@code external_order_id};</li>
  *   <li>the placement moves no cash and writes no position books: the wallet and version are
  *       untouched and no {@code portfolio_positions} / {@code portfolio_holding} row appears;</li>
- *   <li>the event is delivered to the {@code orders} topic, keyed by the account id, carrying the
- *       order uuid, symbol, side, quantity, limit price, the idempotency key and a placed-at
- *       timestamp;</li>
+ *   <li>the event is delivered to the {@code orders} topic, keyed by the account id, wrapped in
+ *       the shared five-field envelope ({@code eventId}, {@code eventType}, {@code eventTime},
+ *       {@code source}, {@code schemaVersion}) whose payload carries the order id, symbol, side,
+ *       quantity, limit price, the idempotency key and a created-on timestamp;</li>
  *   <li>an unaffordable buy answers ORD-400, an unknown symbol INS-404, an inactive account
  *       ACC-403, and none of them write an order or publish an event;</li>
  *   <li>a reused idempotency key answers ORD-409, writes nothing twice and publishes nothing
@@ -61,8 +63,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * </ul>
  *
  * <p>These pins changed together with the Sprint 7 source change (the previous baseline pinned
- * a synchronous FILLED, a cash debit and a started position). The Kafka template is a mock - the
- * pin is about what is sent and when, not about a broker.
+ * a synchronous FILLED, a cash debit and a started position), and again when the JIRA-3 producer
+ * was wrapped in the envelope. The Kafka template is a mock - the pin is about what is sent and
+ * when, not about a broker.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -90,7 +93,7 @@ class OrderPlacementCharacterisationTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
+    private KafkaTemplate<String, Envelope> kafkaTemplate;
 
     private String tokenAccountOne;
     private String tokenAccountTwo;
@@ -175,18 +178,25 @@ class OrderPlacementCharacterisationTest {
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         String orderUuid = orderUuidFrom(result).toString();
 
-        ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
-        verify(kafkaTemplate).send(eq(ORDERS_TOPIC), eq("2"), eventCaptor.capture());
+        ArgumentCaptor<Envelope> envelopeCaptor = ArgumentCaptor.forClass(Envelope.class);
+        verify(kafkaTemplate).send(eq(ORDERS_TOPIC), eq("2"), envelopeCaptor.capture());
 
-        OrderPlacedEvent event = eventCaptor.getValue();
-        assertThat(event.orderUuid()).isEqualTo(orderUuid);
-        assertThat(event.accountId()).isEqualTo(2L);
-        assertThat(event.symbol()).isEqualTo("INFY");
-        assertThat(event.side().name()).isEqualTo("BUY");
-        assertThat(event.quantity()).isEqualTo(10);
-        assertThat(event.price()).isEqualByComparingTo(ONE_HUNDRED);
-        assertThat(event.idempotencyKey()).isEqualTo(idempotencyKey);
-        assertThat(event.placedAt()).isNotNull();
+        Envelope envelope = envelopeCaptor.getValue();
+        assertThat(envelope.eventType()).isEqualTo("ORDER_PLACED");
+        assertThat(envelope.source()).isEqualTo("trade-api");
+        assertThat(envelope.schemaVersion()).isEqualTo(1);
+        assertThat(envelope.eventId()).isNotNull();
+        assertThat(envelope.eventTime()).isNotNull();
+
+        JsonNode payload = envelope.payload();
+        assertThat(payload.path("orderId").asText()).isEqualTo(orderUuid);
+        assertThat(payload.path("accountId").asLong()).isEqualTo(2L);
+        assertThat(payload.path("symbol").asText()).isEqualTo("INFY");
+        assertThat(payload.path("side").asText()).isEqualTo("BUY");
+        assertThat(payload.path("quantity").asInt()).isEqualTo(10);
+        assertThat(payload.path("price").decimalValue()).isEqualByComparingTo(ONE_HUNDRED);
+        assertThat(payload.path("idempotencyKey").asText()).isEqualTo(idempotencyKey);
+        assertThat(payload.path("createdOn").asText()).isNotBlank();
     }
 
     @Test
@@ -209,9 +219,10 @@ class OrderPlacementCharacterisationTest {
         assertThat(walletBalance(5L)).as("no second cash move").isEqualByComparingTo(new BigDecimal("92750.25"));
         assertThat(ordersWithKey(idempotencyKey)).as("one order row only").isEqualTo(1);
 
-        ArgumentCaptor<OrderPlacedEvent> eventCaptor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
-        verify(kafkaTemplate, times(1)).send(eq(ORDERS_TOPIC), eq("5"), eventCaptor.capture());
-        assertThat(eventCaptor.getValue().idempotencyKey()).isEqualTo(idempotencyKey);
+        ArgumentCaptor<Envelope> envelopeCaptor = ArgumentCaptor.forClass(Envelope.class);
+        verify(kafkaTemplate, times(1)).send(eq(ORDERS_TOPIC), eq("5"), envelopeCaptor.capture());
+        assertThat(envelopeCaptor.getValue().payload().path("idempotencyKey").asText())
+                .isEqualTo(idempotencyKey);
     }
 
     @Test

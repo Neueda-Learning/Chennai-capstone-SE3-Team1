@@ -1,5 +1,7 @@
 package com.team1.trading.api.event;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.team1.eventbus.Envelope;
 import com.team1.trading.api.dto.OrderResponse;
 import com.team1.trading.api.service.OrderService;
 import com.team1.trading.domain.dto.PlaceOrderRequest;
@@ -49,7 +51,7 @@ class KafkaOrderEventPublisherTest {
     private PlatformTransactionManager transactionManager;
 
     @MockitoBean
-    private KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
+    private KafkaTemplate<String, Envelope> kafkaTemplate;
 
     @Test
     @DisplayName("ORDER_PLACED is not sent inside the transaction, and is sent once the commit is done")
@@ -62,19 +64,27 @@ class KafkaOrderEventPublisherTest {
             verify(kafkaTemplate, never()).send(any(), any(), any());
         });
 
-        ArgumentCaptor<OrderPlacedEvent> captor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+        ArgumentCaptor<Envelope> captor = ArgumentCaptor.forClass(Envelope.class);
         verify(kafkaTemplate).send(eq(TOPIC), eq("1"), captor.capture());
 
-        OrderPlacedEvent event = captor.getValue();
-        assertThat(event.orderUuid()).isEqualTo(response.get().getOrderId().substring("ORD-".length()));
-        assertThat(event.key()).isEqualTo("1");
-        assertThat(event.accountId()).isEqualTo(1L);
-        assertThat(event.symbol()).isEqualTo("INFY");
-        assertThat(event.side()).isEqualTo(OrderSide.BUY);
-        assertThat(event.quantity()).isEqualTo(10);
-        assertThat(event.price()).isEqualByComparingTo(new BigDecimal("100.00"));
-        assertThat(event.idempotencyKey()).isNotNull();
-        assertThat(event.placedAt()).isNotNull();
+        Envelope envelope = captor.getValue();
+        assertThat(envelope.eventType()).isEqualTo("ORDER_PLACED");
+        assertThat(envelope.source()).isEqualTo("trade-api");
+        assertThat(envelope.schemaVersion()).isEqualTo(1);
+        assertThat(envelope.eventId()).isNotNull();
+        assertThat(envelope.eventTime()).isNotNull();
+
+        JsonNode payload = envelope.payload();
+        assertThat(payload.has("orderId")).isTrue();
+        assertThat(payload.path("orderId").asText())
+                .isEqualTo(response.get().getOrderId().substring("ORD-".length()));
+        assertThat(payload.path("accountId").asLong()).isEqualTo(1L);
+        assertThat(payload.path("symbol").asText()).isEqualTo("INFY");
+        assertThat(payload.path("side").asText()).isEqualTo("BUY");
+        assertThat(payload.path("quantity").asInt()).isEqualTo(10);
+        assertThat(payload.path("price").decimalValue()).isEqualByComparingTo(new BigDecimal("100.00"));
+        assertThat(payload.path("idempotencyKey").asText()).isNotBlank();
+        assertThat(payload.path("createdOn").asText()).isNotBlank();
     }
 
     @Test
