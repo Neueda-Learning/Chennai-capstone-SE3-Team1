@@ -78,6 +78,7 @@ public class PostgresCharactDbInitializer
         props.put("spring.datasource.password", s.password);
         props.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
         props.put("spring.jpa.database-platform", "org.hibernate.dialect.PostgreSQLDialect");
+        props.put("spring.sql.init.schema-locations", "classpath:charact-schema.sql");
         return props;
     }
 
