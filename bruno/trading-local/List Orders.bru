@@ -1,0 +1,11 @@
+meta {
+  name: List Orders
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/accounts/{{accountId}}/orders
+  body: none
+  auth: inherit
+}

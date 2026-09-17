@@ -45,6 +45,8 @@ spring:
 mybatis:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.team1.executor.mapper
+  # UUID has no built-in handler and orders.order_id needs one.
+  type-handlers-package: com.team1.executor.mapper.typehandler
   configuration:
     map-underscore-to-camel-case: true
 

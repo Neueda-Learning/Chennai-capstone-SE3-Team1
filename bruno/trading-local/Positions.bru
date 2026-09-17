@@ -1,0 +1,11 @@
+meta {
+  name: Positions
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/accounts/{{accountId}}/positions
+  body: none
+  auth: inherit
+}

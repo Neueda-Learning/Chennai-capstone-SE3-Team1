@@ -1,0 +1,11 @@
+meta {
+  name: Balance
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/accounts/{{accountId}}/balance
+  body: none
+  auth: inherit
+}
