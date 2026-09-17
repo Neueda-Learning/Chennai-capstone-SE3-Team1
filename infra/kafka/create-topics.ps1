@@ -1,7 +1,7 @@
 # Creates the six contracted topics (three source + three dead-letter) on the
 # team's broker. Idempotent: safe to run as many times as you like.
 #
-# Run from the repository root with the stack up:
+# Run from the repository root:
 #   .\infra\kafka\create-topics.ps1
 
 $ErrorActionPreference = "Stop"

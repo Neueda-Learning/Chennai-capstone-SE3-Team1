@@ -5,31 +5,27 @@ set -Eeuo pipefail
 # team's broker. Idempotent: safe to run as many times as you like.
 #
 # Run from the repository root:
-#   docker compose up -d
+#   docker compose up -d --build
 #   bash infra/kafka/create-topics.sh
 
 KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
 KAFKA_SERVICE="${KAFKA_SERVICE:-kafka}"
 
-if command -v docker >/dev/null 2>&1; then
-    DOCKER="docker"
+if docker compose version >/dev/null 2>&1; then
+    compose_cmd() {
+        docker compose "$@"
+    }
 elif command -v docker-compose >/dev/null 2>&1; then
-    DOCKER="docker-compose"
+    compose_cmd() {
+        docker-compose "$@"
+    }
 else
-    echo "docker not found on PATH" >&2
+    echo "Neither 'docker compose' nor 'docker-compose' is available on PATH" >&2
     exit 1
 fi
 
-docker_compose() {
-    if [ "$DOCKER" = "docker" ]; then
-        docker compose "$@"
-    else
-        docker-compose "$@"
-    fi
-}
-
 kafka_topics() {
-    docker_compose exec -T "$KAFKA_SERVICE" \
+    compose_cmd exec -T "$KAFKA_SERVICE" \
         /opt/kafka/bin/kafka-topics.sh "$@"
 }
 
