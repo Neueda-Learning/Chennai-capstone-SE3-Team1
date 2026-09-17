@@ -8,13 +8,13 @@ FROM maven:3.9.16-eclipse-temurin-21 AS build
 WORKDIR /src
 
 # Build sprint-05-domain-engine first
-COPY ../sprint-05-domain-engine/pom.xml ./sprint-05-domain-engine/pom.xml
-COPY ../sprint-05-domain-engine/src ./sprint-05-domain-engine/src
+COPY sprint-05-domain-engine/pom.xml ./sprint-05-domain-engine/pom.xml
+COPY sprint-05-domain-engine/src ./sprint-05-domain-engine/src
 RUN mvn -B -q -f ./sprint-05-domain-engine/pom.xml clean install
 
 # Build sprint-07-eventbus (required dependency for sprint-06-api)
-COPY ../sprint-07/eventbus/pom.xml ./sprint-07/eventbus/pom.xml
-COPY ../sprint-07/eventbus/src ./sprint-07/eventbus/src
+COPY sprint-07/eventbus/pom.xml ./sprint-07/eventbus/pom.xml
+COPY sprint-07/eventbus/src ./sprint-07/eventbus/src
 RUN mvn -B -q -f ./sprint-07/eventbus/pom.xml clean install
 
 # Now build sprint-06-api
