@@ -38,21 +38,34 @@ public interface OrderMapper {
      * Since migration 010 an order lives in one of two places: orders while it is still
      * NEW, order_history once it has settled and been removed from the live book. Both
      * are searched, so callers do not have to know which stage it is at.
+     *
+     * <p>Normally only one side matches. The ordering and LIMIT are there because the two
+     * can overlap - reloading seed data into a drained live book re-inserts fixed-id orders
+     * that have already settled, for instance - and an ambiguous lookup would otherwise
+     * surface as an internal error rather than an answer. The live row wins, because it is
+     * the order's current state.
      */
     @Select("""
-            SELECT order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
-                   instrument_id AS symbol, side, quantity, price, executed_price AS executedPrice,
-                   status, idempotency_key AS idempotencyKey, created_at AS createdAt,
-                   CAST(NULL AS VARCHAR) AS reason
-            FROM orders
-            WHERE order_id = #{orderUuid}::uuid
-            UNION ALL
-            SELECT order_id, client_id, account_id, instrument_id, side, quantity, price,
-                   executed_price, new_status, idempotency_key, order_created_at,
-                   failure_code
-            FROM order_history
-            WHERE order_id = #{orderUuid}::uuid
-              AND idempotency_key IS NOT NULL
+            SELECT * FROM (
+                SELECT 0 AS liveFirst,
+                       order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
+                       instrument_id AS symbol, side, quantity, price,
+                       executed_price AS executedPrice,
+                       status, idempotency_key AS idempotencyKey, created_at AS createdAt,
+                       CAST(NULL AS VARCHAR) AS reason
+                FROM orders
+                WHERE order_id = #{orderUuid}::uuid
+                UNION ALL
+                SELECT 1,
+                       order_id, client_id, account_id, instrument_id, side, quantity, price,
+                       executed_price, new_status, idempotency_key, order_created_at,
+                       failure_code
+                FROM order_history
+                WHERE order_id = #{orderUuid}::uuid
+                  AND idempotency_key IS NOT NULL
+            ) o
+            ORDER BY o.liveFirst
+            LIMIT 1
             """)
     Optional<OrderRow> findByUuid(@Param("orderUuid") String orderUuid);
 

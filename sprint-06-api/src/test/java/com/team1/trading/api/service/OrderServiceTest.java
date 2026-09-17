@@ -354,7 +354,31 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("A NEW order cancels through the guarded transition and returns CANCELLED")
+        @DisplayName("The ORD- id the API hands out is accepted, not rejected as a bad UUID")
+        void cancelAcceptsTheDisplayId() {
+            given(orderMapper.findByUuid("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e"))
+                    .willReturn(Optional.of(newOrderRow()));
+            given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
+
+            // every response carries orderId as ORD-<uuid>, so echoing it back is the normal case
+            var response = orderService.cancel("ORD-6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null);
+
+            assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+            verify(orderMapper).deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e");
+        }
+
+        @Test
+        @DisplayName("An id that is not a UUID is ORD-409, never an internal error")
+        void cancelRejectsAMalformedId() {
+            assertThatThrownBy(() -> orderService.cancel("not-an-order", null))
+                    .isInstanceOf(OrderNotFoundException.class);
+            // it must not reach the database and fail there as a 500
+            verify(orderMapper, never()).findByUuid(any());
+            verify(orderMapper, never()).deleteIfNew(any());
+        }
+
+        @Test
+        @DisplayName("Cancelling a NEW order moves it to order_history and out of the live book")
         void cancelNewOrder() {
             given(orderMapper.findByUuid("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e"))
                     .willReturn(Optional.of(newOrderRow()));
@@ -370,9 +394,12 @@ class OrderServiceTest {
         @Test
         @DisplayName("An unknown order is ORD-409 OrderNotFoundException")
         void cancelUnknownOrder() {
-            given(orderMapper.findByUuid("missing")).willReturn(Optional.empty());
+            // a well-formed id that matches nothing, so this exercises the lookup rather
+            // than the id check that cancelRejectsAMalformedId covers
+            String absent = "00000000-0000-4000-8000-000000000000";
+            given(orderMapper.findByUuid(absent)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.cancel("missing", null))
+            assertThatThrownBy(() -> orderService.cancel(absent, null))
                     .isInstanceOf(OrderNotFoundException.class)
                     .hasMessage("Order not found");
         }

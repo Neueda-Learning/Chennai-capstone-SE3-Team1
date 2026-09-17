@@ -153,7 +153,8 @@ public class OrderService {
      * followed by a write.
      */
     @Transactional
-    public OrderResponse cancel(String orderUuid, Long tokenAccountId) {
+    public OrderResponse cancel(String orderId, Long tokenAccountId) {
+        String orderUuid = toOrderUuid(orderId);
         OrderRow row = orderMapper.findByUuid(orderUuid)
                 .orElseThrow(() -> new OrderNotFoundException(displayId(orderUuid)));
         if (tokenAccountId != null && !tokenAccountId.equals(row.getAccountId())) {
@@ -191,8 +192,30 @@ public class OrderService {
         return insert;
     }
 
+    private static final String ORDER_ID_PREFIX = "ORD-";
+
     private static String displayId(String orderUuid) {
-        return "ORD-" + orderUuid;
+        return ORDER_ID_PREFIX + orderUuid;
+    }
+
+    /**
+     * Accepts an order id in the form the API hands out and returns the bare UUID.
+     *
+     * <p>Every response carries {@code orderId} as {@code ORD-<uuid>}, so a caller echoing
+     * back what it was given is the normal case, not a mistake. The prefix used to reach the
+     * UUID cast in SQL and fail as a 500; an id that is not a UUID at all is a lookup that
+     * cannot match, which is ORD-409 rather than an internal error.
+     */
+    private static String toOrderUuid(String orderId) {
+        String value = orderId == null ? "" : orderId.trim();
+        if (value.regionMatches(true, 0, ORDER_ID_PREFIX, 0, ORDER_ID_PREFIX.length())) {
+            value = value.substring(ORDER_ID_PREFIX.length());
+        }
+        try {
+            return UUID.fromString(value).toString();
+        } catch (IllegalArgumentException e) {
+            throw new OrderNotFoundException(displayId(value));
+        }
     }
 
     private static BigDecimal money(BigDecimal value) {
