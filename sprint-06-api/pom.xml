@@ -61,6 +61,15 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
 
+        <!-- Message envelope contract (contracts/kafka-topics.md, sprint-07/design/kafka.md #6):
+             every Kafka record is wrapped so one deserialiser and one dead-letter handler
+             cover the platform. -->
+        <dependency>
+            <groupId>com.team1</groupId>
+            <artifactId>eventbus</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
