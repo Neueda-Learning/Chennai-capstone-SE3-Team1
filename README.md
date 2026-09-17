@@ -212,3 +212,9 @@ belongs in (`orders.order_type`) and keeps the two books separate, but does not
 move fills into them.
 
 See [docs/erd.md](docs/erd.md) for the ERD and the details.
+
+expkanation notes:
+
+
+https://docs.google.com/document/d/1fvL2R_WznAWwYjYo0BIXtxNJE9ruwlM1ofZsSb8BdIA/edit?usp=sharing
+
