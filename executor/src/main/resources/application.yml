@@ -40,18 +40,20 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-  mybatis:
-    mapper-locations: classpath*:/mapper/**/*.xml
-    type-aliases-package: com.team1.executor.mapper
-    configuration:
-      map-underscore-to-camel-case: true
-
 trustme:
   key-file: ../leapcapstoneteam1-720d03.TM
 
+mybatis:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.team1.executor.model
+  type-handlers-package: com.team1.executor.mybatis
+  configuration:
+    map-underscore-to-camel-case: true
+
+
 fauxnance:
   base-url: ${FAUXNANCE_BASE_URL:https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1}
-  api-key: ${FAUXNANCE_API_KEY:fnx_dev_52KrPRXdxfUIavsuPCwEr7lOrb4QPUYv}
+  api-key: ${FAUXNANCE_API_KEY:}
   timeout-seconds: 5
   max-retries: 3
   retry-backoff-ms: 1000

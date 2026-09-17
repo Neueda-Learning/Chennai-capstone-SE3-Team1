@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.team1.trading.domain.entity.types.OrderSide;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /**
  * Payload of the {@code ORDER_PLACED} event published to the {@code orders} Kafka topic when an
@@ -30,7 +32,7 @@ import java.time.LocalDateTime;
  * @param price          the limit price submitted with the order; the executor prices with a live
  *                       quote, this is carried for the executor's own affordability decision
  * @param idempotencyKey the client's idempotency key, for replay correlation
- * @param placedAt       when the order was placed
+ * @param createdOnUtc   when the order was placed, normalised to UTC for RFC 3339 wire format
  */
 public record OrderPlacedEvent(
         @JsonProperty("orderId") String orderUuid,
@@ -40,7 +42,7 @@ public record OrderPlacedEvent(
         @JsonProperty("quantity") Integer quantity,
         @JsonProperty("price") BigDecimal price,
         @JsonProperty("idempotencyKey") String idempotencyKey,
-        @JsonProperty("createdOn") LocalDateTime placedAt) {
+        @JsonProperty("createdOn") Instant createdOnUtc) {
 
     public static final String EVENT_TYPE = "ORDER_PLACED";
     public static final String TOPIC = "orders";
@@ -48,8 +50,9 @@ public record OrderPlacedEvent(
     public static OrderPlacedEvent of(String orderUuid, Long accountId, String symbol, OrderSide side,
                                       Integer quantity, BigDecimal price, String idempotencyKey,
                                       LocalDateTime placedAt) {
+        // The order row stores local date-time; the wire contract expects an absolute UTC instant.
         return new OrderPlacedEvent(orderUuid, accountId, symbol, side, quantity, price,
-                idempotencyKey, placedAt);
+                idempotencyKey, placedAt.toInstant(ZoneOffset.UTC));
     }
 
     /** The Kafka record key: the account the order belongs to. */

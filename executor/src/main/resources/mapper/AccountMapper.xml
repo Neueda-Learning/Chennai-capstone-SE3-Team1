@@ -3,16 +3,18 @@
 <mapper namespace="com.team1.executor.mapper.AccountMapper">
 
     <resultMap id="accountResultMap" type="com.team1.executor.model.AccountRow">
-        <id property="clientId" column="client_id"/>
-        <result property="accountNumber" column="account_number"/>
-        <result property="name" column="name"/>
-        <result property="email" column="email"/>
-        <result property="phone" column="phone"/>
-        <result property="createdOn" column="created_on"/>
-        <result property="accountState" column="account_state"/>
-        <result property="walletBalance" column="wallet_balance"/>
-        <result property="version" column="version"/>
-        <result property="updatedOn" column="updated_on"/>
+        <constructor>
+            <arg column="client_id" javaType="java.lang.Long"/>
+            <arg column="account_number" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="phone" javaType="java.lang.String"/>
+            <arg column="created_on" javaType="java.time.LocalDateTime"/>
+            <arg column="account_state" javaType="java.lang.String"/>
+            <arg column="wallet_balance" javaType="java.math.BigDecimal"/>
+            <arg column="version" javaType="java.lang.Integer"/>
+            <arg column="updated_on" javaType="java.time.LocalDateTime"/>
+        </constructor>
     </resultMap>
 
     <select id="findByClientId" resultMap="accountResultMap">

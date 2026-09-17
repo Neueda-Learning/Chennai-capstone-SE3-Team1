@@ -18,7 +18,7 @@ public class ClientResponse {
     }
 
     public ClientResponse(Long clientId, String accountNumber, String name, String email, String phone,
-                         LocalDateTime createdOn, String accountState, BigDecimal walletBalance) {
+                          LocalDateTime createdOn, String accountState, BigDecimal walletBalance) {
         this.clientId = clientId;
         this.accountNumber = accountNumber;
         this.name = name;

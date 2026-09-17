@@ -196,7 +196,7 @@ class OrderPlacementCharacterisationTest {
         assertThat(payload.path("quantity").asInt()).isEqualTo(10);
         assertThat(payload.path("price").decimalValue()).isEqualByComparingTo(ONE_HUNDRED);
         assertThat(payload.path("idempotencyKey").asText()).isEqualTo(idempotencyKey);
-        assertThat(payload.path("createdOn").asText()).isNotBlank();
+        assertThat(payload.path("createdOn").asText()).endsWith("Z");
     }
 
     @Test

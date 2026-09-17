@@ -268,10 +268,21 @@ public class OrderConsumer {
 
         // Step 2: Fetch quote (may timeout or fail transiently)
         QuoteResponse quote = quoteClient.getQuote(payload.symbol());
+        log.debug("Quote fetched for order {} symbol {}: bid={}, ask={}, asOf={}",
+                payload.orderId(), payload.symbol(), quote.bid(), quote.ask(), quote.quoteAsOf());
 
         // Step 3: Evaluate fill rules
         Order order = toDomainOrder(payload);
         FillRuleResult fillResult = FillRule.evaluate(order, quote);
+        log.debug("Fill evaluation for order {}: side={}, limitPrice={}, bid={}, ask={}, decision={}, reason={}, executedPrice={}",
+                payload.orderId(),
+                order.getSide(),
+                order.getPrice(),
+                quote.bid(),
+                quote.ask(),
+                fillResult.decision(),
+                fillResult.reason(),
+                fillResult.executedPrice());
 
         // Step 4: Settle (may fail with optimistic lock, connection errors, etc.)
         var settlementResult = settlementService.settle(order, fillResult,
@@ -324,12 +335,13 @@ public class OrderConsumer {
      */
     private Order toDomainOrder(OrderPlacedPayload payload) {
         return new Order(
+                payload.orderId(),
                 payload.accountId(),
                 payload.accountId(),
                 payload.symbol(),
                 OrderType.POSITION,
                 OrderSide.valueOf(payload.side()),
-                payload.price(),
+                BigDecimal.valueOf(payload.quantity()),
                 payload.price(),
                 payload.idempotencyKey());
     }

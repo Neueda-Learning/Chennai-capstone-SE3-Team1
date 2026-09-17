@@ -2,6 +2,7 @@ package com.team1.executor.quote;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.team1.executor.model.QuoteResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +74,7 @@ public class FauxnanceQuoteClient {
 
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .defaultHeader("x-api-key", apiKey)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
@@ -100,8 +101,8 @@ public class FauxnanceQuoteClient {
                 .uri("/quotes/{symbol}", symbol)
                 .retrieve();
 
-        return classifyErrors(spec, symbol)
-                .bodyToMono(QuoteResponse.class)
+        JsonNode body = classifyErrors(spec, symbol)
+                .bodyToMono(JsonNode.class)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .doOnSubscribe(subscription -> quotaLedger.record(CALLER_FILL_PATH))
                 .retryWhen(Retry.backoff(maxRetries, Duration.ofMillis(retryBackoffMs))
@@ -109,6 +110,8 @@ public class FauxnanceQuoteClient {
                                 || throwable instanceof java.util.concurrent.TimeoutException))
                 .onErrorResume(throwable -> wrapTransient(throwable, symbol))
                 .block();
+
+        return parseSingle(body, symbol);
     }
 
     /**
@@ -226,6 +229,57 @@ public class FauxnanceQuoteClient {
             return objectMapper.createArrayNode().add(body);
         }
         return null;
+    }
+
+    private QuoteResponse parseSingle(JsonNode body, String requested) {
+        if (body == null || body.isNull()) {
+            throw new QuoteFetchException("Empty quote response for " + requested);
+        }
+
+        JsonNode quoteNode = locateSingleQuoteNode(body);
+        if (quoteNode == null || !quoteNode.isObject()) {
+            throw new QuoteFetchException(
+                    "Unrecognised single quote response shape for " + requested + ", fields: " + body.fieldNames());
+        }
+
+        JsonNode meta = body.isObject() ? body.get("meta") : null;
+        ObjectNode normalized = normalizeSingleQuote((ObjectNode) quoteNode, meta);
+
+        try {
+            return objectMapper.treeToValue(normalized, QuoteResponse.class);
+        } catch (Exception e) {
+            throw new QuoteFetchException("Failed to parse single quote response for " + requested + ": " + e.getMessage(), e);
+        }
+    }
+
+    private JsonNode locateSingleQuoteNode(JsonNode body) {
+        if (body.isObject() && body.has("data") && body.get("data").isObject()) {
+            return body.get("data");
+        }
+        if (body.isObject() && body.has("symbol")) {
+            return body;
+        }
+        return null;
+    }
+
+    private ObjectNode normalizeSingleQuote(ObjectNode quoteNode, JsonNode meta) {
+        ObjectNode normalized = quoteNode.deepCopy();
+
+        if (!normalized.hasNonNull("quoteAsOf")) {
+            JsonNode asOf = normalized.get("asOf");
+            if ((asOf == null || asOf.isNull()) && meta != null) {
+                asOf = meta.get("asOf");
+            }
+            if (asOf != null && !asOf.isNull()) {
+                normalized.set("quoteAsOf", asOf);
+            }
+        }
+
+        if (!normalized.has("stale") && meta != null && meta.has("stale")) {
+            normalized.set("stale", meta.get("stale"));
+        }
+
+        return normalized;
     }
 
     /**

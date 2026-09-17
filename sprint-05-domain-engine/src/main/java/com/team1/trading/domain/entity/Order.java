@@ -7,6 +7,7 @@ import com.team1.trading.domain.entity.types.OrderSide;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.UUID;
 
 public class Order {
 
@@ -25,8 +26,9 @@ public class Order {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public Order(Long clientId, Long accountId, String instrumentId, OrderType orderType,
+    public Order(UUID orderId, Long clientId, Long accountId, String instrumentId, OrderType orderType,
                  OrderSide side, BigDecimal quantity, BigDecimal price, String idempotencyKey) {
+        this.orderId = orderId;
         this.clientId = Objects.requireNonNull(clientId, "clientId must not be null");
         this.accountId = Objects.requireNonNull(accountId, "accountId must not be null");
         this.instrumentId = Objects.requireNonNull(instrumentId, "instrumentId must not be null");
@@ -39,6 +41,11 @@ public class Order {
         this.status = OrderStatus.NEW;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
+    }
+
+    public Order(Long clientId, Long accountId, String instrumentId, OrderType orderType,
+                 OrderSide side, BigDecimal quantity, BigDecimal price, String idempotencyKey) {
+        this(null, clientId, accountId, instrumentId, orderType, side, quantity, price, idempotencyKey);
     }
 
     public java.util.UUID getOrderId() { return orderId; }

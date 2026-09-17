@@ -84,7 +84,7 @@ class KafkaOrderEventPublisherTest {
         assertThat(payload.path("quantity").asInt()).isEqualTo(10);
         assertThat(payload.path("price").decimalValue()).isEqualByComparingTo(new BigDecimal("100.00"));
         assertThat(payload.path("idempotencyKey").asText()).isNotBlank();
-        assertThat(payload.path("createdOn").asText()).isNotBlank();
+        assertThat(payload.path("createdOn").asText()).endsWith("Z");
     }
 
     @Test
