@@ -5,37 +5,42 @@ set -Eeuo pipefail
 # team's broker. Idempotent: safe to run as many times as you like.
 #
 # Run from the repository root:
-#   docker compose -f infra/kafka/docker-compose.yml up -d
-#   wsl bash infra/kafka/create-topics.sh        (or bash in Git Bash/WSL)
+#   docker compose up -d
+#   bash infra/kafka/create-topics.sh
 
 KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
-COMPOSE_FILE="${COMPOSE_FILE:-infra/kafka/docker-compose.yml}"
+KAFKA_SERVICE="${KAFKA_SERVICE:-kafka}"
 
 if command -v docker >/dev/null 2>&1; then
-    DOCKER=docker
-elif [ -x "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" ]; then
-    DOCKER="/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe"
-elif command -v docker.exe >/dev/null 2>&1; then
-    DOCKER=docker.exe
+    DOCKER="docker"
+elif command -v docker-compose >/dev/null 2>&1; then
+    DOCKER="docker-compose"
 else
     echo "docker not found on PATH" >&2
     exit 1
 fi
 
-kafka_topics() {
-    if "$DOCKER"-compose -f "$COMPOSE_FILE" ps -q kafka >/dev/null 2>&1; then
-        "$DOCKER"-compose -f "$COMPOSE_FILE" exec -T kafka \
-            /opt/kafka/bin/kafka-topics.sh "$@"
+docker_compose() {
+    if [ "$DOCKER" = "docker" ]; then
+        docker compose "$@"
     else
-        /opt/kafka/bin/kafka-topics.sh "$@"
+        docker-compose "$@"
     fi
 }
 
+kafka_topics() {
+    docker_compose exec -T "$KAFKA_SERVICE" \
+        /opt/kafka/bin/kafka-topics.sh "$@"
+}
+
 create_topic() {
-    name=$1
-    partitions=$2
-    retention_ms=$3
-    kafka_topics --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" --create \
+    local name=$1
+    local partitions=$2
+    local retention_ms=$3
+
+    kafka_topics \
+        --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" \
+        --create \
         --if-not-exists \
         --topic "$name" \
         --partitions "$partitions" \
@@ -53,5 +58,6 @@ create_topic market-data.DLT 6 86400000
 
 echo "--- catalogue ---"
 kafka_topics --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" --list
+
 echo "--- detail ---"
 kafka_topics --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" --describe
