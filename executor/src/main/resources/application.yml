@@ -8,6 +8,14 @@ spring:
     password: ${trustme.secret.PostGres}
     driver-class-name: org.postgresql.Driver
 
+  # quoteAsOf, eventTime and executedOn are contracted as RFC 3339 strings. Jackson writes
+  # java.time types as epoch numbers unless told otherwise; Spring Boot happens to default this
+  # off, but a payload shape three downstream teams parse should be pinned here rather than
+  # inherited from a framework default somebody could flip. See contracts/kafka-topics.md.
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
   jpa:
     hibernate:
       ddl-auto: validate

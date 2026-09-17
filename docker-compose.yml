@@ -66,6 +66,7 @@ services:
     build:
       context: .
       dockerfile: sprint-06-api/Dockerfile
+      target: trade-api
     container_name: team1_trade_api
     restart: unless-stopped
     profiles:
@@ -91,6 +92,44 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  executor:
+    build:
+      context: .
+      dockerfile: sprint-06-api/Dockerfile
+      target: executor
+    container_name: team1_trade_executor
+    restart: unless-stopped
+    profiles:
+      - platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8083
+      TRUSTME_KEY_FILE: /app/leapcapstoneteam1-720d03.TM
+      # Literal, not ${KAFKA_BOOTSTRAP_SERVERS}: that variable is the HOST
+      # listener (localhost:9092) so tools on this machine can reach the broker.
+      # Inside the stack network the broker is kafka:29092, and localhost here
+      # is this container.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FAUXNANCE_BASE_URL: ${FAUXNANCE_BASE_URL}
+      FAUXNANCE_API_KEY: ${FAUXNANCE_API_KEY}
+      # The market-data poller's interval. The 58s floor is enforced in code, so
+      # a value below it is clamped with a warning rather than honoured.
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
+    ports:
+      - "${EXECUTOR_PORT:-8083}:8083"
+    volumes:
+      - ./leapcapstoneteam1-720d03.TM:/app/leapcapstoneteam1-720d03.TM:ro
+    networks:
+      - trading-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
 networks:
   trading-net:

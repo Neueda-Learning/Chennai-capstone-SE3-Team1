@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.SymbolMapper">
+
+    <!--
+      Only what somebody holds, and only what is still tradable. A zero-quantity holding is a
+      closed position and nobody is watching its price; an inactive instrument cannot be traded,
+      so a quote for it feeds nothing.
+
+      The Sprint 10 watchlist joins here: one more EXISTS clause against the watchlist table
+      completes the "holds or is watching" rule. Ordered so that the batches a poll produces are
+      stable between cycles and a log line can be compared with the one before it.
+    -->
+    <select id="findPolledSymbols" resultType="java.lang.String">
+        SELECT i.instrument_id
+        FROM instruments i
+        WHERE i.active = TRUE
+          AND (EXISTS (SELECT 1
+                       FROM portfolio_holding h
+                       WHERE h.instrument_id = i.instrument_id
+                         AND h.quantity > 0)
+            OR EXISTS (SELECT 1
+                       FROM portfolio_positions p
+                       WHERE p.instrument_id = i.instrument_id
+                         AND p.quantity &lt;&gt; 0))
+        ORDER BY i.instrument_id
+    </select>
+
+</mapper>

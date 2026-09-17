@@ -105,6 +105,35 @@ OrderConsumer (group: trade-executor)
     └── Acknowledge offset
 ```
 
+## The market-data poller
+
+A second, independent path through the same process. It shares the Fauxnance
+credential and the quota ledger with the fill path above, and nothing else.
+
+```
+@Scheduled(POLL_INTERVAL_SECONDS, floor 58s enforced in PollerProperties)
+    |
+    v
+MarketDataPoller.pollOnce()
+    |
+    +-- SymbolUniverse: active instruments somebody holds (4 in seeded data)
+    +-- Split into batches of 25            <- one batch is one HTTP request
+    +-- QuotaLedger.pollerMaySpend(batches) <- skip the cycle rather than eat
+    |                                          the fill path's 500 reserve
+    +-- For each batch: GET /quotes?symbols=A,B,C
+    |       |
+    |       +-- For each quote: send to market-data, KEYED BY SYMBOL
+    |                           one message per symbol, never one per batch
+    |
+    +-- catch Exception: a failed cycle costs one cycle, never the schedule
+```
+
+It is not on the order path. It does not start a poll because an order arrived,
+and `OrderConsumer` does not wait for a poll to finish.
+
+The quota arithmetic, the derivation of the 58-second floor and the reasoning
+behind the budget split are in [`../design/kafka.md`](../design/kafka.md).
+
 ## Key Design Decisions
 
 | Decision | Rationale |
