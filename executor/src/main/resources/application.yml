@@ -50,8 +50,8 @@ trustme:
   key-file: ../leapcapstoneteam1-720d03.TM
 
 fauxnance:
-  base-url: ${FAUXNANCE_BASE_URL:http://localhost:8082}
-  api-key: ${FAUXNANCE_API_KEY:}
+  base-url: ${FAUXNANCE_BASE_URL:https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1}
+  api-key: ${FAUXNANCE_API_KEY:fnx_dev_52KrPRXdxfUIavsuPCwEr7lOrb4QPUYv}
   timeout-seconds: 5
   max-retries: 3
   retry-backoff-ms: 1000
@@ -59,6 +59,28 @@ fauxnance:
 executor:
   poll-interval-seconds: ${POLL_INTERVAL_SECONDS:60}
   optimistic-lock-max-retries: 3
+  
+  # Dead-letter and retry configuration
+  # ===================================
+  # Poison messages (malformed JSON, missing fields) are dead-lettered immediately.
+  # Transient failures (network, DB connection, lock contention) are retried with backoff.
+  # After retry budget is exhausted, message is dead-lettered.
+  #
+  # Formula for retry delays:
+  #   delay_ms = base-delay-ms * (backoff-multiplier ^ attemptNumber)
+  #   Example (base=1000, multiplier=2.0):
+  #     Attempt 1 fails → wait 1000ms before attempt 2
+  #     Attempt 2 fails → wait 2000ms before attempt 3  
+  #     Attempt 3 fails → dead-letter (no more retries)
+  #
+  retry:
+    max-attempts: 3              # Total attempts including first attempt
+    base-delay-ms: 1000          # Milliseconds before first retry
+    backoff-multiplier: 2.0      # Exponential factor (standard: 2.0)
+  
+  dead-letter-topic: orders.DLT  # Topic for dead-lettered messages
+                                  # Use format: <topic-name>.DLT
+                                  # Available: orders.DLT, trade-events.DLT, market-data.DLT
 
 server:
   port: 8083
