@@ -18,8 +18,7 @@
       7. Tails api / executor / kafka / postgres logs together until Ctrl+C.
          Ctrl+C stops only the tail; the services keep running. Use -Stop to shut them down.
 
-.PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted if omitted.
-.PARAMETER FauxnanceApiKey   Fauxnance x-api-key. Falls back to $env:FAUXNANCE_API_KEY, then .env.
+.PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
 .PARAMETER JwtSecret         HS256 secret the API verifies tokens with. Default is a dev value.
 .PARAMETER KafkaHome         Where Kafka lives / gets installed. Default C:\kafka.
 .PARAMETER SkipBuild         Reuse the jars already in target\.
@@ -29,7 +28,7 @@
 .PARAMETER Stop              Stop the API, executor and Kafka started by a previous run, then exit.
 
 .EXAMPLE
-    .\run-local.ps1 -TrustMePassword 'secret' -FauxnanceApiKey 'fnx_...'
+    .\run-local.ps1                       # prompts for the TrustMe password
 .EXAMPLE
     .\run-local.ps1 -SkipBuild            # fast restart after a stop
 .EXAMPLE
@@ -40,7 +39,6 @@
 [CmdletBinding()]
 param(
     [string]$TrustMePassword,
-    [string]$FauxnanceApiKey,
     [string]$JwtSecret = "local-dev-secret-change-me",
     [string]$KafkaHome = "C:\kafka",
     [switch]$SkipBuild,
@@ -142,12 +140,6 @@ if (-not $TrustMePassword) {
     $sec = Read-Host "TrustMe key file password" -AsSecureString
     $TrustMePassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
 }
-if (-not $FauxnanceApiKey) { $FauxnanceApiKey = $env:FAUXNANCE_API_KEY }
-if (-not $FauxnanceApiKey -and (Test-Path ".env")) {
-    $line = Select-String -Path ".env" -Pattern '^\s*FAUXNANCE_API_KEY=(.+)$' | Select-Object -First 1
-    if ($line) { $FauxnanceApiKey = $line.Matches[0].Groups[1].Value.Trim().Trim('"') }
-}
-if (-not $FauxnanceApiKey) { Fail "No Fauxnance key. Pass -FauxnanceApiKey, set FAUXNANCE_API_KEY, or put it in .env" }
 Write-Host "    java: $((cmd /c "java -version 2>&1" | Select-Object -First 1))"
 Write-Host "    key file, psql, python, postgres: ok"
 
@@ -245,7 +237,6 @@ $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -ArgumentList ($jvmCommon + @("-jar", $apiJar))
 Write-Host "    trade-api  pid $($api.Id)  -> http://localhost:$ApiPort"
 
-$env:FAUXNANCE_API_KEY = $FauxnanceApiKey
 $env:KAFKA_BOOTSTRAP_SERVERS = "localhost:$KafkaPort"
 $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "executor.log") -RedirectStandardError (Join-Path $LogDir "executor.err") `
