@@ -40,18 +40,24 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-  mybatis:
-    mapper-locations: classpath*:/mapper/**/*.xml
-    type-aliases-package: com.team1.executor.mapper
-    configuration:
-      map-underscore-to-camel-case: true
+# Top-level, not under spring: — MyBatis reads mybatis.*, and nested under
+# spring: it silently becomes spring.mybatis.* and no XML mapper is loaded.
+mybatis:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.team1.executor.mapper
+  configuration:
+    map-underscore-to-camel-case: true
 
 trustme:
   key-file: ../leapcapstoneteam1-720d03.TM
 
 fauxnance:
   base-url: ${FAUXNANCE_BASE_URL:https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1}
-  api-key: ${FAUXNANCE_API_KEY:fnx_dev_52KrPRXdxfUIavsuPCwEr7lOrb4QPUYv}
+  api-key: ${FAUXNANCE_API_KEY:}
+  # instruments.instrument_id is the bare NSE ticker (RELIANCE); Fauxnance keys the
+  # same stock as RELIANCE.NS. The client appends this on the way out and strips it
+  # on the way back so everything else in the executor stays in instrument_id space.
+  symbol-suffix: ${FAUXNANCE_SYMBOL_SUFFIX:.NS}
   timeout-seconds: 5
   max-retries: 3
   retry-backoff-ms: 1000

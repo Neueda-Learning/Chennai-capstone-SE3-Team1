@@ -2,11 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.team1.executor.mapper.InstrumentMapper">
 
+    <!-- InstrumentRow is a record: no setters, so map through its canonical constructor.
+         Args are positional and must stay in component order. -->
     <resultMap id="instrumentResultMap" type="com.team1.executor.model.InstrumentRow">
-        <id property="instrumentId" column="instrument_id"/>
-        <result property="instrumentName" column="instrument_name"/>
-        <result property="active" column="active"/>
-        <result property="updatedOn" column="updated_on"/>
+        <constructor>
+        <idArg column="instrument_id" javaType="java.lang.String"/>
+        <arg column="instrument_name" javaType="java.lang.String"/>
+        <arg column="active" javaType="java.lang.Boolean"/>
+        <arg column="updated_on" javaType="java.time.LocalDateTime"/>
+        </constructor>
     </resultMap>
 
     <select id="findBySymbol" resultMap="instrumentResultMap">

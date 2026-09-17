@@ -73,7 +73,7 @@ class SettlementServiceTest {
 
         OrderRow orderRow = new OrderRow(orderId, clientId, clientId, "ACME", "POSITION", "BUY",
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
-                LocalDateTime.now(), LocalDateTime.now(), null);
+                LocalDateTime.now(), LocalDateTime.now());
 
         AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
@@ -111,7 +111,7 @@ class SettlementServiceTest {
 
         OrderRow orderRow = new OrderRow(orderId, clientId, clientId, "ACME", "POSITION", "BUY",
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
-                LocalDateTime.now(), LocalDateTime.now(), null);
+                LocalDateTime.now(), LocalDateTime.now());
 
         AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
@@ -149,7 +149,7 @@ class SettlementServiceTest {
 
         OrderRow orderRow = new OrderRow(orderId, clientId, clientId, "ACME", "POSITION", "BUY",
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "FILLED", "idem-1", null,
-                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+                LocalDateTime.now(), LocalDateTime.now());
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
 
@@ -176,7 +176,7 @@ class SettlementServiceTest {
 
         OrderRow orderRow = new OrderRow(orderId, clientId, clientId, "ACME", "POSITION", "BUY",
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
-                LocalDateTime.now(), LocalDateTime.now(), null);
+                LocalDateTime.now(), LocalDateTime.now());
 
         AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());

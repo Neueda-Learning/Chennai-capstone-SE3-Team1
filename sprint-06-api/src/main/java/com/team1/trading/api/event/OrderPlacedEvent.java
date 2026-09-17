@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.team1.trading.domain.entity.types.OrderSide;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /**
  * Payload of the {@code ORDER_PLACED} event published to the {@code orders} Kafka topic when an
@@ -40,7 +42,7 @@ public record OrderPlacedEvent(
         @JsonProperty("quantity") Integer quantity,
         @JsonProperty("price") BigDecimal price,
         @JsonProperty("idempotencyKey") String idempotencyKey,
-        @JsonProperty("createdOn") LocalDateTime placedAt) {
+        @JsonProperty("createdOn") Instant placedAt) {
 
     public static final String EVENT_TYPE = "ORDER_PLACED";
     public static final String TOPIC = "orders";
@@ -48,8 +50,10 @@ public record OrderPlacedEvent(
     public static OrderPlacedEvent of(String orderUuid, Long accountId, String symbol, OrderSide side,
                                       Integer quantity, BigDecimal price, String idempotencyKey,
                                       LocalDateTime placedAt) {
+        // The row stores a zone-less timestamp taken in UTC; put the zone back so the
+        // wire value is the RFC 3339 date-time the contract promises.
         return new OrderPlacedEvent(orderUuid, accountId, symbol, side, quantity, price,
-                idempotencyKey, placedAt);
+                idempotencyKey, placedAt.atOffset(ZoneOffset.UTC).toInstant());
     }
 
     /** The Kafka record key: the account the order belongs to. */

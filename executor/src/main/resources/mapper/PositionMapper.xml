@@ -2,15 +2,19 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.team1.executor.mapper.PositionMapper">
 
+    <!-- PositionRow is a record: no setters, so map through its canonical constructor.
+         Args are positional and must stay in component order. -->
     <resultMap id="positionResultMap" type="com.team1.executor.model.PositionRow">
-        <id property="holdingId" column="holding_id"/>
-        <result property="clientId" column="client_id"/>
-        <result property="instrumentId" column="instrument_id"/>
-        <result property="quantity" column="quantity"/>
-        <result property="pricePerUnit" column="price_per_unit"/>
-        <result property="overallGains" column="overall_gains"/>
-        <result property="createdAt" column="created_at"/>
-        <result property="updatedAt" column="updated_at"/>
+        <constructor>
+        <idArg column="holding_id" javaType="java.lang.Long"/>
+        <arg column="client_id" javaType="java.lang.Long"/>
+        <arg column="instrument_id" javaType="java.lang.String"/>
+        <arg column="quantity" javaType="java.lang.Integer"/>
+        <arg column="price_per_unit" javaType="java.math.BigDecimal"/>
+        <arg column="overall_gains" javaType="java.math.BigDecimal"/>
+        <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
     </resultMap>
 
     <select id="findHolding" resultMap="positionResultMap">

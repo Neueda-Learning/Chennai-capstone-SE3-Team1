@@ -33,6 +33,14 @@ import java.util.List;
  * {@code OrderConsumer} ({@link #getQuote}) and the market-data poller ({@link #getQuotes}).
  * Every request is recorded against {@link QuotaLedger} under its caller's name so the poller
  * can stop spending before it eats the fill path's reserve.
+ *
+ * <p><strong>Wire facts, verified against the live gateway:</strong> the key goes in an
+ * {@code x-api-key} header (a Bearer header is a 401); every body is wrapped in
+ * {@code {"data": ..., "meta": ...}}; the batch body is {@code data.quotes[]} where each entry
+ * carries the quote under {@code quote}; and the timestamp field is {@code asOf}. Symbols are
+ * exchange-suffixed ({@code RELIANCE.NS}) while {@code instruments.instrument_id} is the bare
+ * ticker, so this class translates on the way out and back and nothing else in the executor has
+ * to know.
  */
 @Component
 public class FauxnanceQuoteClient {
@@ -44,6 +52,7 @@ public class FauxnanceQuoteClient {
      */
     public static final int MAX_SYMBOLS_PER_REQUEST = 25;
 
+    private static final String API_KEY_HEADER = "x-api-key";
     private static final String CALLER_FILL_PATH = "fill-path";
     private static final String CALLER_POLLER = "market-poller";
 
@@ -52,6 +61,7 @@ public class FauxnanceQuoteClient {
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
     private final QuotaLedger quotaLedger;
+    private final String symbolSuffix;
     private final int timeoutSeconds;
     private final int maxRetries;
     private final long retryBackoffMs;
@@ -59,12 +69,14 @@ public class FauxnanceQuoteClient {
     public FauxnanceQuoteClient(
             @org.springframework.beans.factory.annotation.Value("${fauxnance.base-url}") String baseUrl,
             @org.springframework.beans.factory.annotation.Value("${fauxnance.api-key}") String apiKey,
+            @org.springframework.beans.factory.annotation.Value("${fauxnance.symbol-suffix:.NS}") String symbolSuffix,
             @org.springframework.beans.factory.annotation.Value("${fauxnance.timeout-seconds}") int timeoutSeconds,
             @org.springframework.beans.factory.annotation.Value("${fauxnance.max-retries}") int maxRetries,
             @org.springframework.beans.factory.annotation.Value("${fauxnance.retry-backoff-ms}") long retryBackoffMs,
             ObjectMapper objectMapper,
             QuotaLedger quotaLedger
     ) {
+        this.symbolSuffix = symbolSuffix == null ? "" : symbolSuffix.trim();
         this.timeoutSeconds = timeoutSeconds;
         this.maxRetries = maxRetries;
         this.retryBackoffMs = retryBackoffMs;
@@ -73,7 +85,7 @@ public class FauxnanceQuoteClient {
 
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .defaultHeader(API_KEY_HEADER, apiKey)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
@@ -89,26 +101,36 @@ public class FauxnanceQuoteClient {
      * - BadRequest: HTTP 4xx, don't retry/dead-letter, reject order instead
      * - ServiceUnreachable: HTTP 5xx/timeout/network, retry with backoff
      *
-     * @param symbol The stock symbol (e.g., "INFY.NS")
-     * @return Quote response
+     * @param symbol The instrument id as stored (e.g., "INFY"); the exchange suffix is added here
+     * @return Quote response, with {@code symbol} translated back to the instrument id
      * @throws QuotaExhausted if daily quota exhausted (HTTP 429)
      * @throws BadRequest if invalid request (HTTP 4xx except 429)
      * @throws ServiceUnreachable if transient failure (HTTP 5xx, timeout, network error)
      */
     public QuoteResponse getQuote(String symbol) {
+        String remote = toRemoteSymbol(symbol);
         WebClient.ResponseSpec spec = webClient.get()
-                .uri("/quotes/{symbol}", symbol)
+                .uri("/quotes/{symbol}", remote)
                 .retrieve();
 
-        return classifyErrors(spec, symbol)
-                .bodyToMono(QuoteResponse.class)
+        JsonNode body = classifyErrors(spec, remote)
+                .bodyToMono(JsonNode.class)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .doOnSubscribe(subscription -> quotaLedger.record(CALLER_FILL_PATH))
                 .retryWhen(Retry.backoff(maxRetries, Duration.ofMillis(retryBackoffMs))
                         .filter(throwable -> throwable instanceof WebClientResponseException
                                 || throwable instanceof java.util.concurrent.TimeoutException))
-                .onErrorResume(throwable -> wrapTransient(throwable, symbol))
+                .onErrorResume(throwable -> wrapTransient(throwable, remote))
                 .block();
+
+        if (body == null || body.isNull()) {
+            throw new QuoteFetchException("Empty quote response for " + remote);
+        }
+        try {
+            return toQuote(unwrapData(body));
+        } catch (Exception e) {
+            throw new QuoteFetchException("Unreadable quote response for " + remote + ": " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -135,7 +157,7 @@ public class FauxnanceQuoteClient {
                             + symbols.size() + ". Chunk before calling, or the extra request is unaccounted for.");
         }
 
-        String joined = String.join(",", symbols);
+        String joined = String.join(",", symbols.stream().map(this::toRemoteSymbol).toList());
         WebClient.ResponseSpec spec = webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/quotes").queryParam("symbols", joined).build())
                 .retrieve();
@@ -185,9 +207,9 @@ public class FauxnanceQuoteClient {
     }
 
     /**
-     * Fauxnance has not pinned the batch response shape in anything we hold, so accept the three
-     * it could reasonably be — a bare array, or an array under {@code quotes}, {@code data} or
-     * {@code results} — rather than guessing one and failing loudly on the day it differs.
+     * The batch body is {@code {"data": {"quotes": [{"symbol", "source", "stale", "quote": {...}}]}}}.
+     * Older guesses at the shape (a bare array, or an array under {@code quotes}/{@code data}/
+     * {@code results}) are still accepted so a gateway change is a warning, not an outage.
      */
     private List<QuoteResponse> parseBatch(JsonNode body, String requested) {
         if (body == null || body.isNull()) {
@@ -201,9 +223,11 @@ public class FauxnanceQuoteClient {
         }
 
         List<QuoteResponse> quotes = new ArrayList<>(array.size());
-        for (JsonNode node : array) {
+        for (JsonNode entry : array) {
+            // Each batch entry wraps the quote proper under "quote"; tolerate a flat entry too.
+            JsonNode node = entry.hasNonNull("quote") && entry.get("quote").isObject() ? entry.get("quote") : entry;
             try {
-                quotes.add(objectMapper.treeToValue(node, QuoteResponse.class));
+                quotes.add(toQuote(node));
             } catch (Exception e) {
                 // One unreadable entry does not cost us the other twenty-four.
                 log.warn("Skipping an unreadable quote in the batch for {}: {}", requested, e.getMessage());
@@ -216,16 +240,48 @@ public class FauxnanceQuoteClient {
         if (body.isArray()) {
             return body;
         }
-        for (String field : List.of("quotes", "data", "results")) {
-            JsonNode candidate = body.get(field);
+        JsonNode data = unwrapData(body);
+        if (data.isArray()) {
+            return data;
+        }
+        for (String field : List.of("quotes", "results")) {
+            JsonNode candidate = data.get(field);
             if (candidate != null && candidate.isArray()) {
                 return candidate;
             }
         }
-        if (body.hasNonNull("symbol")) {
-            return objectMapper.createArrayNode().add(body);
+        if (data.hasNonNull("symbol")) {
+            return objectMapper.createArrayNode().add(data);
         }
         return null;
+    }
+
+    /** Every Fauxnance body is {@code {"data": ..., "meta": ...}}; hand back the data node. */
+    private static JsonNode unwrapData(JsonNode body) {
+        JsonNode data = body.get("data");
+        return data != null && !data.isNull() ? data : body;
+    }
+
+    private QuoteResponse toQuote(JsonNode node) throws Exception {
+        QuoteResponse q = objectMapper.treeToValue(node, QuoteResponse.class);
+        return new QuoteResponse(toLocalSymbol(q.symbol()), q.price(), q.bid(), q.ask(), q.currency(),
+                q.change(), q.changePercent(), q.previousClose(), q.marketState(), q.stale(), q.quoteAsOf());
+    }
+
+    /** RELIANCE -> RELIANCE.NS. A symbol that already carries an exchange is left alone. */
+    private String toRemoteSymbol(String symbol) {
+        if (symbol == null || symbolSuffix.isEmpty() || symbol.contains(".")) {
+            return symbol;
+        }
+        return symbol + symbolSuffix;
+    }
+
+    /** RELIANCE.NS -> RELIANCE, so the rest of the executor keys on instrument_id. */
+    private String toLocalSymbol(String remote) {
+        if (remote != null && !symbolSuffix.isEmpty() && remote.endsWith(symbolSuffix)) {
+            return remote.substring(0, remote.length() - symbolSuffix.length());
+        }
+        return remote;
     }
 
     /**

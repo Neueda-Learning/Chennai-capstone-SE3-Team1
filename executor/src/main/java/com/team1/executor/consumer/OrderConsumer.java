@@ -323,15 +323,18 @@ public class OrderConsumer {
      * @return Domain Order entity
      */
     private Order toDomainOrder(OrderPlacedPayload payload) {
-        return new Order(
+        // accountId doubles as clientId in this schema (clients.client_id is the wallet).
+        Order order = new Order(
                 payload.accountId(),
                 payload.accountId(),
                 payload.symbol(),
                 OrderType.POSITION,
                 OrderSide.valueOf(payload.side()),
-                payload.price(),
+                BigDecimal.valueOf(payload.quantity()),
                 payload.price(),
                 payload.idempotencyKey());
+        order.setOrderId(payload.orderId());
+        return order;
     }
 
     /**

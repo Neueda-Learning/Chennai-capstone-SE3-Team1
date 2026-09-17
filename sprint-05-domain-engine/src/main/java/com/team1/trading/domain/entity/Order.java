@@ -42,6 +42,8 @@ public class Order {
     }
 
     public java.util.UUID getOrderId() { return orderId; }
+    /** Set when the order is rehydrated from a persisted row or a Kafka payload. */
+    public void setOrderId(java.util.UUID orderId) { this.orderId = orderId; }
     public Long getClientId() { return clientId; }
     public Long getAccountId() { return accountId; }
     public String getInstrumentId() { return instrumentId; }

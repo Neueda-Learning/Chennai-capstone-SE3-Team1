@@ -18,6 +18,5 @@ public record OrderRow(
         String idempotencyKey,
         String externalOrderId,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt,
-        LocalDateTime executedOn
+        LocalDateTime updatedAt
 ) {}

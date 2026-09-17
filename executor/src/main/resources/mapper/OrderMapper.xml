@@ -2,28 +2,31 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.team1.executor.mapper.OrderMapper">
 
+    <!-- OrderRow is a record: no setters, so map through its canonical constructor.
+         Args are positional and must stay in component order. -->
     <resultMap id="orderResultMap" type="com.team1.executor.model.OrderRow">
-        <id property="orderId" column="order_id"/>
-        <result property="clientId" column="client_id"/>
-        <result property="accountId" column="account_id"/>
-        <result property="instrumentId" column="instrument_id"/>
-        <result property="orderType" column="order_type"/>
-        <result property="side" column="side"/>
-        <result property="quantity" column="quantity"/>
-        <result property="price" column="price"/>
-        <result property="executedPrice" column="executed_price"/>
-        <result property="status" column="status"/>
-        <result property="idempotencyKey" column="idempotency_key"/>
-        <result property="externalOrderId" column="external_order_id"/>
-        <result property="createdAt" column="created_at"/>
-        <result property="updatedAt" column="updated_at"/>
-        <result property="executedOn" column="executed_on"/>
+        <constructor>
+        <idArg column="order_id" javaType="java.util.UUID"/>
+        <arg column="client_id" javaType="java.lang.Long"/>
+        <arg column="account_id" javaType="java.lang.Long"/>
+        <arg column="instrument_id" javaType="java.lang.String"/>
+        <arg column="order_type" javaType="java.lang.String"/>
+        <arg column="side" javaType="java.lang.String"/>
+        <arg column="quantity" javaType="java.math.BigDecimal"/>
+        <arg column="price" javaType="java.math.BigDecimal"/>
+        <arg column="executed_price" javaType="java.math.BigDecimal"/>
+        <arg column="status" javaType="java.lang.String"/>
+        <arg column="idempotency_key" javaType="java.lang.String"/>
+        <arg column="external_order_id" javaType="java.lang.String"/>
+        <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
     </resultMap>
 
     <select id="findByOrderId" resultMap="orderResultMap">
         SELECT order_id, client_id, account_id, instrument_id, order_type, side,
                quantity, price, executed_price, status, idempotency_key, external_order_id,
-               created_at, updated_at, executed_on
+               created_at, updated_at
         FROM orders
         WHERE order_id = #{orderId}
     </select>
@@ -32,11 +35,10 @@
         UPDATE orders
         SET status = #{status},
             executed_price = #{executedPrice},
-            executed_on = #{executedOn},
             updated_at = now()
         WHERE order_id = #{orderId}
           AND status = 'NEW'
-    </select>
+    </update>
 
     <update id="updateStatusAndReason">
         UPDATE orders
@@ -44,6 +46,6 @@
             updated_at = now()
         WHERE order_id = #{orderId}
           AND status = 'NEW'
-    </select>
+    </update>
 
 </mapper>
