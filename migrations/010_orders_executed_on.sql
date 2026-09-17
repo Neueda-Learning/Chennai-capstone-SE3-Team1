@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE orders
+	ADD COLUMN IF NOT EXISTS executed_on TIMESTAMP;
+
+COMMIT;
+
