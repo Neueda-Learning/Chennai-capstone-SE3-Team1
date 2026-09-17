@@ -282,7 +282,7 @@ class OrderServiceTest {
             OrderInsert insert = insertCaptor.getValue();
             assertThat(insert.getStatus()).isEqualTo("NEW");
             assertThat(insert.getExecutedPrice()).isNull();
-            assertThat(insert.getOrderType()).isEqualTo("POSITION");
+            assertThat(insert.getOrderType()).isEqualTo("HOLDING");
             assertThat(insert.getSide()).isEqualTo(OrderSide.BUY);
             assertThat(insert.getIdempotencyKey()).isEqualTo(IDEMPOTENCY_KEY);
 

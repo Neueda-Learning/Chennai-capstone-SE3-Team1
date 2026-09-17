@@ -108,7 +108,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.FILL, ask);
+                FillDecision.FILL, ask, 10, ask);
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 
@@ -147,7 +147,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.FILL, bid);
+                FillDecision.FILL, bid, 10, bid);
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 
@@ -185,7 +185,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.REJECT, null);
+                FillDecision.REJECT, null, 0, BigDecimal.ZERO);
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 

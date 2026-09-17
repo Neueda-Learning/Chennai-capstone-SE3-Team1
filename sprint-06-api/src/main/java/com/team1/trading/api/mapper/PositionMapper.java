@@ -17,17 +17,28 @@ import java.util.Optional;
 @Mapper
 public interface PositionMapper {
 
+    /**
+     * What the account holds of one instrument, for the sell-side sufficiency check.
+     *
+     * <p>Reads portfolio_holding because that is the book the Trade Executor settles every
+     * fill into. portfolio_positions is reserved for intraday positions, which nothing
+     * writes yet; validating against it made anything bought through this API unsellable.
+     */
     @Select("""
             SELECT client_id AS accountId, instrument_id AS symbol, quantity, price_per_unit AS pricePerUnit
-            FROM portfolio_positions
+            FROM portfolio_holding
             WHERE client_id = #{accountId}
               AND instrument_id = #{symbol}
             """)
     Optional<PositionRow> findHeld(@Param("accountId") Long accountId, @Param("symbol") String symbol);
 
+    /**
+     * The account's portfolio. Reads portfolio_holding for the same reason findHeld does:
+     * it is the only book the executor writes.
+     */
     @Select("""
             SELECT client_id AS accountId, instrument_id AS symbol, quantity, price_per_unit AS averageCost
-            FROM portfolio_positions
+            FROM portfolio_holding
             WHERE client_id = #{accountId}
               AND quantity > 0
             ORDER BY instrument_id ASC

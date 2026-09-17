@@ -298,7 +298,8 @@ public class OrderConsumer {
 
         // Step 6: Publish filled or rejected event
         if (settlementResult.decision() == com.team1.executor.rule.FillDecision.FILL) {
-            publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote);
+            publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote,
+                    settlementResult.quantityAfter(), settlementResult.averageCostAfter());
         } else {
             publishRejected(payload, envelope.eventId(), fillResult.reason());
         }
@@ -328,7 +329,7 @@ public class OrderConsumer {
                 payload.accountId(),
                 payload.accountId(),
                 payload.symbol(),
-                OrderType.POSITION,
+                OrderType.HOLDING,
                 OrderSide.valueOf(payload.side()),
                 BigDecimal.valueOf(payload.quantity()),
                 payload.price(),
@@ -346,7 +347,7 @@ public class OrderConsumer {
      * @param quote         The quote snapshot used for settlement
      */
     private void publishFilled(OrderPlacedPayload payload, String eventId, BigDecimal executedPrice,
-            QuoteResponse quote) {
+            QuoteResponse quote, int quantityAfter, BigDecimal averageCostAfter) {
         BigDecimal cashDelta = calculateCashDelta(payload, executedPrice);
         TradeEventPayload event = new TradeEventPayload(
                 payload.orderId(),
@@ -359,8 +360,8 @@ public class OrderConsumer {
                 "FILLED",
                 null,
                 cashDelta,
-                0,
-                BigDecimal.ZERO,
+                quantityAfter,
+                averageCostAfter,
                 Instant.now());
         Envelope envelope = new Envelope(
                 UUID.randomUUID().toString(),

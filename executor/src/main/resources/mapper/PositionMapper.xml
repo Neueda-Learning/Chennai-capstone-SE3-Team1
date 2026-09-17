@@ -37,11 +37,16 @@
         VALUES (#{clientId}, #{instrumentId}, #{quantity}, #{pricePerUnit}, 0, now(), now())
     </insert>
 
+    <!-- Weighted average cost. Every SET expression reads the row as it was before the
+         statement, so `quantity` here is the pre-trade quantity in both places: it is the
+         weight for the existing average, and the divisor is pre-trade + this fill. Writing
+         it as `/ quantity` (as if the first SET had already applied) understates the
+         average on every buy into an existing holding. -->
     <update id="updateHoldingBuy">
         UPDATE portfolio_holding
         SET quantity = quantity + #{quantity},
-            price_per_unit = ((price_per_unit * (quantity - #{quantity})) + (#{pricePerUnit} * #{quantity})) / quantity,
-            overall_gains = overall_gains,
+            price_per_unit = ((price_per_unit * quantity) + (#{pricePerUnit} * #{quantity}))
+                             / (quantity + #{quantity}),
             updated_at = now()
         WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}
     </update>

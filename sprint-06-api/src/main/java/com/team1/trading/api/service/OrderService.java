@@ -121,7 +121,7 @@ public class OrderService {
         }
 
         String orderUuid = UUID.randomUUID().toString();
-        Order order = new Order(accountId, accountId, request.getSymbol(), OrderType.POSITION,
+        Order order = new Order(accountId, accountId, request.getSymbol(), OrderType.HOLDING,
                 request.getSide(), BigDecimal.valueOf(quantity), price, request.getIdempotencyKey());
         try {
             orderMapper.insert(toInsert(order, orderUuid));                           // rule 8

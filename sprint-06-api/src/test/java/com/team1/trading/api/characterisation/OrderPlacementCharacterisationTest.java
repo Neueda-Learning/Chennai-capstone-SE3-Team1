@@ -148,7 +148,7 @@ class OrderPlacementCharacterisationTest {
         assertThat(order.get("client_id")).isEqualTo(3L);
         assertThat(order.get("account_id")).isEqualTo(3L);
         assertThat(order.get("instrument_id")).isEqualTo("INFY");
-        assertThat(order.get("order_type")).isEqualTo("POSITION");
+        assertThat(order.get("order_type")).isEqualTo("HOLDING");
         assertThat(order.get("side")).isEqualTo("BUY");
         assertThat(number(order.get("quantity"))).isEqualByComparingTo(BigDecimal.valueOf(5));
         assertThat(number(order.get("price"))).isEqualByComparingTo(ONE_HUNDRED);

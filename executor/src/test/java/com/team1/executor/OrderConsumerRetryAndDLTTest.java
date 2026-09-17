@@ -207,7 +207,7 @@ class OrderConsumerRetryAndDLTTest {
 
         // Settlement succeeds
         when(settlementService.settle(any(), any(), any()))
-            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask));
+            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask, 10, ask));
 
         consumer.consume(record, ack, 0, 0L);
 
@@ -246,7 +246,7 @@ class OrderConsumerRetryAndDLTTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         when(settlementService.settle(any(), any(), any()))
-            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask));
+            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask, 10, ask));
 
         consumer.consume(record, ack, 0, 0L);
 

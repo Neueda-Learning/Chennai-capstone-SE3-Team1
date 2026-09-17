@@ -75,7 +75,20 @@ public class SettlementService {
             return SettlementResult.alreadySettled(orderRow.status());
         }
 
-        return SettlementResult.success(fillResult.decision(), fillResult.executedPrice());
+        // Read the holding back after the write so the event carries what the book now says,
+        // rather than a value recomputed in Java that could drift from it.
+        int quantityAfter = 0;
+        BigDecimal averageCostAfter = BigDecimal.ZERO;
+        if (fillResult.decision() == FillDecision.FILL) {
+            var holding = positionMapper.findHolding(order.getClientId(), order.getInstrumentId());
+            if (holding.isPresent()) {
+                quantityAfter = holding.get().quantity();
+                averageCostAfter = holding.get().pricePerUnit();
+            }
+        }
+
+        return SettlementResult.success(fillResult.decision(), fillResult.executedPrice(),
+                quantityAfter, averageCostAfter);
     }
 
     private int executeFill(Order order, OrderRow orderRow, AccountRow accountRow,
@@ -171,26 +184,36 @@ public class SettlementService {
 
     public record QuoteSnapshot(BigDecimal bid, BigDecimal ask) {}
 
+    /**
+     * quantityAfter and averageCostAfter are the holding as it stands once this settlement
+     * has committed. They travel on the ORDER_FILLED event so a consumer can maintain its own
+     * portfolio projection without reading Postgres, which is what contracts/kafka-topics.md
+     * says those fields are for. They are 0 on any non-fill outcome.
+     */
     public record SettlementResult(
             boolean success,
             FillDecision decision,
             BigDecimal executedPrice,
-            String reason
+            String reason,
+            int quantityAfter,
+            BigDecimal averageCostAfter
     ) {
-        public static SettlementResult success(FillDecision decision, BigDecimal executedPrice) {
-            return new SettlementResult(true, decision, executedPrice, null);
+        public static SettlementResult success(FillDecision decision, BigDecimal executedPrice,
+                                               int quantityAfter, BigDecimal averageCostAfter) {
+            return new SettlementResult(true, decision, executedPrice, null,
+                    quantityAfter, averageCostAfter);
         }
         public static SettlementResult alreadySettled(String status) {
-            return new SettlementResult(false, null, null, "ALREADY_SETTLED_" + status);
+            return new SettlementResult(false, null, null, "ALREADY_SETTLED_" + status, 0, BigDecimal.ZERO);
         }
         public static SettlementResult orderNotFound() {
-            return new SettlementResult(false, null, null, "ORDER_NOT_FOUND");
+            return new SettlementResult(false, null, null, "ORDER_NOT_FOUND", 0, BigDecimal.ZERO);
         }
         public static SettlementResult accountNotFound() {
-            return new SettlementResult(false, null, null, "ACCOUNT_NOT_FOUND");
+            return new SettlementResult(false, null, null, "ACCOUNT_NOT_FOUND", 0, BigDecimal.ZERO);
         }
         public static SettlementResult accountNotActive() {
-            return new SettlementResult(false, null, null, "ACCOUNT_NOT_ACTIVE");
+            return new SettlementResult(false, null, null, "ACCOUNT_NOT_ACTIVE", 0, BigDecimal.ZERO);
         }
     }
 }
