@@ -48,8 +48,11 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-auth-service}
       TRADE_CURRENCY: ${TRADE_CURRENCY:-USD}
       SERVER_PORT: 8080
+      TRUSTME_KEY_FILE: /app/leapcapstoneteam1-720d03.TM
     ports:
       - "${TRADE_API_PORT:-8080}:8080"
+    volumes:
+      - ./leapcapstoneteam1-720d03.TM:/app/leapcapstoneteam1-720d03.TM:ro
     networks:
       - trading-net
     healthcheck:
