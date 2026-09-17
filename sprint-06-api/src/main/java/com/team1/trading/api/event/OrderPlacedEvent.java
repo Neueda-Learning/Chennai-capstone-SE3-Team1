@@ -1,5 +1,6 @@
 package com.team1.trading.api.event;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.team1.trading.domain.entity.types.OrderSide;
 
 import java.math.BigDecimal;
@@ -15,6 +16,12 @@ import java.time.LocalDateTime;
  * never published can be replayed from the order table, which is the recoverable failure model
  * Spring 7 mandates for the Trade Executor.
  *
+ * <p>The record is the {@code orders} topic payload. The wire names follow
+ * {@code contracts/kafka-topics.md} ({@code orderId} and {@code createdOn}, not the component
+ * names), and {@link KafkaOrderEventPublisher} wraps the record in the shared five-field
+ * {@code com.team1.eventbus.Envelope} before sending, so nothing on the wire bypasses the
+ * envelope contract.
+ *
  * @param orderUuid      the stored UUID of the order row, the key the executor uses to resolve it
  * @param accountId      the numeric account key the event is keyed by
  * @param symbol         instrument symbol (also the Fauxnance quote symbol)
@@ -26,14 +33,14 @@ import java.time.LocalDateTime;
  * @param placedAt       when the order was placed
  */
 public record OrderPlacedEvent(
-        String orderUuid,
-        Long accountId,
-        String symbol,
-        OrderSide side,
-        Integer quantity,
-        BigDecimal price,
-        String idempotencyKey,
-        LocalDateTime placedAt) {
+        @JsonProperty("orderId") String orderUuid,
+        @JsonProperty("accountId") Long accountId,
+        @JsonProperty("symbol") String symbol,
+        @JsonProperty("side") OrderSide side,
+        @JsonProperty("quantity") Integer quantity,
+        @JsonProperty("price") BigDecimal price,
+        @JsonProperty("idempotencyKey") String idempotencyKey,
+        @JsonProperty("createdOn") LocalDateTime placedAt) {
 
     public static final String EVENT_TYPE = "ORDER_PLACED";
     public static final String TOPIC = "orders";
