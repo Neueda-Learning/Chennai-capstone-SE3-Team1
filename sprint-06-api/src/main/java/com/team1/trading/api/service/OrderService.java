@@ -161,11 +161,13 @@ public class OrderService {
             throw new AccountNotActiveException(row.getAccountId(), "TOKEN");
         }
         // Cancelling is terminal, so the order moves to order_history and leaves the live
-        // book. The delete's rowcount is the guard: 0 means it had already settled.
-        orderMapper.archiveCancelled(orderUuid);
+        // book. Delete first: its rowcount is what claims the order, so of two concurrent
+        // cancels only the winner goes on to write the history row, and the loser gets a
+        // clean 409 rather than a unique-key violation. 0 means it had already settled.
         if (orderMapper.deleteIfNew(orderUuid) == 0) {
             throw new OrderNotCancellableException(displayId(orderUuid), row.getStatus().name());
         }
+        orderMapper.archiveCancelled(row);
         return new OrderResponse(displayId(orderUuid), OrderStatus.CANCELLED, "Order cancelled",
                 row.getSymbol(), row.getSide(), row.getQuantity(), row.getPrice());
     }

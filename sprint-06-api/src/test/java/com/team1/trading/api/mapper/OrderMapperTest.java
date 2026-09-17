@@ -97,13 +97,15 @@ class OrderMapperTest {
 
         orderMapper.insert(insert);
 
-        // Cancelling moves the order to order_history, then removes it from the live book
-        orderMapper.archiveCancelled(uuidStr);
+        // The delete claims the order; only then is the history row written from what was
+        // read, because the orders row no longer exists by that point.
+        OrderMapper.OrderRow row = orderMapper.findByUuid(uuidStr).orElseThrow();
         int cancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(cancelCount).isEqualTo(1);
+        orderMapper.archiveCancelled(row);
 
         // Repeat cancel attempt: the order has left the live book, so the guard reports zero
-        orderMapper.archiveCancelled(uuidStr);
+        // and nothing is archived a second time - which is what keeps the unique key intact.
         int secondCancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(secondCancelCount).isEqualTo(0);
     }

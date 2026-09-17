@@ -49,7 +49,7 @@ public interface OrderMapper {
             SELECT * FROM (
                 SELECT 0 AS liveFirst,
                        order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
-                       instrument_id AS symbol, side, quantity, price,
+                       instrument_id AS symbol, order_type AS orderType, side, quantity, price,
                        executed_price AS executedPrice,
                        status, idempotency_key AS idempotencyKey, created_at AS createdAt,
                        CAST(NULL AS VARCHAR) AS reason
@@ -57,7 +57,8 @@ public interface OrderMapper {
                 WHERE order_id = #{orderUuid}::uuid
                 UNION ALL
                 SELECT 1,
-                       order_id, client_id, account_id, instrument_id, side, quantity, price,
+                       order_id, client_id, account_id, instrument_id, order_type, side,
+                       quantity, price,
                        executed_price, new_status, idempotency_key, order_created_at,
                        failure_code
                 FROM order_history
@@ -83,24 +84,29 @@ public interface OrderMapper {
     int countSettledWithIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
 
     /**
-     * Records the cancellation in order_history, carrying the order's own fields across.
-     * Call {@link #deleteIfNew} straight after, in the same transaction: this insert alone
-     * would leave the order in both places.
+     * Records the cancellation in order_history from the row that was read before the
+     * delete, because by then the orders row is gone.
+     *
+     * <p>Call it only once {@link #deleteIfNew} has returned 1. That delete is what claims
+     * the order: two concurrent cancels both see NEW, but only one delete affects a row, so
+     * only the winner writes a history row. Archiving first would let both write, and the
+     * loser would trip uq_order_history_idempotency_key - turning a clean 409 into an
+     * internal error.
      */
     @Insert("""
             INSERT INTO order_history (
                 order_id, event_type, previous_status, new_status, external_status,
                 client_id, account_id, instrument_id, order_type, side,
                 quantity, price, executed_price, idempotency_key, order_created_at
+            ) VALUES (
+                #{order.orderUuid}::uuid, 'CANCELLED', 'NEW', 'CANCELLED', 'CANCELLED',
+                #{order.clientId}, #{order.accountId}, #{order.symbol},
+                #{order.orderType}, #{order.side},
+                #{order.quantity}, #{order.price}, #{order.executedPrice},
+                #{order.idempotencyKey}, #{order.createdAt}
             )
-            SELECT order_id, 'CANCELLED', 'NEW', 'CANCELLED', 'CANCELLED',
-                   client_id, account_id, instrument_id, order_type, side,
-                   quantity, price, executed_price, idempotency_key, created_at
-            FROM orders
-            WHERE order_id = #{orderUuid}::uuid
-              AND status   = 'NEW'
             """)
-    int archiveCancelled(@Param("orderUuid") String orderUuid);
+    int archiveCancelled(@Param("order") OrderRow order);
 
     /**
      * Removes an order from the live book, but only while it is still NEW.
@@ -157,6 +163,7 @@ public interface OrderMapper {
         private Integer quantity;
         private BigDecimal price;
         private BigDecimal executedPrice;
+        private String orderType;
         private OrderStatus status;
         private String idempotencyKey;
         private LocalDateTime createdAt;
@@ -187,6 +194,8 @@ public interface OrderMapper {
         public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
+        public String getOrderType() { return orderType; }
+        public void setOrderType(String orderType) { this.orderType = orderType; }
     }
 
     class OrderInsert {
