@@ -1,48 +1,55 @@
 <#
 .SYNOPSIS
-    One-shot local bring-up of the trading platform on Windows: Kafka, Postgres schema,
-    the auth stub, Trade API and Trade Executor, then a merged live tail of every log.
+    One-shot local bring-up of the trading platform on Windows: Postgres schema, the auth
+    stub, Trade API and Trade Executor - talking to Kafka running as a Docker container on
+    a separate Linux box - then a merged live tail of every local log.
 
 .DESCRIPTION
     Run from anywhere; the script cd's to the repo root it lives in. Windows PowerShell 5.1
-    compatible. No Docker.
+    compatible. No Docker on this machine: Kafka is expected to already be running on Linux
+    (docker-compose up in infra/kafka) before this script is run. Only the Kafka CLI tools
+    are downloaded locally, to create topics on the remote broker and to let you inspect it
+    from Windows - no broker ever starts on this machine.
 
     What it does, in order:
       1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
          and services\auth-stub.
-      2. Kafka 3.8.0: downloads to -KafkaHome if absent, formats KRaft storage once, starts the
-         broker, waits for :9092, creates the six contracted topics.
+      2. Downloads the Kafka 3.8.0 CLI tools to -KafkaHome if absent, verifies the remote
+         broker at -KafkaHost:9092 is reachable, creates the six contracted topics there.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
       4. Builds domain-engine, eventbus, sprint-06-api and executor (-SkipBuild reuses jars);
          npm installs services\auth-stub if node_modules is missing.
-      5. Starts the auth stub (:4000), the API (:8081) and the executor (:8083), waits for
-         health on all three.
+      5. Starts the auth stub (:4000), the API (:8081) and the executor (:8083), all pointed
+         at the remote Kafka, waits for health on all three.
       6. Mints a 1-hour JWT for account 1 and prints ready-to-paste curl commands, including
          one to get a token from the auth stub instead.
-      7. Tails api / executor / auth-stub / kafka / postgres logs together until Ctrl+C.
+      7. Tails api / executor / auth-stub / postgres logs together until Ctrl+C. Kafka's own
+         logs live on the Linux box (docker-compose logs -f kafka there).
          Ctrl+C stops only the tail; the services keep running. Use -Stop to shut them down.
 
 .PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
+.PARAMETER KafkaHost         Address of the Linux box running Kafka in Docker (infra/kafka/docker-compose.yml). Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
 .PARAMETER JwtSecret         HS256 secret the API verifies tokens with. Default is a dev value.
-.PARAMETER KafkaHome         Where Kafka lives / gets installed. Default C:\kafka.
+.PARAMETER KafkaHome         Where the Kafka distribution's CLI tools (kafka-topics etc.) are cached. Default C:\kafka. No broker runs from here - Kafka itself lives on -KafkaHost.
 .PARAMETER SkipBuild         Reuse the jars already in target\.
 .PARAMETER ResetDb           Drop and recreate trading_platform before migrating.
 .PARAMETER NoTail            Start everything and return without tailing logs.
 .PARAMETER TailOnly          Skip setup; just attach the merged log tail to the running services.
-.PARAMETER Stop              Stop the API, executor and Kafka started by a previous run, then exit.
+.PARAMETER Stop              Stop the API, executor and auth stub started by a previous run, then exit. Kafka is untouched - it's managed on the Linux side, separately.
 
 .EXAMPLE
-    .\run-local.ps1                       # prompts for the TrustMe password
+    .\run-local.ps1                            # prompts for the TrustMe password and the Kafka host
 .EXAMPLE
-    .\run-local.ps1 -SkipBuild            # fast restart after a stop
+    .\run-local.ps1 -KafkaHost 10.8.65.2 -SkipBuild
 .EXAMPLE
-    .\run-local.ps1 -TailOnly             # re-attach to the logs of a running stack
+    .\run-local.ps1 -TailOnly                  # re-attach to the logs of a running stack
 .EXAMPLE
     .\run-local.ps1 -Stop
 #>
 [CmdletBinding()]
 param(
     [string]$TrustMePassword,
+    [string]$KafkaHost,
     [string]$JwtSecret = "local-dev-secret-change-me",
     [string]$KafkaHome = "C:\kafka",
     [switch]$SkipBuild,
@@ -75,10 +82,13 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 function Say($msg, $color = "Cyan") { Write-Host ""; Write-Host "==> $msg" -ForegroundColor $color }
 function Fail($msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
 
-function Test-Port($port) {
+# $hostName defaults to loopback for the processes this script starts itself (API, executor,
+# auth stub, local Postgres); Kafka reachability checks pass -KafkaHost explicitly since that
+# broker runs on a different machine entirely.
+function Test-Port($port, $hostName = "127.0.0.1") {
     try {
         $c = New-Object Net.Sockets.TcpClient
-        $r = $c.BeginConnect("127.0.0.1", $port, $null, $null)
+        $r = $c.BeginConnect($hostName, $port, $null, $null)
         $ok = $r.AsyncWaitHandle.WaitOne(1500, $false)
         if ($ok) { $c.EndConnect($r) }
         $c.Close(); return $ok
@@ -112,13 +122,12 @@ function Stop-Tracked($name, $procId) {
 
 # ------------------------------------------------------------------ -Stop
 if ($Stop) {
-    Say "Stopping services" Yellow
+    Say "Stopping services (Kafka is on Linux - not touched here)" Yellow
     $pids = Read-Pids
     if (-not $pids) { Write-Host "    nothing tracked in $PidFile"; exit 0 }
     Stop-Tracked "executor" $pids.executor
     Stop-Tracked "trade-api" $pids.api
     Stop-Tracked "auth-stub" $pids.authstub
-    Stop-Tracked "kafka" $pids.kafka
     Remove-Item $PidFile -ErrorAction SilentlyContinue
     exit 0
 }
@@ -148,20 +157,26 @@ if (-not $TrustMePassword) {
     $sec = Read-Host "TrustMe key file password" -AsSecureString
     $TrustMePassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
 }
+if (-not $KafkaHost) {
+    $KafkaHost = Read-Host "Kafka host (the Linux box running docker-compose in infra/kafka)"
+}
+if (-not $KafkaHost) { Fail "Kafka host is required (pass -KafkaHost or enter it when prompted)" }
 Write-Host "    java: $((cmd /c "java -version 2>&1" | Select-Object -First 1))"
 Write-Host "    key file, psql, python, postgres: ok"
 
 $pyTrust = @("-X", "trustme_password=$TrustMePassword", "-X", "trustme_keyfile=$KeyFile")
 
-# ------------------------------------------------------------------ 2. kafka
-Say "Kafka $KafkaVer at $KafkaHome"
+# ------------------------------------------------------------------ 2. kafka (remote - Linux)
+Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}:${KafkaPort}"
 $kafkaLibs = Join-Path $KafkaHome "libs\*"
-$kafkaCfg  = Join-Path $KafkaHome "config\kraft\server.properties"
-$kafkaLog4j = "file:" + ((Join-Path $KafkaHome "config\log4j.properties") -replace "\\", "/")
 $toolsLog4j = "file:" + ((Join-Path $KafkaHome "config\tools-log4j.properties") -replace "\\", "/")
 
-if (-not (Test-Path $kafkaCfg)) {
-    Write-Host "    downloading $KafkaUrl"
+# A file that only exists once the distribution is unpacked - used purely to decide whether
+# to download again. No broker config is used from here; nothing in $KafkaHome ever runs a
+# server, only the client-side CLI tools (kafka-topics / TopicCommand) below.
+$kafkaMarker = Join-Path $KafkaHome "bin\kafka-topics.sh"
+if (-not (Test-Path $kafkaMarker)) {
+    Write-Host "    downloading $KafkaUrl (CLI tools only - no broker runs on this machine)"
     New-Item -ItemType Directory -Force -Path $KafkaHome | Out-Null
     $tgz = Join-Path $KafkaHome "kafka.tgz"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -170,34 +185,14 @@ if (-not (Test-Path $kafkaCfg)) {
     Remove-Item $tgz
 }
 
-# The bundled .bat wrappers call wmic, which newer Windows builds no longer ship, so the
-# broker and tools are launched straight from the jars instead.
-$kafkaDataDir = "C:\tmp\kraft-combined-logs"      # log.dirs default in server.properties
-$existing = Read-Pids
-if ($existing -and (Get-Process -Id $existing.kafka -ErrorAction SilentlyContinue) -and (Test-Port $KafkaPort)) {
-    Write-Host "    broker already running (pid $($existing.kafka))"
-    $kafkaPid = $existing.kafka
-} elseif (Test-Port $KafkaPort) {
-    Write-Host "    something else already listens on $KafkaPort; using it" -ForegroundColor Yellow
-    $kafkaPid = $null
-} else {
-    if (-not (Test-Path (Join-Path $kafkaDataDir "meta.properties"))) {
-        Write-Host "    formatting KRaft storage"
-        $id = (java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool random-uuid 2>$null | Select-Object -Last 1).Trim()
-        java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool format -t $id -c $kafkaCfg | Out-Null
-    }
-    $kp = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $LogDir "kafka.log") -RedirectStandardError (Join-Path $LogDir "kafka.err") `
-        -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg)
-    $kafkaPid = $kp.Id
-    Write-Host "    broker starting (pid $kafkaPid)"
-    if (-not (Wait-Until "kafka :$KafkaPort" { Test-Port $KafkaPort } 90)) { Fail "see $LogDir\kafka.log" }
+if (-not (Wait-Until "kafka ${KafkaHost}:${KafkaPort}" { Test-Port $KafkaPort $KafkaHost } 30)) {
+    Fail "Can't reach Kafka at ${KafkaHost}:${KafkaPort}. Is 'docker-compose up' running on that Linux box (infra/kafka/docker-compose.yml)? Is a firewall/security group blocking port $KafkaPort?"
 }
 
 Write-Host "    ensuring topics"
 foreach ($t in $Topics.GetEnumerator()) {
     java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs org.apache.kafka.tools.TopicCommand `
-        --bootstrap-server "localhost:$KafkaPort" --create --if-not-exists --topic $t.Key --partitions $t.Value --replication-factor 1 2>$null |
+        --bootstrap-server "${KafkaHost}:$KafkaPort" --create --if-not-exists --topic $t.Key --partitions $t.Value --replication-factor 1 2>$null |
         Where-Object { $_ -match "Created" } | ForEach-Object { Write-Host "    $_" }
 }
 
@@ -251,10 +246,17 @@ foreach ($p in $ApiPort, $ExecPort, $AuthStubPort) { if (Test-Port $p) { Fail "p
 
 $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile")
 
-# Both the API and the auth stub read this: the API verifies tokens with it (overriding the
-# TrustMe vault's jwt.secret, so it's a value this script - and whoever calls the stub - knows),
-# and the stub signs tokens with it. Same as the Docker Compose path's JWT_SECRET override.
+# The API and the auth stub both read JWT_SECRET (API verifies tokens with it, overriding
+# the TrustMe vault's jwt.secret so it's a value this script - and whoever calls the stub -
+# knows; the stub signs with it). KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API
+# or the executor start: both run a Kafka producer (trade-api publishes ORDER_PLACED, the
+# executor publishes/consumes everything else), and Spring only reads env vars present at
+# JVM startup - setting it after the API was already launched (an earlier version of this
+# script did exactly that) meant the API silently fell back to its localhost:9092 default,
+# which happened to work only because Kafka used to run on this same machine.
 $env:JWT_SECRET = $JwtSecret
+$env:KAFKA_BOOTSTRAP_SERVERS = "${KafkaHost}:$KafkaPort"
+
 $authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthStubDir `
     -RedirectStandardOutput (Join-Path $LogDir "authstub.log") -RedirectStandardError (Join-Path $LogDir "authstub.err") `
     -ArgumentList @("server.js")
@@ -265,13 +267,12 @@ $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -ArgumentList ($jvmCommon + @("-jar", $apiJar))
 Write-Host "    trade-api  pid $($api.Id)  -> http://localhost:$ApiPort"
 
-$env:KAFKA_BOOTSTRAP_SERVERS = "localhost:$KafkaPort"
 $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "executor.log") -RedirectStandardError (Join-Path $LogDir "executor.err") `
     -ArgumentList ($jvmCommon + @("-jar", $execJar))
 Write-Host "    executor   pid $($exe.Id)  -> http://localhost:$ExecPort"
 
-@{ kafka = $kafkaPid; api = $api.Id; executor = $exe.Id; authstub = $authStub.Id; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
+@{ api = $api.Id; executor = $exe.Id; authstub = $authStub.Id; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
 
 $authStubUp = Wait-Until "auth-stub /health"        { Get-Health $AuthStubPort } 30
 $apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiPort } 150
@@ -293,9 +294,9 @@ Set-Content (Join-Path $LogDir "token.txt") $token
 
 Say "Ready" Green
 Write-Host @"
-  Trade API   http://localhost:$ApiPort      Executor  http://localhost:$ExecPort      Kafka localhost:$KafkaPort
+  Trade API   http://localhost:$ApiPort      Executor  http://localhost:$ExecPort      Kafka ${KafkaHost}:$KafkaPort (Linux)
   Auth stub   http://localhost:$AuthStubPort
-  Logs        $LogDir\{api,executor,authstub,kafka}.log        PIDs  $PidFile
+  Logs        $LogDir\{api,executor,authstub}.log        PIDs  $PidFile
   JWT (acct 1, 1h)  saved to $LogDir\token.txt
 
   # place an order (PowerShell; the -replace escapes quotes for curl.exe, which PS 5.1 otherwise strips)
@@ -310,10 +311,13 @@ Write-Host @"
   # per-account reach check is skipped)
   Invoke-RestMethod -Uri http://localhost:$AuthStubPort/login -Method Post -ContentType application/json -Body '{"username":"alice","password":"mission123"}'
 
-  # watch a topic
-  java -cp "$kafkaLibs" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server localhost:$KafkaPort --topic trade-events --from-beginning
+  # watch a topic on the remote broker
+  java -cp "$kafkaLibs" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server ${KafkaHost}:$KafkaPort --topic trade-events --from-beginning
 
-  # stop everything
+  # Kafka's own logs are on the Linux box, not here:
+  #   docker-compose -f infra/kafka/docker-compose.yml logs -f kafka
+
+  # stop the services on this machine (Kafka on Linux is separate - stop it there with docker-compose down)
   .\run-local.ps1 -Stop
 "@
 
@@ -321,7 +325,7 @@ if ($NoTail) { exit 0 }
 } # end of setup (skipped by -TailOnly)
 
 # ------------------------------------------------------------------ 7. merged log tail
-Say "Tailing logs (Ctrl+C stops the tail only; services keep running)" Yellow
+Say "Tailing local logs (Ctrl+C stops the tail only; services keep running). Kafka's logs are on the Linux box." Yellow
 $pgLogDir = Get-ChildItem "C:\Program Files\PostgreSQL\*\data\log" -Directory -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
 $sources = @(
     @{ tag = "API   "; color = "Green";   path = (Join-Path $LogDir "api.log") },
@@ -329,9 +333,7 @@ $sources = @(
     @{ tag = "EXEC  "; color = "Cyan";    path = (Join-Path $LogDir "executor.log") },
     @{ tag = "EXEC! "; color = "Red";     path = (Join-Path $LogDir "executor.err") },
     @{ tag = "AUTH  "; color = "Yellow";  path = (Join-Path $LogDir "authstub.log") },
-    @{ tag = "AUTH! "; color = "Red";     path = (Join-Path $LogDir "authstub.err") },
-    @{ tag = "KAFKA "; color = "Magenta"; path = (Join-Path $LogDir "kafka.log") },
-    @{ tag = "KAFKA!"; color = "Red";     path = (Join-Path $LogDir "kafka.err") }
+    @{ tag = "AUTH! "; color = "Red";     path = (Join-Path $LogDir "authstub.err") }
 )
 if ($pgLogDir) {
     $pgLatest = Get-ChildItem $pgLogDir.FullName -Filter *.log -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1

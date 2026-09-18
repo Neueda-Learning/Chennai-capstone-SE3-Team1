@@ -1,7 +1,5 @@
 # Local connection overrides. Never commit real credentials.
 .env
-docker-compose.override.yml
-.trustme-password
 
 # Node (services/auth-stub)
 node_modules/

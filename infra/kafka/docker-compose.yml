@@ -1,0 +1,49 @@
+# Kafka, standalone, as a Docker container on Linux. Everything else (Postgres, the auth
+# stub, Trade REST API, Trade Executor) runs natively on Windows via run-local.ps1 at the
+# repo root - that script prompts for this box's address and points every local process at
+# it. No --profile needed: this file has exactly one service.
+#
+# Run from this directory (not the repo root) - Compose looks for .env in whatever
+# directory you actually invoke it from, not next to the compose file if you use -f from
+# elsewhere:
+#
+#   cd infra/kafka
+#   cp ../../.env.example .env   # once, then set KAFKA_ADVERTISED_HOST - see below
+#   docker-compose up -d
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: team1_kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
+      # The host a client OUTSIDE this container reconnects to after the initial bootstrap
+      # (Kafka hands this back in its metadata response) - in this setup, that's every
+      # client there is: run-local.ps1 on Windows, and any CLI tool run directly on this
+      # Linux box. Set this to the box's own reachable private IP/hostname in .env, or every
+      # request past the first metadata fetch fails with "server does not host this
+      # topic-partition"-style errors that look unrelated to the real cause.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-localhost}:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Uncomment on a small/shared box - kafka defaults to a 1G heap otherwise.
+      # KAFKA_HEAP_OPTS: "-Xms256m -Xmx384m"
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
