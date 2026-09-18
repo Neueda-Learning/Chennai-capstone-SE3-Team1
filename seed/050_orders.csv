@@ -1,3 +1,0 @@
-order_id,client_id,account_id,instrument_id,order_type,side,quantity,price,executed_price,status,idempotency_key,external_order_id,created_at,updated_at
-550e8400-e29b-41d4-a716-446655440014,3,3,INFY,HOLDING,BUY,25,1571.2500,,NEW,ord-1014-rohan-infy-buy,,2026-01-05 09:42:00,2026-01-05 09:42:00
-550e8400-e29b-41d4-a716-446655440015,3,3,TCS,POSITION,BUY,10,3888.0000,,NEW,ord-1015-rohan-tcs-new,,2026-01-05 09:43:00,2026-01-05 09:43:00
