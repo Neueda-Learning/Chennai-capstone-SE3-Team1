@@ -3,13 +3,15 @@
 # repo root - that script prompts for this box's address and points every local process at
 # it. No --profile needed: this file has exactly one service.
 #
-# Run from this directory (not the repo root) - Compose looks for .env in whatever
-# directory you actually invoke it from, not next to the compose file if you use -f from
-# elsewhere:
+# Bring it up with:
 #
-#   cd infra/kafka
-#   cp ../../.env.example .env   # once, then set KAFKA_ADVERTISED_HOST - see below
-#   docker-compose up -d
+#   bash infra/kafka/up.sh
+#
+# That creates .env (in this directory - Compose looks for it wherever you actually invoke
+# the command from, not next to the compose file if you use -f from elsewhere) and
+# auto-detects KAFKA_ADVERTISED_HOST below on first run, so there's normally nothing to
+# edit by hand; see up.sh for what it does when auto-detection fails, and infra/README.md
+# for the rest of the day-to-day commands (down, logs, resetting).
 services:
   kafka:
     image: apache/kafka:3.8.0

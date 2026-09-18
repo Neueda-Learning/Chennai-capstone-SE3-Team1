@@ -26,18 +26,23 @@ follow [Diagnosis](#diagnosis) before changing anything.
 **On the Linux box**, once per boot (or after any `down`):
 
 ```bash
-cd infra/kafka
-cp ../../.env.example .env      # once - then edit KAFKA_ADVERTISED_HOST, see below
-docker-compose up -d
+bash infra/kafka/up.sh
 ```
 
-(`.env` goes in `infra/kafka/`, not the repo root - Compose looks for it in whatever
-directory you actually run the command from.)
+That's it - no `.env` to hand-edit. It creates `.env` (in `infra/kafka/`, not the repo root -
+Compose looks for it in whatever directory you actually run the command from) on first run,
+auto-detects this box's own reachable address (EC2 metadata endpoint, falling back to
+`hostname -I`) for `KAFKA_ADVERTISED_HOST`, and brings Kafka up. Safe to re-run - it leaves
+`KAFKA_ADVERTISED_HOST` alone once it's been set to something other than the `localhost`
+default, so a manual override always wins.
 
-`KAFKA_ADVERTISED_HOST` in `.env` must be this box's own reachable address (its private IP
-on a VPN, typically) - not `localhost`, which only means something to a process running on
-the box itself. Get it wrong and everything past the first connection attempt fails with an
-`UNKNOWN_TOPIC_OR_PARTITION`-shaped error that looks unrelated to the real cause.
+`KAFKA_ADVERTISED_HOST` has to be this box's own reachable address, not `localhost` (which
+only means something to a process running on the box itself) - if auto-detection ever fails
+(no EC2 metadata endpoint, no `hostname -I`, e.g. off EC2 or a minimal image), `up.sh` says
+so and leaves you to set it in `infra/kafka/.env` by hand before re-running. Getting this
+wrong is the single most common failure, and the least obvious from the error: everything
+past the first connection attempt fails with an `UNKNOWN_TOPIC_OR_PARTITION`-shaped error
+that looks unrelated to the real cause.
 
 **On each Windows box**, from the repo root:
 
@@ -57,7 +62,7 @@ processes without touching Kafka (that's stopped separately, on Linux).
 |---|---|---|
 | Stop local services | Windows | `.\run-local.ps1 -Stop` |
 | Stop Kafka | Linux | `docker-compose -f infra/kafka/docker-compose.yml down` |
-| Reset Kafka to empty (deletes topics/offsets - there's no volume, so this is also what a plain restart does) | Linux | `docker-compose -f infra/kafka/docker-compose.yml down && up -d`, then re-run `run-local.ps1` (or `infra/kafka/create-topics.sh`) to recreate topics |
+| Reset Kafka to empty (deletes topics/offsets - there's no volume, so this is also what a plain restart does) | Linux | `docker-compose -f infra/kafka/docker-compose.yml down`, then `bash infra/kafka/up.sh`, then re-run `run-local.ps1` (or `infra/kafka/create-topics.sh`) to recreate topics |
 | Reset the database to seed state | Windows | `.\run-local.ps1 -ResetDb` |
 
 ## Kafka
