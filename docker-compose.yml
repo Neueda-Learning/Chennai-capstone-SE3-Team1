@@ -1,4 +1,29 @@
 services:
+  # Stub for the Sprint 8 auth service (contracts/auth-api.yaml). Issues JWTs so /login
+  # can be hit directly instead of minting tokens by hand; see services/auth-stub/README.md
+  # for the shared-secret setup this needs to actually verify against trade-api.
+  auth-stub:
+    build:
+      context: ./services/auth-stub
+    container_name: team1_auth_stub
+    restart: unless-stopped
+    profiles:
+      - platform
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-auth-service}
+      PORT: 4000
+    ports:
+      - "${AUTH_STUB_PORT:-4000}:4000"
+    networks:
+      - trading-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
   postgres:
     image: postgres:17
     container_name: team1_trade_db
@@ -35,12 +60,18 @@ services:
     restart: unless-stopped
     profiles:
       - kafka
+      - platform
     environment:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://<your_private_ip>:9092,INTERNAL://kafka:29092
+      # The host a client OUTSIDE the compose network reconnects to after the initial
+      # bootstrap (Kafka hands this back in its metadata response). "localhost" is right
+      # when Docker publishes the port on the same machine the client runs on (the normal
+      # Docker Desktop dev setup); a remote box needs its own reachable IP/hostname here,
+      # set via .env — see infra/README.md.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-localhost}:9092,INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -74,12 +105,25 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       JWT_ISSUER: ${JWT_ISSUER:-auth-service}
       TRADE_CURRENCY: ${TRADE_CURRENCY:-USD}
       SERVER_PORT: 8080
       TRUSTME_KEY_FILE: /app/leapcapstoneteam1-720d03.TM
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      # The TrustMe vault names the DB host "localhost", which is correct when this app
+      # runs on the host directly (run-local.ps1) but means "this container" once it runs
+      # in Docker. These three override the vault-driven spring.datasource.* properties so
+      # the app reaches the postgres service instead; everything else (JWT secret, etc.)
+      # still comes from the vault.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-trading_platform}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Literal, not ${KAFKA_BOOTSTRAP_SERVERS}: that variable is the HOST listener
+      # (localhost:9092) so tools on this machine can reach the broker. Inside the stack
+      # network the broker is kafka:29092, and localhost here is this container.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "${TRADE_API_PORT:-8080}:8080"
     volumes:
@@ -105,9 +149,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       SERVER_PORT: 8083
       TRUSTME_KEY_FILE: /app/leapcapstoneteam1-720d03.TM
+      # Same override as trade-api: the TrustMe vault's DB host ("localhost") means this
+      # container once inside Docker, so point it at the postgres service directly.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-trading_platform}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       # Literal, not ${KAFKA_BOOTSTRAP_SERVERS}: that variable is the HOST
       # listener (localhost:9092) so tools on this machine can reach the broker.
       # Inside the stack network the broker is kafka:29092, and localhost here

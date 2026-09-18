@@ -1,0 +1,13 @@
+{
+  "name": "trading-auth-stub",
+  "version": "1.0.0",
+  "description": "Minimal Node.js auth service issuing JWTs the Trade REST API and executor verify, standing in for the Sprint 8 auth service.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

@@ -202,7 +202,7 @@ public class OrderConsumer {
                             errorContext.failureReason());
                     try {
                         publishRejected(payload, envelope.eventId(),
-                                errorContext.failureReason());
+                                errorContext.failureReason(), null);
                     } catch (Exception publishError) {
                         log.error("Failed to publish rejection: {}", publishError.getMessage());
                     }
@@ -301,7 +301,7 @@ public class OrderConsumer {
             publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote,
                     settlementResult.quantityAfter(), settlementResult.averageCostAfter());
         } else {
-            publishRejected(payload, envelope.eventId(), fillResult.reason());
+            publishRejected(payload, envelope.eventId(), fillResult.reason(), quote);
         }
     }
 
@@ -376,12 +376,17 @@ public class OrderConsumer {
 
     /**
      * Publishes ORDER_REJECTED event to trade-events topic.
-     * 
+     *
      * @param payload    The order payload
      * @param eventId    The original event ID (for tracing)
      * @param reasonCode The rejection reason code
+     * @param quote      The Fauxnance quote the rejection was decided against, or null when the
+     *                   order was rejected before a quote was available (e.g. quota/API failure)
      */
-    private void publishRejected(OrderPlacedPayload payload, String eventId, String reasonCode) {
+    private void publishRejected(OrderPlacedPayload payload, String eventId, String reasonCode, QuoteResponse quote) {
+        log.info("Order {} REJECTED [{}]: side={} symbol={} qty={} requestedPrice={} -- {}",
+                payload.orderId(), reasonCode, payload.side(), payload.symbol(), payload.quantity(),
+                payload.price(), describeRejection(payload.side(), payload.price(), quote));
         BigDecimal cashDelta = BigDecimal.ZERO;
         TradeEventPayload event = new TradeEventPayload(
                 payload.orderId(),
@@ -406,6 +411,28 @@ public class OrderConsumer {
                 objectMapper.valueToTree(event));
         kafkaTemplate.send(TRADE_EVENTS_TOPIC, String.valueOf(payload.accountId()), envelope);
         log.info("Published ORDER_REJECTED for order {}: {}", payload.orderId(), reasonCode);
+    }
+
+    /**
+     * Builds the human-readable price comparison that goes alongside a rejection log: the
+     * requested/limit price against the Fauxnance bid/ask the fill rule actually compared it to,
+     * so the log line proves why the order could not fill without needing to cross-reference code.
+     *
+     * @param side          BUY or SELL, as carried on the order payload
+     * @param requestedPrice The client's limit price
+     * @param quote         The Fauxnance quote used for the fill-rule decision, or null when no
+     *                      quote was fetched (e.g. quota exhausted / Fauxnance API failure)
+     */
+    private String describeRejection(String side, BigDecimal requestedPrice, QuoteResponse quote) {
+        if (quote == null || quote.bid() == null || quote.ask() == null) {
+            return "no Fauxnance bid/ask available to compare against";
+        }
+        if ("BUY".equals(side)) {
+            return String.format("requested price %s is below Fauxnance ask %s (a BUY needs requested >= ask to fill)",
+                    requestedPrice, quote.ask());
+        }
+        return String.format("requested price %s is above Fauxnance bid %s (a SELL needs requested <= bid to fill)",
+                requestedPrice, quote.bid());
     }
 
     /**
