@@ -13,15 +13,31 @@ public class PositionResponse {
     private String symbol;
     private Integer quantity;
     private BigDecimal averageCost;
+    /**
+     * Unrealised gain at the last market price seen: (price - averageCost) * quantity.
+     * Refreshed from the market-data stream once per poll cycle, so it is as current as
+     * the last quote rather than as current as this request.
+     */
+    private BigDecimal overallGains;
 
     public PositionResponse() {
     }
 
-    public PositionResponse(Long accountId, String symbol, Integer quantity, BigDecimal averageCost) {
+    public PositionResponse(Long accountId, String symbol, Integer quantity, BigDecimal averageCost,
+                            BigDecimal overallGains) {
         this.accountId = accountId;
         this.symbol = symbol;
         this.quantity = quantity;
         this.averageCost = averageCost;
+        this.overallGains = overallGains;
+    }
+
+    public BigDecimal getOverallGains() {
+        return overallGains;
+    }
+
+    public void setOverallGains(BigDecimal overallGains) {
+        this.overallGains = overallGains;
     }
 
     public Long getAccountId() {

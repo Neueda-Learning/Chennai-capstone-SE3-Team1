@@ -4,6 +4,7 @@ import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
 import com.team1.trading.api.dto.OrderResponse;
+import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.security.JwtVerificationFilter;
 import com.team1.trading.api.security.TokenAccountIdResolver;
@@ -249,18 +250,26 @@ class TradeApiControllerWebTest {
         }
 
         @Test
-        @DisplayName("Positions are a list of the contract's entries")
-        void getPositions_body() throws Exception {
-            given(accountService.getPositions(eq(1L), nullable(Long.class)))
-                    .willReturn(List.of(
-                            new PositionResponse(1L, "ACME", 100, new BigDecimal("25.50")),
-                            new PositionResponse(1L, "INFY.NS", 40, new BigDecimal("1580.25"))));
+        @DisplayName("The portfolio carries both books, each entry the contract's shape")
+        void getPortfolio_body() throws Exception {
+            given(accountService.getPortfolio(eq(1L), nullable(Long.class)))
+                    .willReturn(new PortfolioResponse(1L,
+                            List.of(new PositionResponse(1L, "ACME", 100, new BigDecimal("25.50"), new BigDecimal("310.00")),
+                                    new PositionResponse(1L, "INFY.NS", 40, new BigDecimal("1580.25"), new BigDecimal("-820.00"))),
+                            List.of(new PositionResponse(1L, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00")))));
 
-            mockMvc.perform(get("/api/v1/accounts/{id}/positions", 1L))
+            mockMvc.perform(get("/api/v1/accounts/{id}/portfolio", 1L))
                     .andExpect(status().isOk())
                     .andExpect(content().json("""
-                            [{"accountId":1,"symbol":"ACME","quantity":100,"averageCost":25.50},
-                             {"accountId":1,"symbol":"INFY.NS","quantity":40,"averageCost":1580.25}]
+                            {"accountId":1,
+                             "holdings":[
+                               {"accountId":1,"symbol":"ACME","quantity":100,"averageCost":25.50,
+                                "overallGains":310.00},
+                               {"accountId":1,"symbol":"INFY.NS","quantity":40,"averageCost":1580.25,
+                                "overallGains":-820.00}],
+                             "positions":[
+                               {"accountId":1,"symbol":"HDFCBANK","quantity":-30,"averageCost":1698.50,
+                                "overallGains":450.00}]}
                             """, true));
         }
 

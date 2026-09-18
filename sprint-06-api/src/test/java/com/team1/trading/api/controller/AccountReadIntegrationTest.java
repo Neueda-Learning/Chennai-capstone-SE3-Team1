@@ -59,12 +59,17 @@ class AccountReadIntegrationTest {
     }
 
     @Test
-    @DisplayName("Integration Flow: Read positions against portfolio_positions table")
-    void testReadPositionsIntegration() throws Exception {
-        mockMvc.perform(get("/api/v1/accounts/1/positions")
+    @DisplayName("Integration Flow: the portfolio reads both books in one answer")
+    void testReadPortfolioIntegration() throws Exception {
+        mockMvc.perform(get("/api/v1/accounts/1/portfolio")
                         .header("Authorization", validToken)
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId", is(1)))
+                // both keys are always present, even when a book is empty, so a caller
+                // never has to distinguish "no positions" from "field missing"
+                .andExpect(jsonPath("$.holdings").isArray())
+                .andExpect(jsonPath("$.positions").isArray());
     }
 
     @Test

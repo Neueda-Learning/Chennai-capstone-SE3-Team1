@@ -3,6 +3,7 @@ package com.team1.trading.api.controller;
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
+import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.security.JwtVerificationFilter;
 import com.team1.trading.api.security.TokenAccountIdResolver;
@@ -87,16 +88,24 @@ class AccountReadControllerTest {
                 .andExpect(jsonPath("$.cashBalance", is(485200.00)))
                 .andExpect(jsonPath("$.currency", is("USD")));
 
-        // Setup Positions Response
-        PositionResponse positionResponse = new PositionResponse(ACCOUNT_ID, "INFY", 100, new BigDecimal("1500.00"));
-        given(accountService.getPositions(eq(ACCOUNT_ID), any())).willReturn(List.of(positionResponse));
+        // Setup Portfolio Response: both books in one answer
+        PositionResponse holding = new PositionResponse(ACCOUNT_ID, "INFY", 100, new BigDecimal("1500.00"), new BigDecimal("2500.00"));
+        PositionResponse shortPosition = new PositionResponse(ACCOUNT_ID, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00"));
+        given(accountService.getPortfolio(eq(ACCOUNT_ID), any()))
+                .willReturn(new PortfolioResponse(ACCOUNT_ID, List.of(holding), List.of(shortPosition)));
 
-        mockMvc.perform(get("/api/v1/accounts/1/positions"))
+        mockMvc.perform(get("/api/v1/accounts/1/portfolio"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].symbol", is("INFY")))
-                .andExpect(jsonPath("$[0].quantity", is(100)))
-                .andExpect(jsonPath("$[0].averageCost", is(1500.00)));
+                .andExpect(jsonPath("$.accountId", is(1)))
+                .andExpect(jsonPath("$.holdings", hasSize(1)))
+                .andExpect(jsonPath("$.holdings[0].symbol", is("INFY")))
+                .andExpect(jsonPath("$.holdings[0].quantity", is(100)))
+                .andExpect(jsonPath("$.holdings[0].averageCost", is(1500.00)))
+                .andExpect(jsonPath("$.holdings[0].overallGains", is(2500.00)))
+                // a short is a negative quantity and must survive the round trip as one
+                .andExpect(jsonPath("$.positions", hasSize(1)))
+                .andExpect(jsonPath("$.positions[0].symbol", is("HDFCBANK")))
+                .andExpect(jsonPath("$.positions[0].quantity", is(-30)));
 
         // Setup Order History Response
         OrderHistoryEntry historyEntry = new OrderHistoryEntry(

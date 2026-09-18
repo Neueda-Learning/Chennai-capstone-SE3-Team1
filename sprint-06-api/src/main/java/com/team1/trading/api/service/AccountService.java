@@ -3,6 +3,7 @@ package com.team1.trading.api.service;
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
+import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
@@ -57,9 +58,17 @@ public class AccountService {
         return new BalanceResponse(row.getClientId(), row.getWalletBalance(), currency, LocalDateTime.now());
     }
 
-    public List<PositionResponse> getPositions(Long accountId, Long tokenAccountId) {
+    /**
+     * The account's whole portfolio: the delivery book and the intraday book together.
+     *
+     * <p>They are read in one call because a caller asking "what do I hold" means both, and
+     * making it two round trips would let the answers disagree with each other.
+     */
+    public PortfolioResponse getPortfolio(Long accountId, Long tokenAccountId) {
         resolve(accountId, tokenAccountId);
-        return positionMapper.listPositions(accountId);
+        return new PortfolioResponse(accountId,
+                positionMapper.listHoldings(accountId),
+                positionMapper.listPositions(accountId));
     }
 
     public List<OrderHistoryEntry> getOrderHistory(Long accountId, Long tokenAccountId,

@@ -3,6 +3,7 @@ package com.team1.trading.api.service;
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
+import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
@@ -105,9 +106,10 @@ class AccountServiceTest {
             row.setAccountState("CLOSED");
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(row));
 
-            assertThatThrownBy(() -> accountService.getPositions(ACCOUNT_ID, null))
+            assertThatThrownBy(() -> accountService.getPortfolio(ACCOUNT_ID, null))
                     .isInstanceOf(AccountNotActiveException.class)
                     .hasMessage("Account not active");
+            verify(positionMapper, org.mockito.Mockito.never()).listHoldings(any());
             verify(positionMapper, org.mockito.Mockito.never()).listPositions(any());
         }
     }
@@ -154,15 +156,24 @@ class AccountServiceTest {
         @DisplayName("Positions come back as the contract's entries")
         void getPositions() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+            given(positionMapper.listHoldings(ACCOUNT_ID))
+                    .willReturn(List.of(new PositionResponse(ACCOUNT_ID, "ACME", 100, new BigDecimal("25.50"), new BigDecimal("310.00"))));
             given(positionMapper.listPositions(ACCOUNT_ID))
-                    .willReturn(List.of(new PositionResponse(ACCOUNT_ID, "ACME", 100, new BigDecimal("25.50"))));
+                    .willReturn(List.of(new PositionResponse(ACCOUNT_ID, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00"))));
 
-            List<PositionResponse> positions = accountService.getPositions(ACCOUNT_ID, null);
+            PortfolioResponse portfolio = accountService.getPortfolio(ACCOUNT_ID, null);
 
-            assertThat(positions).singleElement().satisfies(position -> {
-                assertThat(position.getSymbol()).isEqualTo("ACME");
-                assertThat(position.getQuantity()).isEqualTo(100);
-                assertThat(position.getAverageCost()).isEqualByComparingTo(new BigDecimal("25.50"));
+            assertThat(portfolio.getAccountId()).isEqualTo(ACCOUNT_ID);
+            assertThat(portfolio.getHoldings()).singleElement().satisfies(holding -> {
+                assertThat(holding.getSymbol()).isEqualTo("ACME");
+                assertThat(holding.getQuantity()).isEqualTo(100);
+                assertThat(holding.getAverageCost()).isEqualByComparingTo(new BigDecimal("25.50"));
+                assertThat(holding.getOverallGains()).isEqualByComparingTo(new BigDecimal("310.00"));
+            });
+            // the intraday book comes back in the same answer, shorts and all
+            assertThat(portfolio.getPositions()).singleElement().satisfies(position -> {
+                assertThat(position.getSymbol()).isEqualTo("HDFCBANK");
+                assertThat(position.getQuantity()).isEqualTo(-30);
             });
         }
 

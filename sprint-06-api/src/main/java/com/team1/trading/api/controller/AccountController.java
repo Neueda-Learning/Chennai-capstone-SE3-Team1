@@ -3,7 +3,7 @@ package com.team1.trading.api.controller;
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
-import com.team1.trading.api.dto.PositionResponse;
+import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.security.TokenAccountIdResolver;
 import com.team1.trading.api.service.AccountService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -48,11 +48,15 @@ public class AccountController {
         return ResponseEntity.ok(accountService.getBalance(id, tokenAccountIdResolver.resolve(authorization)));
     }
 
-    @GetMapping("/{id}/positions")
-    public ResponseEntity<List<PositionResponse>> getPositions(@PathVariable("id") Long id,
-                                                               @RequestHeader(value = "Authorization", required = false)
-                                                               String authorization) {
-        return ResponseEntity.ok(accountService.getPositions(id, tokenAccountIdResolver.resolve(authorization)));
+    /**
+     * The account's portfolio: holdings and positions in one answer. The path names neither
+     * book, because a caller wanting their portfolio should not have to know there are two.
+     */
+    @GetMapping("/{id}/portfolio")
+    public ResponseEntity<PortfolioResponse> getPortfolio(@PathVariable("id") Long id,
+                                                          @RequestHeader(value = "Authorization", required = false)
+                                                          String authorization) {
+        return ResponseEntity.ok(accountService.getPortfolio(id, tokenAccountIdResolver.resolve(authorization)));
     }
 
     @GetMapping("/{id}/orders")
