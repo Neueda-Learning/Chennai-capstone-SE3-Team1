@@ -336,15 +336,17 @@ def build_portfolio_positions():
     return header, _portfolio_rows(positions)
 
 
+# orders / order_history / portfolio_holding / portfolio_positions are deliberately not
+# seeded (team decision - accounts should start with no trading activity, created some
+# other way). build_orders/build_order_history/build_portfolio_holding/
+# build_portfolio_positions and settle_orders() above are left in place as reference/in
+# case that decision changes, just not wired into BUILDERS. Re-add them here to restore
+# the old behaviour.
 BUILDERS = [
     ("010_bank_account.csv",        build_bank_account),
     ("020_clients.csv",             build_clients),
     ("030_auth.csv",                build_auth),
     ("040_instruments.csv",         build_instruments),
-    ("050_orders.csv",              build_orders),
-    ("060_order_history.csv",       build_order_history),
-    ("070_portfolio_holding.csv",   build_portfolio_holding),
-    ("080_portfolio_positions.csv", build_portfolio_positions),
 ]
 
 

@@ -459,8 +459,11 @@ that history to the account owner with optional filtering.
 
 - Schema: `migrations/006_order_history.sql` — one row per status change,
   keyed to the order, with timestamps and transition metadata.
-- Seed: `seed/060_order_history.csv` — deterministic history rows matching the
-  seeded orders, loaded transactionally like every other seed file.
+- Seed: none, by design — `orders`, `order_history`, `portfolio_holding` and
+  `portfolio_positions` all start empty; accounts (`clients`, `bank_account`,
+  `auth`) are still seeded. `seed/060_order_history.csv` existed earlier in
+  the sprint and is still buildable via `scripts/make_seed.py` (see its
+  `BUILDERS` list) if that decision changes.
 - Domain: `OrderHistory` entity (as source inside `sprint-06-api`).
 - API: `OrderHistoryEntry` DTO + `OrderMapper.listByAccount` with the
   `OrderHistoryFilter` (clientId, status, from, to) — all parameterised;
