@@ -1,5 +1,10 @@
 # Local connection overrides. Never commit real credentials.
 .env
+docker-compose.override.yml
+.trustme-password
+
+# Node (services/auth-stub)
+node_modules/
 
 # Maven
 target/
@@ -30,6 +35,7 @@ Thumbs.db
 # Local scratch
 *.log
 tmp/
+logs/
 
 # Executor module
 executor/target/

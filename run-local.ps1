@@ -1,21 +1,25 @@
 <#
 .SYNOPSIS
     One-shot local bring-up of the trading platform on Windows: Kafka, Postgres schema,
-    Trade API and Trade Executor, then a merged live tail of every log.
+    the auth stub, Trade API and Trade Executor, then a merged live tail of every log.
 
 .DESCRIPTION
     Run from anywhere; the script cd's to the repo root it lives in. Windows PowerShell 5.1
     compatible. No Docker.
 
     What it does, in order:
-      1. Checks java, mvn, python (+trustme_secrets), psql, and the TrustMe key file.
+      1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
+         and services\auth-stub.
       2. Kafka 3.8.0: downloads to -KafkaHome if absent, formats KRaft storage once, starts the
          broker, waits for :9092, creates the six contracted topics.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
-      4. Builds domain-engine, eventbus, sprint-06-api and executor (-SkipBuild reuses jars).
-      5. Starts the API (:8081) and the executor (:8083), waits for /actuator/health.
-      6. Mints a 1-hour JWT for account 1 and prints ready-to-paste curl commands.
-      7. Tails api / executor / kafka / postgres logs together until Ctrl+C.
+      4. Builds domain-engine, eventbus, sprint-06-api and executor (-SkipBuild reuses jars);
+         npm installs services\auth-stub if node_modules is missing.
+      5. Starts the auth stub (:4000), the API (:8081) and the executor (:8083), waits for
+         health on all three.
+      6. Mints a 1-hour JWT for account 1 and prints ready-to-paste curl commands, including
+         one to get a token from the auth stub instead.
+      7. Tails api / executor / auth-stub / kafka / postgres logs together until Ctrl+C.
          Ctrl+C stops only the tail; the services keep running. Use -Stop to shut them down.
 
 .PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
@@ -61,6 +65,8 @@ $KafkaUrl   = "https://archive.apache.org/dist/kafka/$KafkaVer/kafka_2.13-$Kafka
 $ApiPort    = 8081
 $ExecPort   = 8083
 $KafkaPort  = 9092
+$AuthStubPort = 4000
+$AuthStubDir  = Join-Path $RepoRoot "services\auth-stub"
 $Topics     = @{ "orders"=3; "trade-events"=3; "market-data"=6; "orders.DLT"=3; "trade-events.DLT"=3; "market-data.DLT"=6 }
 
 Set-Location $RepoRoot
@@ -111,6 +117,7 @@ if ($Stop) {
     if (-not $pids) { Write-Host "    nothing tracked in $PidFile"; exit 0 }
     Stop-Tracked "executor" $pids.executor
     Stop-Tracked "trade-api" $pids.api
+    Stop-Tracked "auth-stub" $pids.authstub
     Stop-Tracked "kafka" $pids.kafka
     Remove-Item $PidFile -ErrorAction SilentlyContinue
     exit 0
@@ -123,7 +130,7 @@ if ($TailOnly) {
 
 # ------------------------------------------------------------------ 1. prerequisites
 Say "Checking prerequisites"
-foreach ($tool in "java", "mvn", "python") {
+foreach ($tool in "java", "mvn", "python", "node", "npm") {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Fail "$tool not on PATH" }
 }
 $psql = Get-Command psql -ErrorAction SilentlyContinue
@@ -134,6 +141,7 @@ if (-not $psql) {
 cmd /c "python -c ""import trustme_secrets"" 2>nul" | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail "python module trustme_secrets missing (pip install trustme-secrets)" }
 if (-not (Test-Path $KeyFile)) { Fail "TrustMe key file missing: $KeyFile" }
+if (-not (Test-Path (Join-Path $AuthStubDir "server.js"))) { Fail "auth stub missing: $AuthStubDir" }
 if (-not (Test-Port 5432)) { Fail "Postgres is not listening on 5432 (start the postgresql service)" }
 
 if (-not $TrustMePassword) {
@@ -219,19 +227,39 @@ if ($SkipBuild -and (Test-Path $apiJar) -and (Test-Path $execJar)) {
     }
 }
 
+Say "Auth stub dependencies (services\auth-stub)"
+if (-not (Test-Path (Join-Path $AuthStubDir "node_modules"))) {
+    Write-Host "    npm install"
+    Push-Location $AuthStubDir
+    & npm install 2>&1 | Where-Object { $_ -match "error|ERR!" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+    $npmExit = $LASTEXITCODE
+    Pop-Location
+    if ($npmExit -ne 0) { Fail "npm install failed in $AuthStubDir" }
+} else {
+    Write-Host "    node_modules present, skipping npm install"
+}
+
 # ------------------------------------------------------------------ 5. services
 Say "Starting services"
 $prev = Read-Pids
 if ($prev) {
-    Stop-Tracked "old executor" $prev.executor; Stop-Tracked "old trade-api" $prev.api
+    Stop-Tracked "old executor" $prev.executor; Stop-Tracked "old trade-api" $prev.api; Stop-Tracked "old auth-stub" $prev.authstub
     # Stop-Process returns before the listener is gone; give Windows a moment to release the ports.
-    Wait-Until "ports $ApiPort/$ExecPort released" { -not (Test-Port $ApiPort) -and -not (Test-Port $ExecPort) } 20 | Out-Null
+    Wait-Until "ports $ApiPort/$ExecPort/$AuthStubPort released" { -not (Test-Port $ApiPort) -and -not (Test-Port $ExecPort) -and -not (Test-Port $AuthStubPort) } 20 | Out-Null
 }
-foreach ($p in $ApiPort, $ExecPort) { if (Test-Port $p) { Fail "port $p is already in use by something this script did not start" } }
+foreach ($p in $ApiPort, $ExecPort, $AuthStubPort) { if (Test-Port $p) { Fail "port $p is already in use by something this script did not start" } }
 
 $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile")
 
+# Both the API and the auth stub read this: the API verifies tokens with it (overriding the
+# TrustMe vault's jwt.secret, so it's a value this script - and whoever calls the stub - knows),
+# and the stub signs tokens with it. Same as the Docker Compose path's JWT_SECRET override.
 $env:JWT_SECRET = $JwtSecret
+$authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthStubDir `
+    -RedirectStandardOutput (Join-Path $LogDir "authstub.log") -RedirectStandardError (Join-Path $LogDir "authstub.err") `
+    -ArgumentList @("server.js")
+Write-Host "    auth-stub  pid $($authStub.Id)  -> http://localhost:$AuthStubPort"
+
 $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "api.log") -RedirectStandardError (Join-Path $LogDir "api.err") `
     -ArgumentList ($jvmCommon + @("-jar", $apiJar))
@@ -243,11 +271,12 @@ $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -ArgumentList ($jvmCommon + @("-jar", $execJar))
 Write-Host "    executor   pid $($exe.Id)  -> http://localhost:$ExecPort"
 
-@{ kafka = $kafkaPid; api = $api.Id; executor = $exe.Id; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
+@{ kafka = $kafkaPid; api = $api.Id; executor = $exe.Id; authstub = $authStub.Id; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
 
+$authStubUp = Wait-Until "auth-stub /health"        { Get-Health $AuthStubPort } 30
 $apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiPort } 150
 $execUp = Wait-Until "executor  /actuator/health" { Get-Health $ExecPort } 150
-if (-not ($apiUp -and $execUp)) { Write-Host "    check $LogDir\*.log for the failure" -ForegroundColor Red }
+if (-not ($apiUp -and $execUp -and $authStubUp)) { Write-Host "    check $LogDir\*.log for the failure" -ForegroundColor Red }
 
 # ------------------------------------------------------------------ 6. token + cheat sheet
 function New-Jwt($secret, $accountId, $ttlSec = 3600) {
@@ -265,7 +294,8 @@ Set-Content (Join-Path $LogDir "token.txt") $token
 Say "Ready" Green
 Write-Host @"
   Trade API   http://localhost:$ApiPort      Executor  http://localhost:$ExecPort      Kafka localhost:$KafkaPort
-  Logs        $LogDir\{api,executor,kafka}.log        PIDs  $PidFile
+  Auth stub   http://localhost:$AuthStubPort
+  Logs        $LogDir\{api,executor,authstub,kafka}.log        PIDs  $PidFile
   JWT (acct 1, 1h)  saved to $LogDir\token.txt
 
   # place an order (PowerShell; the -replace escapes quotes for curl.exe, which PS 5.1 otherwise strips)
@@ -274,6 +304,11 @@ Write-Host @"
   curl.exe -s -X POST localhost:$ApiPort/api/v1/orders -H "Authorization: Bearer `$T" -H "Content-Type: application/json" -d (`$body -replace '"','\"')
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/orders  -H "Authorization: Bearer `$T"
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/balance -H "Authorization: Bearer `$T"
+
+  # or get a bearer token from the auth stub instead of the token.txt above (no accountId
+  # claim on this one - see services/auth-stub/README.md - so it authenticates but the
+  # per-account reach check is skipped)
+  Invoke-RestMethod -Uri http://localhost:$AuthStubPort/login -Method Post -ContentType application/json -Body '{"username":"alice","password":"mission123"}'
 
   # watch a topic
   java -cp "$kafkaLibs" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server localhost:$KafkaPort --topic trade-events --from-beginning
@@ -293,6 +328,8 @@ $sources = @(
     @{ tag = "API!  "; color = "Red";     path = (Join-Path $LogDir "api.err") },
     @{ tag = "EXEC  "; color = "Cyan";    path = (Join-Path $LogDir "executor.log") },
     @{ tag = "EXEC! "; color = "Red";     path = (Join-Path $LogDir "executor.err") },
+    @{ tag = "AUTH  "; color = "Yellow";  path = (Join-Path $LogDir "authstub.log") },
+    @{ tag = "AUTH! "; color = "Red";     path = (Join-Path $LogDir "authstub.err") },
     @{ tag = "KAFKA "; color = "Magenta"; path = (Join-Path $LogDir "kafka.log") },
     @{ tag = "KAFKA!"; color = "Red";     path = (Join-Path $LogDir "kafka.err") }
 )
