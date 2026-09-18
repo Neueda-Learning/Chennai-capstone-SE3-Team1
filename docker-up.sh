@@ -55,7 +55,7 @@ docker-compose --profile kafka up -d kafka
 # Wait for kafka to be healthy
 echo "Waiting for Kafka to be healthy..."
 for i in {1..40}; do
-    if docker-compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list &>/dev/null; then
+    if docker-compose exec -T kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 &>/dev/null; then
         echo "✓ Kafka is ready"
         break
     fi
