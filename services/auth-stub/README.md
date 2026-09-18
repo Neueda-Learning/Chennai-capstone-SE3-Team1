@@ -15,14 +15,10 @@ npm install
 npm start
 ```
 
-Listens on `http://localhost:4000`. Or via Docker Compose, from the repo root:
-
-```bash
-docker-compose --profile platform up -d --build auth-stub
-```
-
-Or via `run-local.ps1` on Windows — it starts this alongside Kafka, the API and the
-executor, using the same `-JwtSecret` so a token minted here verifies against the API.
+Listens on `http://localhost:4000`. Normally you don't run it this way, though — on
+Windows, `run-local.ps1` starts it for you alongside the API and executor (all three
+running natively, with Kafka the only thing in Docker, on a separate Linux box), using its
+`-JwtSecret` so a token minted here verifies against the API.
 
 ## Get a token
 
@@ -44,14 +40,11 @@ API's authentication check but not the per-account reach check — that still re
 
 The Trade REST API and this stub both need to know the same HMAC secret. The API's
 `jwt.secret` property normally resolves from the TrustMe vault, which this stub knows
-nothing about — so for a minted token to actually verify, override `jwt.secret` to a value
-you both share:
+nothing about — so for a minted token to actually verify, both sides need to check against
+the same value instead. `run-local.ps1` already handles this: it exports `JWT_SECRET` for
+both the API process and this stub before starting either, from its `-JwtSecret` parameter
+(default `local-dev-secret-change-me`), overriding the vault's `jwt.secret` for the API.
 
-- **Docker**: `.env`'s `JWT_SECRET` plus a `JWT_SECRET: ${JWT_SECRET}` entry for `trade-api`
-  in `docker-compose.override.yml`.
-- **`run-local.ps1`**: already handled — the script exports `JWT_SECRET` for both the API
-  process and this stub before starting either, from its `-JwtSecret` parameter (default
-  `local-dev-secret-change-me`).
-
-Without that override, the API is checking signatures against a secret this stub was never
-given, and every token comes back `401`.
+Running this stub any other way (standalone, or a future non-Docker path for the API), make
+sure both processes see the same `JWT_SECRET` — otherwise the API is checking signatures
+against a secret this stub was never given, and every token comes back `401`.

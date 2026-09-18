@@ -2,22 +2,29 @@
 set -Eeuo pipefail
 
 # Creates the six contracted topics (three source + three dead-letter) on the
-# team's broker. Idempotent: safe to run as many times as you like.
+# broker. Idempotent: safe to run as many times as you like. run-local.ps1 on
+# Windows does this too (against this same broker, from the other side of the
+# network) - this script is the Linux-side equivalent, for testing Kafka on
+# its own without the rest of the stack running.
 #
-# Run from the repository root:
-#   docker compose up -d --build
-#   bash infra/kafka/create-topics.sh
+# This script itself can be run from anywhere (it resolves the compose file relative to
+# its own location, not the caller's working directory) - but starting Kafka in the first
+# place needs `.env` next to docker-compose.yml, so that part has to run from there:
+#   cd infra/kafka && docker-compose up -d
+#   bash infra/kafka/create-topics.sh   # from anywhere
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
 KAFKA_SERVICE="${KAFKA_SERVICE:-kafka}"
 
 if docker compose version >/dev/null 2>&1; then
     compose_cmd() {
-        docker compose "$@"
+        docker compose -f "$COMPOSE_FILE" "$@"
     }
 elif command -v docker-compose >/dev/null 2>&1; then
     compose_cmd() {
-        docker-compose "$@"
+        docker-compose -f "$COMPOSE_FILE" "$@"
     }
 else
     echo "Neither 'docker compose' nor 'docker-compose' is available on PATH" >&2
