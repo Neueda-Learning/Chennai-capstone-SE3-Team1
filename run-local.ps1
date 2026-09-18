@@ -260,7 +260,31 @@ $env:KAFKA_BOOTSTRAP_SERVERS = "${KafkaHost}:$KafkaPort"
 $authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthStubDir `
     -RedirectStandardOutput (Join-Path $LogDir "authstub.log") -RedirectStandardError (Join-Path $LogDir "authstub.err") `
     -ArgumentList @("server.js")
-Write-Host "    auth-stub  pid $($authStub.Id)  -> http://localhost:$AuthStubPort"
+# On some machines `node` on PATH is a .cmd/.bat shim (nvm-windows, Volta, corepack, ...)
+# rather than node.exe directly - Start-Process then launches it via cmd.exe, and the PID
+# above is the wrapper's, not the real Node process underneath. Stopping that PID later
+# kills an empty shell and leaves the actual auth-stub running, still bound to the port,
+# which looks exactly like -Stop or a restart silently not touching it. Detect that and
+# track the real child node.exe instead - confirmed against a real shim in testing that a
+# single short sleep isn't reliably long enough for the child to appear, so this polls.
+$authStubId = $authStub.Id
+$authStubProc = Get-Process -Id $authStub.Id -ErrorAction SilentlyContinue
+if ($authStubProc -and $authStubProc.ProcessName -ne "node") {
+    $child = $null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $child -and $sw.Elapsed.TotalSeconds -lt 5) {
+        $child = Get-CimInstance Win32_Process -Filter "ParentProcessId=$($authStub.Id)" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq "node.exe" } | Select-Object -First 1
+        if (-not $child) { Start-Sleep -Milliseconds 200 }
+    }
+    if ($child) {
+        Write-Host "    auth-stub  node on PATH is a shim ($($authStubProc.ProcessName)); tracking its child node.exe instead"
+        $authStubId = $child.ProcessId
+    } else {
+        Write-Host "    auth-stub  node on PATH is a shim ($($authStubProc.ProcessName)) and no node.exe child appeared within 5s; tracking the shim's own pid, which -Stop may not actually kill" -ForegroundColor Yellow
+    }
+}
+Write-Host "    auth-stub  pid $authStubId  -> http://localhost:$AuthStubPort"
 
 $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "api.log") -RedirectStandardError (Join-Path $LogDir "api.err") `
@@ -272,7 +296,7 @@ $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -ArgumentList ($jvmCommon + @("-jar", $execJar))
 Write-Host "    executor   pid $($exe.Id)  -> http://localhost:$ExecPort"
 
-@{ api = $api.Id; executor = $exe.Id; authstub = $authStub.Id; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
+@{ api = $api.Id; executor = $exe.Id; authstub = $authStubId; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
 
 $authStubUp = Wait-Until "auth-stub /health"        { Get-Health $AuthStubPort } 30
 $apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiPort } 150
