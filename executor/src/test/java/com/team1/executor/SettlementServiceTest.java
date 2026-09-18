@@ -1,6 +1,7 @@
 package com.team1.executor;
 
 import com.team1.executor.mapper.AccountMapper;
+import com.team1.executor.mapper.OrderHistoryMapper;
 import com.team1.executor.mapper.OrderMapper;
 import com.team1.executor.mapper.PositionMapper;
 import com.team1.executor.model.AccountRow;
@@ -34,6 +35,8 @@ class SettlementServiceTest {
     @Mock
     private OrderMapper orderMapper;
     @Mock
+    private OrderHistoryMapper orderHistoryMapper;
+    @Mock
     private AccountMapper accountMapper;
     @Mock
     private PositionMapper positionMapper;
@@ -42,7 +45,7 @@ class SettlementServiceTest {
 
     @BeforeEach
     void setUp() {
-        settlementService = new SettlementService(orderMapper, accountMapper, positionMapper, 3);
+        settlementService = new SettlementService(orderMapper, orderHistoryMapper, accountMapper, positionMapper, 3);
     }
 
     private Order createOrder(UUID orderId, Long clientId, OrderSide side, BigDecimal price) {
@@ -95,10 +98,41 @@ class SettlementServiceTest {
         assertThat(result.success()).isTrue();
         assertThat(result.decision()).isEqualTo(FillDecision.FILL);
         assertThat(result.executedPrice()).isEqualByComparingTo(executedPrice);
+        assertThat(result.positionQuantityAfter()).isEqualTo(10);
+        assertThat(result.averageCostAfter()).isEqualByComparingTo(executedPrice);
 
         verify(orderMapper).updateStatusAndExecutedPrice(eq(orderId), eq("FILLED"), eq(executedPrice), any());
         verify(accountMapper).updateWalletBalanceGuarded(eq(clientId), eq(cashDelta), eq(1));
         verify(positionMapper).insertHolding(any(PositionRow.class));
+        verify(orderHistoryMapper).insertEvent(eq(orderId), eq(clientId), eq("EXECUTED"), eq("NEW"),
+                eq("FILLED"), isNull(), isNull(), eq("idem-1"), eq("FILLED"), isNull());
+    }
+
+    @Test
+    void rejectWritesTerminalHistoryRowWithFailureCode() {
+        UUID orderId = UUID.randomUUID();
+        Long clientId = 1L;
+
+        Order order = createOrder(orderId, clientId, OrderSide.BUY, new BigDecimal("100.00"));
+        OrderRow orderRow = new OrderRow(orderId, clientId, clientId, "ACME", "POSITION", "BUY",
+                BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
+                LocalDateTime.now(), LocalDateTime.now(), null);
+        AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
+                LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
+
+        when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
+        when(accountMapper.findByClientIdForUpdate(clientId)).thenReturn(Optional.of(accountRow));
+        when(orderMapper.updateStatusAndReason(orderId, "REJECTED")).thenReturn(1);
+
+        FillRuleResult rejectResult = new FillRuleResult(FillDecision.REJECT, null, "BUY_LIMIT_BELOW_ASK");
+        var result = settlementService.settle(order, rejectResult,
+                new SettlementService.QuoteSnapshot(new BigDecimal("99.95"), new BigDecimal("100.05")));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.decision()).isEqualTo(FillDecision.REJECT);
+        verify(orderHistoryMapper).insertEvent(eq(orderId), eq(clientId), eq("REJECTED"), eq("NEW"),
+                eq("REJECTED"), eq("BUY_LIMIT_BELOW_ASK"), eq("BUY_LIMIT_BELOW_ASK"), eq("idem-1"),
+                isNull(), isNull());
     }
 
     @Test

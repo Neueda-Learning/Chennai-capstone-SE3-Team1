@@ -7,6 +7,7 @@ import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.InstrumentMapper;
 import com.team1.trading.api.mapper.InstrumentMapper.InstrumentRow;
 import com.team1.trading.api.mapper.OrderMapper;
+import com.team1.trading.api.mapper.OrderHistoryMapper;
 import com.team1.trading.api.mapper.OrderMapper.OrderInsert;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
 import com.team1.trading.api.mapper.PositionMapper;
@@ -53,15 +54,18 @@ public class OrderService {
     private final AccountMapper accountMapper;
     private final InstrumentMapper instrumentMapper;
     private final OrderMapper orderMapper;
+    private final OrderHistoryMapper orderHistoryMapper;
     private final PositionMapper positionMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     public OrderService(AccountMapper accountMapper, InstrumentMapper instrumentMapper,
-                        OrderMapper orderMapper, PositionMapper positionMapper,
+                        OrderMapper orderMapper, OrderHistoryMapper orderHistoryMapper,
+                        PositionMapper positionMapper,
                         ApplicationEventPublisher applicationEventPublisher) {
         this.accountMapper = accountMapper;
         this.instrumentMapper = instrumentMapper;
         this.orderMapper = orderMapper;
+        this.orderHistoryMapper = orderHistoryMapper;
         this.positionMapper = positionMapper;
         this.applicationEventPublisher = applicationEventPublisher;
     }
@@ -131,6 +135,8 @@ public class OrderService {
             }
             throw e;
         }
+
+        orderHistoryMapper.insertEvent(orderUuid, accountId, "CREATED", null, "NEW", request.getIdempotencyKey());
 
         applicationEventPublisher.publishEvent(OrderPlacedEvent.of(
                 orderUuid, accountId, request.getSymbol(), request.getSide(), quantity, price,

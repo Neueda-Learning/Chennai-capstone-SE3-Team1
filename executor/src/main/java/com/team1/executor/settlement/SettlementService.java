@@ -1,18 +1,16 @@
 package com.team1.executor.settlement;
 
 import com.team1.executor.mapper.AccountMapper;
+import com.team1.executor.mapper.OrderHistoryMapper;
 import com.team1.executor.mapper.OrderMapper;
 import com.team1.executor.mapper.PositionMapper;
 import com.team1.executor.model.AccountRow;
 import com.team1.executor.model.OrderRow;
 import com.team1.executor.model.PositionRow;
 import com.team1.executor.rule.FillDecision;
-import com.team1.executor.rule.FillRule;
 import com.team1.executor.rule.FillRuleResult;
 import com.team1.trading.domain.entity.Order;
 import com.team1.trading.domain.entity.types.OrderSide;
-import com.team1.trading.domain.entity.types.OrderStatus;
-import com.team1.trading.domain.exception.AccountNotActiveException;
 import com.team1.trading.domain.exception.InsufficientFundsException;
 import com.team1.trading.domain.exception.InsufficientHoldingsException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -28,15 +26,18 @@ import java.util.Optional;
 public class SettlementService {
 
     private final OrderMapper orderMapper;
+    private final OrderHistoryMapper orderHistoryMapper;
     private final AccountMapper accountMapper;
     private final PositionMapper positionMapper;
     private final int maxOptimisticLockRetries;
 
     public SettlementService(OrderMapper orderMapper,
+                             OrderHistoryMapper orderHistoryMapper,
                              AccountMapper accountMapper,
                              PositionMapper positionMapper,
                              @org.springframework.beans.factory.annotation.Value("${executor.optimistic-lock-max-retries}") int maxOptimisticLockRetries) {
         this.orderMapper = orderMapper;
+        this.orderHistoryMapper = orderHistoryMapper;
         this.accountMapper = accountMapper;
         this.positionMapper = positionMapper;
         this.maxOptimisticLockRetries = maxOptimisticLockRetries;
@@ -64,22 +65,32 @@ public class SettlementService {
             return SettlementResult.accountNotActive();
         }
 
-        int rowsUpdated = 0;
         if (fillResult.decision() == FillDecision.FILL) {
-            rowsUpdated = executeFill(order, orderRow, accountRow, fillResult, quoteSnapshot);
+            return executeFill(order, orderRow, accountRow, fillResult, quoteSnapshot);
         } else {
-            rowsUpdated = executeReject(order, orderRow, fillResult);
+            return executeReject(order, orderRow, fillResult.reason());
         }
-
-        if (rowsUpdated == 0) {
-            return SettlementResult.alreadySettled(orderRow.status());
-        }
-
-        return SettlementResult.success(fillResult.decision(), fillResult.executedPrice());
     }
 
-    private int executeFill(Order order, OrderRow orderRow, AccountRow accountRow,
-                            FillRuleResult fillResult, QuoteSnapshot quoteSnapshot) {
+    @Transactional
+    public void rejectIfNew(java.util.UUID orderId, Long clientId, String reasonCode) {
+        var orderRowOpt = orderMapper.findByOrderId(orderId);
+        if (orderRowOpt.isEmpty()) {
+            return;
+        }
+        OrderRow orderRow = orderRowOpt.get();
+        if (!"NEW".equals(orderRow.status())) {
+            return;
+        }
+        int rows = orderMapper.updateStatusAndReason(orderId, "REJECTED");
+        if (rows > 0) {
+            appendHistory(orderId, clientId, "REJECTED", "NEW", "REJECTED", reasonCode, reasonCode,
+                    orderRow.idempotencyKey(), null, orderRow.externalOrderId());
+        }
+    }
+
+    private SettlementResult executeFill(Order order, OrderRow orderRow, AccountRow accountRow,
+                                         FillRuleResult fillResult, QuoteSnapshot quoteSnapshot) {
         BigDecimal executedPrice = fillResult.executedPrice();
         BigDecimal cashDelta = calculateCashDelta(order, executedPrice);
         BigDecimal newBalance = accountRow.walletBalance().add(cashDelta);
@@ -88,10 +99,24 @@ public class SettlementService {
             throw new InsufficientFundsException(accountRow.clientId(), cashDelta.abs(), accountRow.walletBalance());
         }
 
+        Optional<PositionRow> lockedSellHolding = Optional.empty();
+        if (order.getSide() == OrderSide.SELL) {
+            lockedSellHolding = positionMapper.findHoldingForUpdate(order.getClientId(), order.getInstrumentId());
+            if (lockedSellHolding.isEmpty()) {
+                throw new InsufficientHoldingsException(order.getClientId(), order.getInstrumentId(),
+                        order.getQuantity(), BigDecimal.ZERO);
+            }
+            PositionRow holding = lockedSellHolding.get();
+            if (holding.quantity() < order.getQuantity().intValue()) {
+                throw new InsufficientHoldingsException(order.getClientId(), order.getInstrumentId(),
+                        order.getQuantity(), BigDecimal.valueOf(holding.quantity()));
+            }
+        }
+
         int rows = orderMapper.updateStatusAndExecutedPrice(
                 order.getOrderId(), "FILLED", executedPrice, LocalDateTime.now());
         if (rows == 0) {
-            return 0;
+            return SettlementResult.alreadySettled(orderRow.status());
         }
 
         boolean balanceUpdated = updateAccountBalanceWithRetry(accountRow.clientId(), cashDelta, accountRow.version());
@@ -99,17 +124,24 @@ public class SettlementService {
             throw new OptimisticLockingFailureException("Optimistic lock exhausted for account " + accountRow.clientId());
         }
 
-        updatePosition(order, executedPrice);
+        PositionAfter positionAfter = updatePosition(order, executedPrice, lockedSellHolding);
 
-        return 1;
+        appendHistory(order.getOrderId(), order.getClientId(), "EXECUTED", "NEW", "FILLED", null, null,
+                order.getIdempotencyKey(), "FILLED", orderRow.externalOrderId());
+
+        return SettlementResult.success(FillDecision.FILL, executedPrice,
+                positionAfter.quantity(), positionAfter.averageCost());
     }
 
-    private int executeReject(Order order, OrderRow orderRow, FillRuleResult fillResult) {
+    private SettlementResult executeReject(Order order, OrderRow orderRow, String reasonCode) {
         int rows = orderMapper.updateStatusAndReason(order.getOrderId(), "REJECTED");
         if (rows == 0) {
-            return 0;
+            return SettlementResult.alreadySettled(orderRow.status());
         }
-        return 1;
+
+        appendHistory(order.getOrderId(), order.getClientId(), "REJECTED", "NEW", "REJECTED", reasonCode,
+                reasonCode, order.getIdempotencyKey(), null, orderRow.externalOrderId());
+        return SettlementResult.success(FillDecision.REJECT, null, 0, BigDecimal.ZERO);
     }
 
     private BigDecimal calculateCashDelta(Order order, BigDecimal executedPrice) {
@@ -139,11 +171,13 @@ public class SettlementService {
         return false;
     }
 
-    private void updatePosition(Order order, BigDecimal executedPrice) {
+    private PositionAfter updatePosition(Order order, BigDecimal executedPrice, Optional<PositionRow> lockedSellHolding) {
         BigDecimal price = executedPrice != null ? executedPrice : order.getPrice();
         Integer quantity = order.getQuantity().intValue();
 
-        var holdingOpt = positionMapper.findHoldingForUpdate(order.getClientId(), order.getInstrumentId());
+        var holdingOpt = order.getSide() == OrderSide.SELL
+                ? lockedSellHolding
+                : positionMapper.findHoldingForUpdate(order.getClientId(), order.getInstrumentId());
 
         if (order.getSide() == OrderSide.BUY) {
             if (holdingOpt.isEmpty()) {
@@ -152,8 +186,12 @@ public class SettlementService {
                         quantity, price, BigDecimal.ZERO,
                         LocalDateTime.now(), LocalDateTime.now());
                 positionMapper.insertHolding(newHolding);
+                return new PositionAfter(quantity, price);
             } else {
                 positionMapper.updateHoldingBuy(order.getClientId(), order.getInstrumentId(), quantity, price);
+                PositionRow updated = positionMapper.findHolding(order.getClientId(), order.getInstrumentId())
+                        .orElseThrow(() -> new IllegalStateException("HOLDING_NOT_FOUND_AFTER_BUY_UPDATE"));
+                return new PositionAfter(updated.quantity(), updated.pricePerUnit());
             }
         } else {
             if (holdingOpt.isEmpty()) {
@@ -166,8 +204,25 @@ public class SettlementService {
                         BigDecimal.valueOf(quantity), BigDecimal.valueOf(holding.quantity()));
             }
             positionMapper.updateHoldingSell(order.getClientId(), order.getInstrumentId(), quantity);
+            return new PositionAfter(holding.quantity() - quantity, holding.pricePerUnit());
         }
     }
+
+    private void appendHistory(java.util.UUID orderId,
+                               Long clientId,
+                               String eventType,
+                               String previousStatus,
+                               String newStatus,
+                               String failureCode,
+                               String failureReason,
+                               String requestId,
+                               String externalStatus,
+                               String externalOrderId) {
+        orderHistoryMapper.insertEvent(orderId, clientId, eventType, previousStatus, newStatus,
+                failureCode, failureReason, requestId, externalStatus, externalOrderId);
+    }
+
+    private record PositionAfter(Integer quantity, BigDecimal averageCost) {}
 
     public record QuoteSnapshot(BigDecimal bid, BigDecimal ask) {}
 
@@ -175,22 +230,25 @@ public class SettlementService {
             boolean success,
             FillDecision decision,
             BigDecimal executedPrice,
+            Integer positionQuantityAfter,
+            BigDecimal averageCostAfter,
             String reason
     ) {
-        public static SettlementResult success(FillDecision decision, BigDecimal executedPrice) {
-            return new SettlementResult(true, decision, executedPrice, null);
+        public static SettlementResult success(FillDecision decision, BigDecimal executedPrice,
+                                               Integer positionQuantityAfter, BigDecimal averageCostAfter) {
+            return new SettlementResult(true, decision, executedPrice, positionQuantityAfter, averageCostAfter, null);
         }
         public static SettlementResult alreadySettled(String status) {
-            return new SettlementResult(false, null, null, "ALREADY_SETTLED_" + status);
+            return new SettlementResult(false, null, null, null, null, "ALREADY_SETTLED_" + status);
         }
         public static SettlementResult orderNotFound() {
-            return new SettlementResult(false, null, null, "ORDER_NOT_FOUND");
+            return new SettlementResult(false, null, null, null, null, "ORDER_NOT_FOUND");
         }
         public static SettlementResult accountNotFound() {
-            return new SettlementResult(false, null, null, "ACCOUNT_NOT_FOUND");
+            return new SettlementResult(false, null, null, null, null, "ACCOUNT_NOT_FOUND");
         }
         public static SettlementResult accountNotActive() {
-            return new SettlementResult(false, null, null, "ACCOUNT_NOT_ACTIVE");
+            return new SettlementResult(false, null, null, null, null, "ACCOUNT_NOT_ACTIVE");
         }
     }
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.OrderHistoryMapper">
+
+    <insert id="insertEvent">
+        INSERT INTO order_history (
+            order_id,
+            client_id,
+            event_type,
+            previous_status,
+            new_status,
+            failure_code,
+            failure_reason,
+            request_id,
+            external_status,
+            external_order_id,
+            event_timestamp,
+            created_at
+        ) VALUES (
+            #{orderId},
+            #{clientId},
+            #{eventType},
+            #{previousStatus},
+            #{newStatus},
+            #{failureCode},
+            #{failureReason},
+            #{requestId},
+            #{externalStatus},
+            #{externalOrderId},
+            now(),
+            now()
+        )
+    </insert>
+
+</mapper>
+

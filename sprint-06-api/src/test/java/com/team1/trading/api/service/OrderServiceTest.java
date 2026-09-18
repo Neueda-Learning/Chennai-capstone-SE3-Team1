@@ -6,6 +6,7 @@ import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.InstrumentMapper;
 import com.team1.trading.api.mapper.InstrumentMapper.InstrumentRow;
 import com.team1.trading.api.mapper.OrderMapper;
+import com.team1.trading.api.mapper.OrderHistoryMapper;
 import com.team1.trading.api.mapper.OrderMapper.OrderInsert;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
 import com.team1.trading.api.mapper.PositionMapper;
@@ -40,6 +41,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,6 +67,8 @@ class OrderServiceTest {
     @Mock
     private OrderMapper orderMapper;
     @Mock
+    private OrderHistoryMapper orderHistoryMapper;
+    @Mock
     private PositionMapper positionMapper;
     @Mock
     private ApplicationEventPublisher applicationEventPublisher;
@@ -72,7 +77,7 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(accountMapper, instrumentMapper, orderMapper, positionMapper,
+        orderService = new OrderService(accountMapper, instrumentMapper, orderMapper, orderHistoryMapper, positionMapper,
                 applicationEventPublisher);
     }
 
@@ -303,6 +308,7 @@ class OrderServiceTest {
             verify(positionMapper, never()).upsertBuyHolding(any());
             verify(positionMapper, never()).reduceSell(any());
             verify(positionMapper, never()).reduceSellHolding(any());
+            verify(orderHistoryMapper).insertEvent(insert.getOrderUuid(), ACCOUNT_ID, "CREATED", null, "NEW", IDEMPOTENCY_KEY);
         }
 
         @Test
@@ -330,6 +336,7 @@ class OrderServiceTest {
             verify(positionMapper, never()).reduceSellHolding(any());
             verify(positionMapper, never()).upsertBuy(any());
             verify(positionMapper, never()).upsertBuyHolding(any());
+            verify(orderHistoryMapper).insertEvent(any(), eq(ACCOUNT_ID), eq("CREATED"), isNull(), eq("NEW"), eq(IDEMPOTENCY_KEY));
         }
     }
 

@@ -12,6 +12,7 @@ import com.team1.executor.mapper.InstrumentMapper;
 import com.team1.executor.model.InstrumentRow;
 import com.team1.executor.model.OrderPlacedPayload;
 import com.team1.executor.model.QuoteResponse;
+import com.team1.executor.model.TradeEventPayload;
 import com.team1.executor.quote.FauxnanceQuoteClient;
 import com.team1.executor.rule.FillDecision;
 import com.team1.executor.rule.FillRuleResult;
@@ -108,7 +109,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.FILL, ask);
+                FillDecision.FILL, ask, 20, new BigDecimal("100.05"));
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 
@@ -120,6 +121,9 @@ class OrderConsumerIntegrationTest {
 
         Envelope sentEnvelope = envelopeCaptor.getValue();
         assertThat(sentEnvelope.eventType()).isEqualTo("ORDER_FILLED");
+        TradeEventPayload event = objectMapper.convertValue(sentEnvelope.payload(), TradeEventPayload.class);
+        assertThat(event.positionQuantityAfter()).isEqualTo(20);
+        assertThat(event.averageCostAfter()).isEqualByComparingTo("100.05");
     }
 
     @Test
@@ -147,7 +151,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.FILL, bid);
+                FillDecision.FILL, bid, 90, new BigDecimal("90.50"));
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 
@@ -159,6 +163,9 @@ class OrderConsumerIntegrationTest {
 
         Envelope sentEnvelope = envelopeCaptor.getValue();
         assertThat(sentEnvelope.eventType()).isEqualTo("ORDER_FILLED");
+        TradeEventPayload event = objectMapper.convertValue(sentEnvelope.payload(), TradeEventPayload.class);
+        assertThat(event.positionQuantityAfter()).isEqualTo(90);
+        assertThat(event.averageCostAfter()).isEqualByComparingTo("90.50");
     }
 
     @Test
@@ -185,7 +192,7 @@ class OrderConsumerIntegrationTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         SettlementService.SettlementResult settlementResult = SettlementService.SettlementResult.success(
-                FillDecision.REJECT, null);
+                FillDecision.REJECT, null, 0, BigDecimal.ZERO);
         when(settlementService.settle(any(Order.class), any(FillRuleResult.class), any()))
                 .thenReturn(settlementResult);
 

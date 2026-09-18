@@ -3,6 +3,9 @@ package com.team1.executor.error;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.team1.executor.quote.FauxnanceQuoteClient;
+import com.team1.trading.domain.exception.AccountNotActiveException;
+import com.team1.trading.domain.exception.InsufficientFundsException;
+import com.team1.trading.domain.exception.InsufficientHoldingsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -117,6 +120,20 @@ public class ErrorClassifier {
             );
         }
 
+        if (exception instanceof AccountNotActiveException ||
+            (exception instanceof IllegalArgumentException &&
+                failureDetails != null && failureDetails.contains("ACCOUNT_NOT_ACTIVE"))) {
+            log.warn("Account is not active: {}", failureDetails);
+            return new ErrorContext(
+                ErrorCategory.ACCOUNT_NOT_ACTIVE,
+                false,
+                0,
+                "ACCOUNT_NOT_ACTIVE",
+                failureDetails,
+                exceptionType
+            );
+        }
+
         // === DEAD-LETTER: Instrument Issues ===
 
         if (exception instanceof IllegalArgumentException && 
@@ -154,6 +171,30 @@ public class ErrorClassifier {
                 false,
                 0,
                 "QUOTE_FETCH_BAD_REQUEST",
+                failureDetails,
+                exceptionType
+            );
+        }
+
+        if (exception instanceof InsufficientFundsException) {
+            log.info("Rejecting order due to insufficient funds: {}", failureDetails);
+            return new ErrorContext(
+                ErrorCategory.REJECT_ORDER,
+                false,
+                0,
+                "INSUFFICIENT_FUNDS",
+                failureDetails,
+                exceptionType
+            );
+        }
+
+        if (exception instanceof InsufficientHoldingsException) {
+            log.info("Rejecting order due to insufficient holdings: {}", failureDetails);
+            return new ErrorContext(
+                ErrorCategory.REJECT_ORDER,
+                false,
+                0,
+                "INSUFFICIENT_HOLDINGS",
                 failureDetails,
                 exceptionType
             );

@@ -38,7 +38,7 @@
     <update id="updateHoldingBuy">
         UPDATE portfolio_holding
         SET quantity = quantity + #{quantity},
-            price_per_unit = ((price_per_unit * (quantity - #{quantity})) + (#{pricePerUnit} * #{quantity})) / quantity,
+            price_per_unit = ((price_per_unit * quantity) + (#{pricePerUnit} * #{quantity})) / (quantity + #{quantity}),
             overall_gains = overall_gains,
             updated_at = now()
         WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}

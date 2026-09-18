@@ -57,6 +57,18 @@ public enum ErrorCategory {
     QUOTE_FETCH_PERMANENT,
 
     /**
+     * Business-rule rejection that should produce ORDER_REJECTED (not retry, not DLT).
+     * Examples: insufficient funds, insufficient holdings.
+     */
+    REJECT_ORDER,
+
+    /**
+     * Account exists but is not tradable (SUSPENDED/CLOSED/TOKEN mismatch).
+     * DEAD-LETTER immediately: deterministic until account state changes externally.
+     */
+    ACCOUNT_NOT_ACTIVE,
+
+    /**
      * Database connection issue: pool exhausted, network timeout, connection refused.
      * RETRY with backoff: Connection pool may recover between attempts.
      * Examples: CannotGetJdbcConnectionException, SQLException with connection errors.

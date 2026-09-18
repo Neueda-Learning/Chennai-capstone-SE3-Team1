@@ -122,6 +122,21 @@ public class OrderConsumer {
             return;
         }
 
+        if (!"ORDER_PLACED".equals(envelope.eventType())) {
+            log.warn("Unexpected event type '{}' for key {}, partition {}, offset {}. Sending to DLT.",
+                    envelope.eventType(), key, partition, offset);
+            ErrorContext errorContext = new ErrorContext(
+                    ErrorCategory.MALFORMED_MESSAGE,
+                    false,
+                    0,
+                    "UNEXPECTED_EVENT_TYPE",
+                    "Expected ORDER_PLACED but got " + envelope.eventType(),
+                    IllegalArgumentException.class.getName());
+            deadLetterService.sendToDLT(key, envelope, errorContext);
+            ack.acknowledge();
+            return;
+        }
+
         if (envelope.payload() == null) {
             log.warn("Null payload in Envelope for key {}, partition {}, offset {}. Sending to DLT.",
                     key, partition, offset);
@@ -197,10 +212,12 @@ public class OrderConsumer {
 
                 // === HANDLE PERMANENT FAUXNANCE ERRORS ===
                 // These should reject the order without retry or dead-letter
-                if (errorContext.category() == ErrorCategory.QUOTE_FETCH_PERMANENT) {
-                    log.warn("Permanent Fauxnance error (quota or bad request), rejecting order: {}",
-                            errorContext.failureReason());
+                if (errorContext.category() == ErrorCategory.QUOTE_FETCH_PERMANENT
+                        || errorContext.category() == ErrorCategory.REJECT_ORDER) {
+                    log.warn("Non-retryable rejection for order {}: {}",
+                            payload.orderId(), errorContext.failureReason());
                     try {
+                        settlementService.rejectIfNew(payload.orderId(), payload.accountId(), errorContext.failureReason());
                         publishRejected(payload, envelope.eventId(),
                                 errorContext.failureReason());
                     } catch (Exception publishError) {
@@ -309,7 +326,7 @@ public class OrderConsumer {
 
         // Step 6: Publish filled or rejected event
         if (settlementResult.decision() == com.team1.executor.rule.FillDecision.FILL) {
-            publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote);
+            publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote, settlementResult);
         } else {
             publishRejected(payload, envelope.eventId(), fillResult.reason());
         }
@@ -355,7 +372,7 @@ public class OrderConsumer {
      * @param quote         The quote snapshot used for settlement
      */
     private void publishFilled(OrderPlacedPayload payload, String eventId, BigDecimal executedPrice,
-            QuoteResponse quote) {
+            QuoteResponse quote, SettlementService.SettlementResult settlementResult) {
         BigDecimal cashDelta = calculateCashDelta(payload, executedPrice);
         TradeEventPayload event = new TradeEventPayload(
                 payload.orderId(),
@@ -368,8 +385,8 @@ public class OrderConsumer {
                 "FILLED",
                 null,
                 cashDelta,
-                0,
-                BigDecimal.ZERO,
+                settlementResult.positionQuantityAfter() != null ? settlementResult.positionQuantityAfter() : 0,
+                settlementResult.averageCostAfter() != null ? settlementResult.averageCostAfter() : BigDecimal.ZERO,
                 Instant.now());
         Envelope envelope = new Envelope(
                 UUID.randomUUID().toString(),

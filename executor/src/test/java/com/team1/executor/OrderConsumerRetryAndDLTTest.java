@@ -12,6 +12,7 @@ import com.team1.executor.model.*;
 import com.team1.executor.quote.FauxnanceQuoteClient;
 import com.team1.executor.rule.FillDecision;
 import com.team1.executor.settlement.SettlementService;
+import com.team1.trading.domain.exception.InsufficientFundsException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -207,7 +208,7 @@ class OrderConsumerRetryAndDLTTest {
 
         // Settlement succeeds
         when(settlementService.settle(any(), any(), any()))
-            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask));
+            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask, 10, ask));
 
         consumer.consume(record, ack, 0, 0L);
 
@@ -246,7 +247,7 @@ class OrderConsumerRetryAndDLTTest {
         when(quoteClient.getQuote(symbol)).thenReturn(quote);
 
         when(settlementService.settle(any(), any(), any()))
-            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask));
+            .thenReturn(SettlementService.SettlementResult.success(FillDecision.FILL, ask, 10, ask));
 
         consumer.consume(record, ack, 0, 0L);
 
@@ -313,6 +314,95 @@ class OrderConsumerRetryAndDLTTest {
         // Verify: Dead-lettered
         verify(deadLetterService).sendToDLT(anyString(), any(), any());
         // Verify: Offset is acknowledged (advanced) - critical for not blocking partition
+        verify(ack).acknowledge();
+    }
+
+    @Test
+    @DisplayName("Unexpected event type is dead-lettered on first attempt")
+    void unexpectedEventTypeDeadLetteredImmediately() {
+        Long accountId = 1L;
+        OrderPlacedPayload payload = new OrderPlacedPayload(
+            UUID.randomUUID(), accountId, "ACME", "BUY", 10,
+            new BigDecimal("100.00"), "idem-1", Instant.now());
+        Envelope envelope = new Envelope("evt-1", "ORDER_CANCELLED", Instant.now().toString(),
+            "trade-api", 1, objectMapper.valueToTree(payload));
+
+        ConsumerRecord<String, Envelope> record =
+            new ConsumerRecord<>("orders", 0, 0, String.valueOf(accountId), envelope);
+
+        consumer.consume(record, ack, 0, 0L);
+
+        verify(deadLetterService).sendToDLT(
+            keyCaptor.capture(), envelopeCaptor.capture(), errorContextCaptor.capture());
+        verify(ack).acknowledge();
+        assertThat(errorContextCaptor.getValue().failureReason()).isEqualTo("UNEXPECTED_EVENT_TYPE");
+        verify(quoteClient, never()).getQuote(anyString());
+    }
+
+    @Test
+    @DisplayName("Insufficient funds rejects order and does not dead-letter")
+    void insufficientFundsRejectsWithoutDlt() {
+        String symbol = "ACME";
+        UUID orderId = UUID.randomUUID();
+        Long accountId = 1L;
+
+        OrderPlacedPayload payload = new OrderPlacedPayload(
+            orderId, accountId, symbol, "BUY", 10, new BigDecimal("100.00"), "idem-1", Instant.now());
+        Envelope envelope = new Envelope("evt-1", "ORDER_PLACED", Instant.now().toString(),
+            "trade-api", 1, objectMapper.valueToTree(payload));
+
+        ConsumerRecord<String, Envelope> record =
+            new ConsumerRecord<>("orders", 0, 0, String.valueOf(accountId), envelope);
+
+        InstrumentRow instrument = new InstrumentRow(symbol, "ACME Corp", true, null);
+        when(instrumentMapper.findBySymbol(symbol)).thenReturn(Optional.of(instrument));
+
+        QuoteResponse quote = new QuoteResponse(symbol, new BigDecimal("100"), new BigDecimal("100.05"),
+            new BigDecimal("99.95"), "USD", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            "open", false, Instant.now());
+        when(quoteClient.getQuote(symbol)).thenReturn(quote);
+
+        when(settlementService.settle(any(), any(), any()))
+            .thenThrow(new InsufficientFundsException(accountId, new BigDecimal("1000.00"), new BigDecimal("100.00")));
+
+        consumer.consume(record, ack, 0, 0L);
+
+        verify(settlementService).rejectIfNew(orderId, accountId, "INSUFFICIENT_FUNDS");
+        verify(kafkaTemplate).send(eq("trade-events"), eq(String.valueOf(accountId)), any());
+        verify(deadLetterService, never()).sendToDLT(anyString(), any(), any());
+        verify(ack).acknowledge();
+    }
+
+    @Test
+    @DisplayName("Account not active is dead-lettered immediately")
+    void accountNotActiveDeadLetteredImmediately() {
+        String symbol = "ACME";
+        UUID orderId = UUID.randomUUID();
+        Long accountId = 1L;
+
+        OrderPlacedPayload payload = new OrderPlacedPayload(
+            orderId, accountId, symbol, "BUY", 10, new BigDecimal("100.00"), "idem-1", Instant.now());
+        Envelope envelope = new Envelope("evt-1", "ORDER_PLACED", Instant.now().toString(),
+            "trade-api", 1, objectMapper.valueToTree(payload));
+
+        ConsumerRecord<String, Envelope> record =
+            new ConsumerRecord<>("orders", 0, 0, String.valueOf(accountId), envelope);
+
+        InstrumentRow instrument = new InstrumentRow(symbol, "ACME Corp", true, null);
+        when(instrumentMapper.findBySymbol(symbol)).thenReturn(Optional.of(instrument));
+
+        QuoteResponse quote = new QuoteResponse(symbol, new BigDecimal("100"), new BigDecimal("100.05"),
+            new BigDecimal("99.95"), "USD", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            "open", false, Instant.now());
+        when(quoteClient.getQuote(symbol)).thenReturn(quote);
+
+        when(settlementService.settle(any(), any(), any()))
+            .thenReturn(SettlementService.SettlementResult.accountNotActive());
+
+        consumer.consume(record, ack, 0, 0L);
+
+        verify(deadLetterService).sendToDLT(anyString(), eq(envelope), errorContextCaptor.capture());
+        assertThat(errorContextCaptor.getValue().category()).isEqualTo(ErrorCategory.ACCOUNT_NOT_ACTIVE);
         verify(ack).acknowledge();
     }
 

@@ -76,6 +76,7 @@ CREATE TABLE orders (
 CREATE TABLE order_history (
     history_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id          UUID          NOT NULL,
+    client_id         BIGINT,
     event_type        VARCHAR(50)   NOT NULL,
     previous_status   VARCHAR(10),
     new_status        VARCHAR(10),
