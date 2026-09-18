@@ -4,9 +4,10 @@ set -Eeuo pipefail
 # One-time setup after cloning, before the first `docker-compose ... up`. Creates the three
 # files docker-compose.yml needs that are deliberately not in git (two are host-specific,
 # one is a secret) and fills in everything that can be generated or detected automatically,
-# so the only things a teammate has to actually know are the two real team secrets:
-# FAUXNANCE_API_KEY and the TrustMe vault password. Safe to re-run - every step is skipped
-# if its file/value already exists.
+# so the only thing a teammate has to actually know is the TrustMe vault password - the
+# Fauxnance key, DB credentials, JWT secret etc. all come from the vault it decrypts, not
+# from anything typed in here. Safe to re-run - every step is skipped if its file/value
+# already exists.
 #
 # Run from the repository root:
 #   bash setup-docker-env.sh
@@ -53,21 +54,6 @@ if grep -q '^KAFKA_ADVERTISED_HOST=localhost$' .env; then
     fi
 else
     log "KAFKA_ADVERTISED_HOST already set"
-fi
-
-# FAUXNANCE_API_KEY: a real team secret. Prompt for it (visible - it's not a password,
-# just a key that shouldn't end up in shell history if you're careful about the terminal
-# you paste it into) rather than leaving a blank that fails silently at runtime.
-if grep -q '^FAUXNANCE_API_KEY=$' .env; then
-    read -r -p "Fauxnance API key (ask your team if you don't have it): " fauxnance_key
-    if [ -n "$fauxnance_key" ]; then
-        sed -i.bak "s|^FAUXNANCE_API_KEY=\$|FAUXNANCE_API_KEY=${fauxnance_key}|" .env && rm -f .env.bak
-        log "FAUXNANCE_API_KEY set"
-    else
-        log "no key entered; the executor will fail to fetch quotes until FAUXNANCE_API_KEY is set in .env"
-    fi
-else
-    log "FAUXNANCE_API_KEY already set"
 fi
 
 # ---------------------------------------------------------------- 2. docker-compose.override.yml

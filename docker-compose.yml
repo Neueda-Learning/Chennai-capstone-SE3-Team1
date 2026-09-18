@@ -164,8 +164,9 @@ services:
       # Inside the stack network the broker is kafka:29092, and localhost here
       # is this container.
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # No FAUXNANCE_API_KEY here: the key comes from the TrustMe vault
+      # (trustme.secret.Fauxnance in application.yml), not an env var.
       FAUXNANCE_BASE_URL: ${FAUXNANCE_BASE_URL}
-      FAUXNANCE_API_KEY: ${FAUXNANCE_API_KEY}
       # The market-data poller's interval. The 58s floor is enforced in code, so
       # a value below it is clamped with a warning rather than honoured.
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
