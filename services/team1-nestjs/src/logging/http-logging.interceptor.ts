@@ -12,7 +12,7 @@ import { MultiFileLogger } from '../logging/logger.service';
 @Injectable()
 export class HttpLoggingInterceptor implements NestInterceptor {
   constructor(
-    @Inject('HTTP_LOGGER') private readonly logger: MultiFileLogger,
+    @Inject('MULTI_FILE_LOGGER') private readonly logger: MultiFileLogger,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
