@@ -11,7 +11,8 @@ export type LogSource =
   | 'market-data'
   | 'trade-events'
   | 'http'
-  | 'error';
+  | 'error'
+  | 'auth';
 
 interface LogEntry {
   timestamp: string;
@@ -21,6 +22,36 @@ interface LogEntry {
   context?: string;
   trace?: string;
   metadata?: Record<string, any>;
+}
+
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'passwordhash',
+  'password_hash',
+  'token',
+  'authorization',
+  'secret',
+  'apikey',
+  'apikey',
+  'access_token',
+  'refresh_token',
+  'jwt',
+  'creditCard',
+  'cvv',
+  'ssn',
+]);
+
+function redact(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const clone = Array.isArray(obj) ? [...obj] : { ...obj };
+  for (const key of Object.keys(clone)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      clone[key] = '[REDACTED]';
+    } else if (typeof clone[key] === 'object') {
+      clone[key] = redact(clone[key]);
+    }
+  }
+  return clone;
 }
 
 @Injectable({ scope: Scope.TRANSIENT })
@@ -56,6 +87,7 @@ export class MultiFileLogger implements LoggerService {
       'trade-events',
       'http',
       'error',
+      'auth',
     ];
 
     for (const source of sources) {
@@ -77,6 +109,7 @@ export class MultiFileLogger implements LoggerService {
       'trade-events',
       'http',
       'error',
+      'auth',
     ];
 
     for (const source of sources) {
@@ -120,7 +153,7 @@ export class MultiFileLogger implements LoggerService {
       message,
       context,
       trace,
-      metadata,
+      metadata: redact(metadata),
     };
 
     const writer = this.getWriter(source);

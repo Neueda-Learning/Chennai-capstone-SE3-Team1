@@ -50,6 +50,12 @@ import { MultiFileLogger, createSourceLogger } from './logger.service';
         createSourceLogger(logger, 'http'),
       inject: ['MULTI_FILE_LOGGER'],
     },
+    {
+      provide: 'AUTH_LOGGER',
+      useFactory: (logger: MultiFileLogger) =>
+        createSourceLogger(logger, 'auth'),
+      inject: ['MULTI_FILE_LOGGER'],
+    },
   ],
   exports: [
     'MULTI_FILE_LOGGER',
@@ -60,6 +66,7 @@ import { MultiFileLogger, createSourceLogger } from './logger.service';
     'MARKET_DATA_LOGGER',
     'TRADE_EVENTS_LOGGER',
     'HTTP_LOGGER',
+    'AUTH_LOGGER',
   ],
 })
 export class LoggingModule {}
