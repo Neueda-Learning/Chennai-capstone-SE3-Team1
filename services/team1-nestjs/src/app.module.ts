@@ -4,6 +4,8 @@ import { ConfigModule } from '@nestjs/config';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggingModule } from './logging/logging.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { DatabaseModule } from './database/database.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HttpLoggingInterceptor } from './logging/http-logging.interceptor';
@@ -19,7 +21,9 @@ import { configuration, validationSchema } from './config/configuration';
     }),
     TerminusModule,
     LoggingModule,
+    DatabaseModule,
     HealthModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [
