@@ -12,10 +12,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Verifies JWT tokens for all routes under {@code /api/v1/}, before any controller runs.
+ * Verifies JWT tokens for all routes under {@code /api/v1/} and the legacy client and
+ * bank-account routes under {@code /api/clients} and {@code /api/bank-accounts}, before any
+ * controller runs.
  *
  * <p>This filter implements the story requirement that "every route under the API prefix is
  * answered for token validity once, before any controller runs."
@@ -59,11 +62,21 @@ public class JwtVerificationFilter extends OncePerRequestFilter {
         }
     }
 
+    private static final List<String> LEGACY_ROUTES = List.of("/api/bank-accounts", "/api/clients");
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Only apply to /api/v1/ routes
         String path = request.getRequestURI();
-        return !path.startsWith("/api/v1/");
+        return !(path.startsWith("/api/v1/") || isLegacyRoute(path));
+    }
+
+    /**
+     * The pre-v1 client and bank-account routes read and change accounts and balances, so they
+     * need a valid token too. Matched as the exact prefix or a sub-path, so a sibling such as
+     * {@code /api/bank-accounts-report} is not swept in by accident.
+     */
+    private static boolean isLegacyRoute(String path) {
+        return LEGACY_ROUTES.stream().anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
     }
 
     /**

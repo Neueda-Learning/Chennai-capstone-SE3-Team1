@@ -10,6 +10,7 @@
 -- This file shadows the Sprint 6 test schema on the classpath (it lives in this
 -- module's own default test resources). Keep it in sync if Sprint 6's schema evolves.
 
+DROP TABLE IF EXISTS wallet_transfers;
 DROP TABLE IF EXISTS clients;
 DROP TABLE IF EXISTS bank_account;
 DROP TABLE IF EXISTS users;
@@ -155,4 +156,15 @@ CREATE TABLE holdings (
     instrument_id   VARCHAR(20)     NOT NULL,
     quantity        INT             NOT NULL,
     CONSTRAINT uq_holdings_account_instrument UNIQUE (account_id, instrument_id)
+);
+
+-- Transfers between a client's wallet and linked bank account (migration 016).
+CREATE TABLE wallet_transfers (
+    transfer_id      UUID            PRIMARY KEY,
+    client_id        BIGINT          NOT NULL,
+    account_number   VARCHAR(34)     NOT NULL,
+    direction        VARCHAR(16)     NOT NULL,
+    amount           DECIMAL(18,2)   NOT NULL,
+    idempotency_key  VARCHAR(100)    NOT NULL UNIQUE,
+    created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -18,6 +18,15 @@ erDiagram
         varchar   account_state
         decimal   wallet_balance
     }
+    WALLET_TRANSFERS {
+        uuid      transfer_id     PK
+        bigint    client_id       FK
+        varchar   account_number  FK
+        varchar   direction       "BANK_TO_WALLET | WALLET_TO_BANK"
+        decimal   amount
+        varchar   idempotency_key UK
+        timestamp created_at
+    }
     USERS {
         uuid      id              PK
         varchar   username        UK
@@ -90,6 +99,8 @@ erDiagram
 
     CLIENTS              ||--o| BANK_ACCOUNT        : owns
     USERS                |o--o| CLIENTS             : trades
+    CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
+    BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
     CLIENTS              ||--o{ ORDERS              : places
     ORDERS               ||--o{ ORDER_HISTORY       : audited_by
     ORDERS               }o--|| INSTRUMENTS         : trades

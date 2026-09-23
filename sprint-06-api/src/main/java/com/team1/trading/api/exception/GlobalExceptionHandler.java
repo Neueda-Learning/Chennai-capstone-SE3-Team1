@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -67,6 +68,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         LOG.warn("Request argument type mismatch name={} value={}", e.getName(), e.getValue(), e);
+        return envelope(ErrorCatalogue.VAL_422, VALIDATION_MESSAGE, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * A body that is not valid JSON, or carries a value its field cannot hold (an unknown enum
+     * constant such as a {@code side} or {@code direction}, text where a number goes), is invalid
+     * input, {@code VAL-422}, not an internal error.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e) {
+        LOG.warn("Request body could not be read: {}", e.getMostSpecificCause().getMessage());
         return envelope(ErrorCatalogue.VAL_422, VALIDATION_MESSAGE, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
@@ -153,6 +165,15 @@ public class GlobalExceptionHandler {
         }
         if (e instanceof BankAccountLinkConflictException x) {
             return "reason=" + x.getReason();
+        }
+        if (e instanceof EmailInUseException x) {
+            return "clientId=" + x.getClientId();
+        }
+        if (e instanceof InvalidAmountException x) {
+            return "amount=" + x.getAmount();
+        }
+        if (e instanceof TransferException x) {
+            return "accountId=" + x.getAccountId() + ", reason=" + x.getReason() + ", " + x.getDetail();
         }
         return "exception=" + e.getClass().getSimpleName();
     }

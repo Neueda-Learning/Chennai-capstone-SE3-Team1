@@ -41,6 +41,15 @@ erDiagram
         varchar   account_state
         decimal   wallet_balance
     }
+    WALLET_TRANSFERS {
+        uuid      transfer_id     PK
+        bigint    client_id       FK
+        varchar   account_number  FK
+        varchar   direction       "BANK_TO_WALLET | WALLET_TO_BANK"
+        decimal   amount
+        varchar   idempotency_key UK
+        timestamp created_at
+    }
     USERS {
         uuid      id              PK
         varchar   username        UK
@@ -113,6 +122,8 @@ erDiagram
 
     CLIENTS              ||--o| BANK_ACCOUNT        : owns
     USERS                |o--o| CLIENTS             : trades
+    CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
+    BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
     CLIENTS              ||--o{ ORDERS              : places
     ORDERS               ||--o{ ORDER_HISTORY       : audited_by
     ORDERS               }o--|| INSTRUMENTS         : trades
@@ -137,6 +148,8 @@ way. Keep it if you edit the file.
 |---|---|---|---|
 | `CLIENTS` | `BANK_ACCOUNT` | 1 → 0..1 | Funding account |
 | `USERS` | `CLIENTS` | 0..1 → 0..1 | Login; `users.account_id` is set when a bank account is linked |
+| `CLIENTS` | `WALLET_TRANSFERS` | 1 → 0..N | Money moved into or out of the wallet |
+| `BANK_ACCOUNT` | `WALLET_TRANSFERS` | 1 → 0..N | The bank account each transfer used |
 | `CLIENTS` | `ORDERS` | 1 → 0..N | Orders placed |
 | `ORDERS` | `ORDER_HISTORY` | 1 → 0..N | Audit trail of status changes |
 | `ORDERS` | `INSTRUMENTS` | N → 1 | Instrument traded |

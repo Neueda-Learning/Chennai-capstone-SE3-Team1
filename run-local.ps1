@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
     One-shot local bring-up of the trading platform on Windows: Postgres schema, the auth
-    stub, Trade API and Trade Executor - talking to Kafka running as a Docker container on
-    a separate Linux box - then a merged live tail of every local log.
+    service (services\team1-nestjs), Trade API and Trade Executor - talking to Kafka running
+    as a Docker container on a separate Linux box - then a merged live tail of every local log.
 
 .DESCRIPTION
     Run from anywhere; the script cd's to the repo root it lives in. Windows PowerShell 5.1
@@ -13,29 +13,33 @@
 
     What it does, in order:
       1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
-         and services\auth-stub.
+         and services\team1-nestjs.
       2. Downloads the Kafka 3.8.0 CLI tools to -KafkaHome if absent, verifies the remote
          broker at -KafkaHost:9092 is reachable, creates the six contracted topics there.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
-      4. Builds domain-engine, eventbus, sprint-06-api and executor (-SkipBuild reuses jars);
-         npm installs services\auth-stub if node_modules is missing.
-      5. Starts the auth stub (:4000), the API (:8081) and the executor (:8083), all pointed
-         at the remote Kafka, waits for health on all three.
-      6. Mints a 1-hour JWT for account 1 and prints ready-to-paste curl commands, including
-         one to get a token from the auth stub instead.
-      7. Tails api / executor / auth-stub / postgres logs together until Ctrl+C. Kafka's own
+      4. Builds domain-engine, eventbus, sprint-06-api and executor, and the auth service
+         (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
+         and dist\ when they are there.
+      5. Starts the auth service (:3000), the API (:8081) and the executor (:8083), waits for
+         health on all three. The auth service gets its database settings from the TrustMe
+         vault, the same place apply_db.py reads them, and signs tokens with -JwtSecret, which
+         the API verifies with.
+      6. Mints a 1-hour JWT for account 1 and prints ready-to-paste commands, including the
+         full onboarding flow against the auth service: register, log in, link a bank account,
+         refresh, fund the wallet.
+      7. Tails api / executor / auth / postgres logs together until Ctrl+C. Kafka's own
          logs live on the Linux box (docker-compose logs -f kafka there).
          Ctrl+C stops only the tail; the services keep running. Use -Stop to shut them down.
 
 .PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
 .PARAMETER KafkaHost         Address of the Linux box running Kafka in Docker (infra/kafka/docker-compose.yml). Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
-.PARAMETER JwtSecret         HS256 secret the API verifies tokens with. Default is a dev value.
+.PARAMETER JwtSecret         HS256 secret the auth service signs tokens with and the API verifies them with. At least 32 characters (the auth service refuses a shorter one). Default is a dev value.
 .PARAMETER KafkaHome         Where the Kafka distribution's CLI tools (kafka-topics etc.) are cached. Default C:\kafka. No broker runs from here - Kafka itself lives on -KafkaHost.
 .PARAMETER SkipBuild         Reuse the jars already in target\.
 .PARAMETER ResetDb           Drop and recreate trading_platform before migrating.
 .PARAMETER NoTail            Start everything and return without tailing logs.
 .PARAMETER TailOnly          Skip setup; just attach the merged log tail to the running services.
-.PARAMETER Stop              Stop the API, executor and auth stub started by a previous run, then exit. Kafka is untouched - it's managed on the Linux side, separately.
+.PARAMETER Stop              Stop the API, executor and auth service started by a previous run, then exit. Kafka is untouched - it's managed on the Linux side, separately.
 
 .EXAMPLE
     .\run-local.ps1                            # prompts for the TrustMe password and the Kafka host
@@ -50,7 +54,7 @@
 param(
     [string]$TrustMePassword,
     [string]$KafkaHost,
-    [string]$JwtSecret = "local-dev-secret-change-me",
+    [string]$JwtSecret = "local-dev-secret-change-me-0123456789abcdef",
     [string]$KafkaHome = "C:\kafka",
     [switch]$SkipBuild,
     [switch]$ResetDb,
@@ -72,8 +76,9 @@ $KafkaUrl   = "https://archive.apache.org/dist/kafka/$KafkaVer/kafka_2.13-$Kafka
 $ApiPort    = 8081
 $ExecPort   = 8083
 $KafkaPort  = 9092
-$AuthStubPort = 4000
-$AuthStubDir  = Join-Path $RepoRoot "services\auth-stub"
+$AuthPort   = 3000
+$AuthDir    = Join-Path $RepoRoot "services\team1-nestjs"
+$AuthMain   = Join-Path $AuthDir "dist\main.js"
 $Topics     = @{ "orders"=3; "trade-events"=3; "market-data"=6; "orders.DLT"=3; "trade-events.DLT"=3; "market-data.DLT"=6 }
 
 Set-Location $RepoRoot
@@ -108,6 +113,12 @@ function Get-Health($port) {
     try { (Invoke-RestMethod -Uri "http://localhost:$port/actuator/health" -TimeoutSec 5).status -eq "UP" } catch { $false }
 }
 
+# The auth service is NestJS (terminus), not Spring: /health answers {"status":"ok"} with a 200,
+# and a 503 - which Invoke-RestMethod throws on - when it is not healthy.
+function Get-AuthHealth {
+    try { (Invoke-RestMethod -Uri "http://localhost:$AuthPort/health" -TimeoutSec 5).status -eq "ok" } catch { $false }
+}
+
 function Read-Pids {
     if (Test-Path $PidFile) { Get-Content $PidFile -Raw | ConvertFrom-Json } else { $null }
 }
@@ -127,7 +138,8 @@ if ($Stop) {
     if (-not $pids) { Write-Host "    nothing tracked in $PidFile"; exit 0 }
     Stop-Tracked "executor" $pids.executor
     Stop-Tracked "trade-api" $pids.api
-    Stop-Tracked "auth-stub" $pids.authstub
+    Stop-Tracked "auth" $pids.auth
+    Stop-Tracked "auth-stub" $pids.authstub   # pids.json written by a version that ran the stub
     Remove-Item $PidFile -ErrorAction SilentlyContinue
     exit 0
 }
@@ -150,8 +162,11 @@ if (-not $psql) {
 cmd /c "python -c ""import trustme_secrets"" 2>nul" | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail "python module trustme_secrets missing (pip install trustme-secrets)" }
 if (-not (Test-Path $KeyFile)) { Fail "TrustMe key file missing: $KeyFile" }
-if (-not (Test-Path (Join-Path $AuthStubDir "server.js"))) { Fail "auth stub missing: $AuthStubDir" }
+if (-not (Test-Path (Join-Path $AuthDir "package.json"))) { Fail "auth service missing: $AuthDir" }
 if (-not (Test-Port 5432)) { Fail "Postgres is not listening on 5432 (start the postgresql service)" }
+# The auth service validates its config at startup and refuses a JWT_SECRET under 32 characters;
+# failing here says why, instead of a health check that just never goes green.
+if ($JwtSecret.Length -lt 32) { Fail "-JwtSecret must be at least 32 characters (the auth service refuses a shorter one)" }
 
 if (-not $TrustMePassword) {
     $sec = Read-Host "TrustMe key file password" -AsSecureString
@@ -165,6 +180,14 @@ Write-Host "    java: $((cmd /c "java -version 2>&1" | Select-Object -First 1))"
 Write-Host "    key file, psql, python, postgres: ok"
 
 $pyTrust = @("-X", "trustme_password=$TrustMePassword", "-X", "trustme_keyfile=$KeyFile")
+
+# The auth service is Node, so it can't open the TrustMe vault itself: read the database
+# settings here, through the same resolver apply_db.py uses (vault, then .env, then defaults),
+# and hand them to its process only. One value per line: host, port, dbname, user, password.
+$dbLines = & python @pyTrust -c "import sys; sys.path.insert(0, 'scripts'); from db_config import DbConfig; c = DbConfig.resolve(); print(c.host); print(c.port); print(c.dbname); print(c.user); print(c.password)" 2>$null
+if ($LASTEXITCODE -ne 0 -or @($dbLines).Count -lt 5) { Fail "could not read the database settings from the TrustMe vault (wrong password?)" }
+$Db = @{ host = $dbLines[0]; port = $dbLines[1]; name = $dbLines[2]; user = $dbLines[3]; password = $dbLines[4] }
+Write-Host "    database settings: $($Db.user)@$($Db.host):$($Db.port)/$($Db.name) (from the vault)"
 
 # ------------------------------------------------------------------ 2. kafka (remote - Linux)
 Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}:${KafkaPort}"
@@ -222,33 +245,43 @@ if ($SkipBuild -and (Test-Path $apiJar) -and (Test-Path $execJar)) {
     }
 }
 
-Say "Auth stub dependencies (services\auth-stub)"
-if (-not (Test-Path (Join-Path $AuthStubDir "node_modules"))) {
-    Write-Host "    npm install"
-    Push-Location $AuthStubDir
-    & npm install 2>&1 | Where-Object { $_ -match "error|ERR!" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-    $npmExit = $LASTEXITCODE
+Say "Auth service (services\team1-nestjs)"
+Push-Location $AuthDir
+try {
+    if (-not (Test-Path (Join-Path $AuthDir "node_modules"))) {
+        Write-Host "    npm ci"
+        & npm ci --no-audit --no-fund 2>&1 | Where-Object { $_ -match "error|ERR!" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        if ($LASTEXITCODE -ne 0) { Fail "npm ci failed in $AuthDir" }
+    } else {
+        Write-Host "    node_modules present, skipping npm ci"
+    }
+    if ($SkipBuild -and (Test-Path $AuthMain)) {
+        Write-Host "    build skipped (-SkipBuild), using dist\main.js"
+    } else {
+        Write-Host "    npm run build"
+        & npm run build 2>&1 | Where-Object { $_ -match "error" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $AuthMain)) { Fail "auth service build failed in $AuthDir" }
+    }
+} finally {
     Pop-Location
-    if ($npmExit -ne 0) { Fail "npm install failed in $AuthStubDir" }
-} else {
-    Write-Host "    node_modules present, skipping npm install"
 }
 
 # ------------------------------------------------------------------ 5. services
 Say "Starting services"
 $prev = Read-Pids
 if ($prev) {
-    Stop-Tracked "old executor" $prev.executor; Stop-Tracked "old trade-api" $prev.api; Stop-Tracked "old auth-stub" $prev.authstub
+    Stop-Tracked "old executor" $prev.executor; Stop-Tracked "old trade-api" $prev.api
+    Stop-Tracked "old auth" $prev.auth; Stop-Tracked "old auth-stub" $prev.authstub
     # Stop-Process returns before the listener is gone; give Windows a moment to release the ports.
-    Wait-Until "ports $ApiPort/$ExecPort/$AuthStubPort released" { -not (Test-Port $ApiPort) -and -not (Test-Port $ExecPort) -and -not (Test-Port $AuthStubPort) } 20 | Out-Null
+    Wait-Until "ports $ApiPort/$ExecPort/$AuthPort released" { -not (Test-Port $ApiPort) -and -not (Test-Port $ExecPort) -and -not (Test-Port $AuthPort) } 20 | Out-Null
 }
-foreach ($p in $ApiPort, $ExecPort, $AuthStubPort) { if (Test-Port $p) { Fail "port $p is already in use by something this script did not start" } }
+foreach ($p in $ApiPort, $ExecPort, $AuthPort) { if (Test-Port $p) { Fail "port $p is already in use by something this script did not start" } }
 
 $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile")
 
-# The API and the auth stub both read JWT_SECRET (API verifies tokens with it, overriding
-# the TrustMe vault's jwt.secret so it's a value this script - and whoever calls the stub -
-# knows; the stub signs with it). KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API
+# The API and the auth service both read JWT_SECRET (the auth service signs tokens with it;
+# the API verifies them with it, overriding the TrustMe vault's jwt.secret so the two always
+# agree). KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API
 # or the executor start: both run a Kafka producer (trade-api publishes ORDER_PLACED, the
 # executor publishes/consumes everything else), and Spring only reads env vars present at
 # JVM startup - setting it after the API was already launched (an earlier version of this
@@ -257,13 +290,25 @@ $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key
 $env:JWT_SECRET = $JwtSecret
 $env:KAFKA_BOOTSTRAP_SERVERS = "${KafkaHost}:$KafkaPort"
 
-$authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthStubDir `
-    -RedirectStandardOutput (Join-Path $LogDir "authstub.log") -RedirectStandardError (Join-Path $LogDir "authstub.err") `
-    -ArgumentList @("server.js")
+# The auth service's settings go into this process's environment only for as long as it takes
+# to start it (Start-Process hands the child a copy), then come straight back out, so the
+# database password is not left behind in the PowerShell session that ran this script.
+$authEnv = @{
+    PORT = "$AuthPort"; NODE_ENV = "development"; JWT_ISSUER = "auth-service"
+    DB_HOST = $Db.host; DB_PORT = $Db.port; DB_NAME = $Db.name; DB_USERNAME = $Db.user; DB_PASSWORD = $Db.password
+}
+foreach ($k in $authEnv.Keys) { Set-Item -Path "Env:$k" -Value $authEnv[$k] }
+try {
+    $authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthDir `
+        -RedirectStandardOutput (Join-Path $LogDir "auth.log") -RedirectStandardError (Join-Path $LogDir "auth.err") `
+        -ArgumentList @("dist\main.js")
+} finally {
+    foreach ($k in $authEnv.Keys) { Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue }
+}
 # On some machines `node` on PATH is a .cmd/.bat shim (nvm-windows, Volta, corepack, ...)
 # rather than node.exe directly - Start-Process then launches it via cmd.exe, and the PID
 # above is the wrapper's, not the real Node process underneath. Stopping that PID later
-# kills an empty shell and leaves the actual auth-stub running, still bound to the port,
+# kills an empty shell and leaves the actual auth service running, still bound to the port,
 # which looks exactly like -Stop or a restart silently not touching it. Detect that and
 # track the real child node.exe instead - confirmed against a real shim in testing that a
 # single short sleep isn't reliably long enough for the child to appear, so this polls.
@@ -278,13 +323,13 @@ if ($authStubProc -and $authStubProc.ProcessName -ne "node") {
         if (-not $child) { Start-Sleep -Milliseconds 200 }
     }
     if ($child) {
-        Write-Host "    auth-stub  node on PATH is a shim ($($authStubProc.ProcessName)); tracking its child node.exe instead"
+        Write-Host "    auth       node on PATH is a shim ($($authStubProc.ProcessName)); tracking its child node.exe instead"
         $authStubId = $child.ProcessId
     } else {
-        Write-Host "    auth-stub  node on PATH is a shim ($($authStubProc.ProcessName)) and no node.exe child appeared within 5s; tracking the shim's own pid, which -Stop may not actually kill" -ForegroundColor Yellow
+        Write-Host "    auth       node on PATH is a shim ($($authStubProc.ProcessName)) and no node.exe child appeared within 5s; tracking the shim's own pid, which -Stop may not actually kill" -ForegroundColor Yellow
     }
 }
-Write-Host "    auth-stub  pid $authStubId  -> http://localhost:$AuthStubPort"
+Write-Host "    auth       pid $authStubId  -> http://localhost:$AuthPort  (OpenAPI docs: /docs)"
 
 $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "api.log") -RedirectStandardError (Join-Path $LogDir "api.err") `
@@ -296,9 +341,9 @@ $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -ArgumentList ($jvmCommon + @("-jar", $execJar))
 Write-Host "    executor   pid $($exe.Id)  -> http://localhost:$ExecPort"
 
-@{ api = $api.Id; executor = $exe.Id; authstub = $authStubId; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
+@{ api = $api.Id; executor = $exe.Id; auth = $authStubId; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
 
-$authStubUp = Wait-Until "auth-stub /health"        { Get-Health $AuthStubPort } 30
+$authStubUp = Wait-Until "auth      /health"        { Get-AuthHealth } 60
 $apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiPort } 150
 $execUp = Wait-Until "executor  /actuator/health" { Get-Health $ExecPort } 150
 if (-not ($apiUp -and $execUp -and $authStubUp)) { Write-Host "    check $LogDir\*.log for the failure" -ForegroundColor Red }
@@ -319,8 +364,8 @@ Set-Content (Join-Path $LogDir "token.txt") $token
 Say "Ready" Green
 Write-Host @"
   Trade API   http://localhost:$ApiPort      Executor  http://localhost:$ExecPort      Kafka ${KafkaHost}:$KafkaPort (Linux)
-  Auth stub   http://localhost:$AuthStubPort
-  Logs        $LogDir\{api,executor,authstub}.log        PIDs  $PidFile
+  Auth        http://localhost:$AuthPort      (OpenAPI docs http://localhost:$AuthPort/docs)
+  Logs        $LogDir\{api,executor,auth}.log        PIDs  $PidFile
   JWT (acct 1, 1h)  saved to $LogDir\token.txt
 
   # place an order (PowerShell; the -replace escapes quotes for curl.exe, which PS 5.1 otherwise strips)
@@ -330,10 +375,19 @@ Write-Host @"
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/orders  -H "Authorization: Bearer `$T"
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/balance -H "Authorization: Bearer `$T"
 
-  # or get a bearer token from the auth stub instead of the token.txt above (no accountId
-  # claim on this one - see services/auth-stub/README.md - so it authenticates but the
-  # per-account reach check is skipped)
-  Invoke-RestMethod -Uri http://localhost:$AuthStubPort/login -Method Post -ContentType application/json -Body '{"username":"alice","password":"mission123"}'
+  # onboard a new user end to end through the auth service (PowerShell). Change the username,
+  # email and account number to run it again - each is unique. Seeded users can't log in:
+  # their password hashes are placeholders.
+  `$A = 'http://localhost:$AuthPort'; `$API = 'http://localhost:$ApiPort'
+  Invoke-RestMethod "`$A/auth/register" -Method Post -ContentType application/json -Body '{"username":"priya.menon","email":"priya.menon@example.com","password":"Correct-Horse-Battery-9"}'
+  `$S = Invoke-RestMethod "`$A/auth/login" -Method Post -ContentType application/json -Body '{"username":"priya.menon","password":"Correct-Horse-Battery-9"}'
+  `$H = @{ Authorization = "Bearer `$(`$S.accessToken)" }   # accountId null: account routes are ACC-403 until the link
+  `$L = Invoke-RestMethod "`$API/api/v1/bank-accounts" -Method Post -Headers `$H -ContentType application/json -Body '{"accountHolderName":"Priya Menon","phone":"+919812345099","accountNumber":"IN45HDFC0000009999999","bankName":"HDFC Bank","ifscCode":"HDFC0009999"}'
+  `$S = Invoke-RestMethod "`$A/auth/refresh" -Method Post -ContentType application/json -Body (@{ refreshToken = `$S.refreshToken } | ConvertTo-Json)
+  `$H = @{ Authorization = "Bearer `$(`$S.accessToken)" }   # now carries the new accountId
+  Invoke-RestMethod "`$API/api/bank-accounts/`$(`$L.accountNumber)/deposit?amount=50000" -Method Put -Headers `$H   # dev: money into the simulated bank
+  Invoke-RestMethod "`$API/api/v1/accounts/`$(`$L.accountId)/transfers" -Method Post -Headers `$H -ContentType application/json -Body (@{ direction = 'BANK_TO_WALLET'; amount = 10000; idempotencyKey = [guid]::NewGuid().ToString() } | ConvertTo-Json)
+  Invoke-RestMethod "`$API/api/v1/accounts/`$(`$L.accountId)/balance" -Headers `$H
 
   # watch a topic on the remote broker
   java -cp "$kafkaLibs" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server ${KafkaHost}:$KafkaPort --topic trade-events --from-beginning
@@ -356,8 +410,8 @@ $sources = @(
     @{ tag = "API!  "; color = "Red";     path = (Join-Path $LogDir "api.err") },
     @{ tag = "EXEC  "; color = "Cyan";    path = (Join-Path $LogDir "executor.log") },
     @{ tag = "EXEC! "; color = "Red";     path = (Join-Path $LogDir "executor.err") },
-    @{ tag = "AUTH  "; color = "Yellow";  path = (Join-Path $LogDir "authstub.log") },
-    @{ tag = "AUTH! "; color = "Red";     path = (Join-Path $LogDir "authstub.err") }
+    @{ tag = "AUTH  "; color = "Yellow";  path = (Join-Path $LogDir "auth.log") },
+    @{ tag = "AUTH! "; color = "Red";     path = (Join-Path $LogDir "auth.err") }
 )
 if ($pgLogDir) {
     $pgLatest = Get-ChildItem $pgLogDir.FullName -Filter *.log -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1

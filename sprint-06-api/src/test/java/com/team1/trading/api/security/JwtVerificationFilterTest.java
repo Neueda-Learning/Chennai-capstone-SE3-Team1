@@ -16,6 +16,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -206,6 +207,14 @@ class JwtVerificationFilterTest {
     class SkipsNonApiRoutes {
 
         @Test
+        void does_not_sweep_in_a_sibling_of_the_bank_account_routes() throws Exception {
+            mockMvc.perform(get("/api/bank-accounts-report"))
+                    .andExpect(result ->
+                            assertThat(result.getResponse().getStatus(), not(401))
+                    );
+        }
+
+        @Test
         void skips_filter_for_non_api_routes() throws Exception {
             // Non-API routes should not require authorization
             mockMvc.perform(get("/health"))
@@ -223,5 +232,37 @@ class JwtVerificationFilterTest {
         }
 
 
+    }
+    @Nested
+    @DisplayName("Protects the legacy /api/bank-accounts routes too")
+    class LegacyBankAccountRoutes {
+
+        @Test
+        void a_deposit_without_a_token_is_rejected() throws Exception {
+            mockMvc.perform(put("/api/bank-accounts/IN45HDFC0000001234567/deposit").param("amount", "10"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.errorCode").value(ErrorCatalogue.AUTH_401));
+        }
+
+        @Test
+        void a_withdrawal_with_a_forged_token_is_rejected() throws Exception {
+            mockMvc.perform(put("/api/bank-accounts/IN45HDFC0000001234567/withdraw").param("amount", "10")
+                            .header("Authorization", TestJwtBuilder.forAccount(1L).buildForged()))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.errorCode").value(ErrorCatalogue.AUTH_401));
+        }
+
+        @Test
+        void the_listing_without_a_token_is_rejected() throws Exception {
+            mockMvc.perform(get("/api/bank-accounts"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void a_valid_token_gets_through() throws Exception {
+            mockMvc.perform(get("/api/bank-accounts/client/1").header("Authorization", validToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accountNumber").value("IN45HDFC0000001234567"));
+        }
     }
 }

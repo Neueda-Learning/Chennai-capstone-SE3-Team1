@@ -49,8 +49,20 @@ public interface BankAccountMapper {
 
     @Update("""
             UPDATE bank_account
-            SET account_balance = #{accountBalance}
+            SET account_balance = account_balance + #{amount}
             WHERE account_number = #{accountNumber}
             """)
-    int updateBalance(@Param("accountNumber") String accountNumber, @Param("accountBalance") java.math.BigDecimal accountBalance);
+    int credit(@Param("accountNumber") String accountNumber, @Param("amount") java.math.BigDecimal amount);
+
+    /**
+     * Guarded in the statement itself, so the balance check and the write cannot be split by a
+     * concurrent request: 0 rows means the account does not hold the amount.
+     */
+    @Update("""
+            UPDATE bank_account
+            SET account_balance = account_balance - #{amount}
+            WHERE account_number = #{accountNumber}
+              AND account_balance >= #{amount}
+            """)
+    int debitIfCovered(@Param("accountNumber") String accountNumber, @Param("amount") java.math.BigDecimal amount);
 }
