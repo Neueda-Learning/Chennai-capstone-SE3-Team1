@@ -18,7 +18,8 @@ import { ACCESS_TOKEN_TTL_SECONDS } from '../src/auth/token.constants';
 interface FakeUser {
   id: string;
   username: string;
-  accountId: number;
+  email: string;
+  accountId: number | null;
   roles: Role[];
   passwordHash: string;
   paramsVersion: number;
@@ -39,12 +40,14 @@ class FakeUserRepo {
   usersById = new Map<string, FakeUser>();
   usersByUsername = new Map<string, FakeUser>();
 
-  async accountExists(accountId: number): Promise<boolean> {
-    return accountId === 1; // clients.client_id 1 is the only seeded account
-  }
-
   async findByUsername(username: string): Promise<FakeUser | null> {
     return this.usersByUsername.get(username) ?? null;
+  }
+
+  async findByEmail(email: string): Promise<FakeUser | null> {
+    return (
+      [...this.usersById.values()].find((u) => u.email === email) ?? null
+    );
   }
 
   async findById(id: string): Promise<FakeUser | null> {
@@ -53,7 +56,7 @@ class FakeUserRepo {
 
   async create(input: {
     username: string;
-    accountId: number;
+    email: string;
     roles: Role[];
     passwordHash: string;
     paramsVersion: number;
@@ -61,7 +64,9 @@ class FakeUserRepo {
     const u: FakeUser = {
       id: randomUUID(),
       username: input.username,
-      accountId: input.accountId,
+      email: input.email,
+      // Registration never links a trading account; the Trade REST API does that.
+      accountId: null,
       roles: input.roles,
       passwordHash: input.passwordHash,
       paramsVersion: input.paramsVersion,
@@ -170,12 +175,12 @@ describe('Auth service (e2e)', () => {
 
   const registerBody = {
     username: 'priya.menon',
-    password: 'correct horse battery staple',
-    accountId: 1,
+    email: 'priya.menon@example.com',
+    password: 'Correct-Horse-Battery-9',
   };
 
   describe('register', () => {
-    it('creates a user against an existing account and returns NO tokens', async () => {
+    it('creates a user with no trading account and returns NO tokens', async () => {
       const res = await request(server)
         .post('/auth/register')
         .send(registerBody)
@@ -184,23 +189,45 @@ describe('Auth service (e2e)', () => {
       expect(res.body).toMatchObject({
         id: expect.any(String),
         username: 'priya.menon',
-        accountId: 1,
+        email: 'priya.menon@example.com',
+        accountId: null,
         roles: ['CUSTOMER'],
       });
       expect(res.body.accessToken).toBeUndefined();
       expect(res.body.refreshToken).toBeUndefined();
     });
 
-    it('rejects registering against an unknown accountId with VAL-422', async () => {
+    it('rejects an accountId on the body: registration cannot pick an account', async () => {
       const res = await request(server)
         .post('/auth/register')
-        .send({ ...registerBody, accountId: 999 })
+        .send({ ...registerBody, accountId: 1 })
         .expect(422);
 
-      expect(res.body).toEqual({
-        errorCode: 'VAL-422',
-        message: 'Invalid input',
-      });
+      expect(res.body.errorCode).toBe('VAL-422');
+    });
+
+    it('rejects a missing email with VAL-422', async () => {
+      const { email: _omitted, ...noEmail } = registerBody;
+      const res = await request(server)
+        .post('/auth/register')
+        .send(noEmail)
+        .expect(422);
+
+      expect(res.body.errorCode).toBe('VAL-422');
+    });
+
+    it('returns AUTH-409 when the email is already registered', async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+
+      const res = await request(server)
+        .post('/auth/register')
+        .send({ ...registerBody, username: 'someone.else' })
+        .expect(409);
+
+      expect(res.body.errorCode).toBe('AUTH-409');
     });
 
     it('rejects a short password with VAL-422', async () => {
@@ -250,7 +277,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/login')
         .send({
           username: 'ghost.user',
-          password: 'correct horse battery staple',
+          password: registerBody.password,
         })
         .expect(401);
 
@@ -276,7 +303,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/login')
         .send({
           username: 'priya.menon',
-          password: 'correct horse battery staple',
+          password: registerBody.password,
         })
         .expect(200);
 
@@ -293,7 +320,7 @@ describe('Auth service (e2e)', () => {
       );
       expect(payload).toMatchObject({
         sub: expect.stringMatching(/^[0-9a-f-]{36}$/),
-        accountId: 1,
+        accountId: null,
         roles: ['CUSTOMER'],
         iss: 'auth-service',
       });
@@ -319,7 +346,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/login')
         .send({
           username: 'priya.menon',
-          password: 'correct horse battery staple',
+          password: registerBody.password,
         })
         .expect(200);
 
@@ -330,7 +357,8 @@ describe('Auth service (e2e)', () => {
 
       expect(res.body).toMatchObject({
         username: 'priya.menon',
-        accountId: 1,
+        email: 'priya.menon@example.com',
+        accountId: null,
         roles: ['CUSTOMER'],
       });
     });
@@ -409,7 +437,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/login')
         .send({
           username: 'priya.menon',
-          password: 'correct horse battery staple',
+          password: registerBody.password,
         })
         .expect(200);
 
@@ -454,7 +482,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/login')
         .send({
           username: 'priya.menon',
-          password: 'correct horse battery staple',
+          password: registerBody.password,
         })
         .expect(200);
       const refreshed = await request(server)

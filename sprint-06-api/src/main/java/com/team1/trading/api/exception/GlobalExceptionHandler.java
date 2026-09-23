@@ -151,6 +151,9 @@ public class GlobalExceptionHandler {
         if (e instanceof AuthenticationException x) {
             return "reason=" + x.getReason();
         }
+        if (e instanceof BankAccountLinkConflictException x) {
+            return "reason=" + x.getReason();
+        }
         return "exception=" + e.getClass().getSimpleName();
     }
 }

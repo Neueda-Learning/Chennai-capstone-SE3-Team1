@@ -84,7 +84,7 @@ class AccountServiceTest {
         void missingAccount() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> accountService.getAccount(ACCOUNT_ID, null))
+            assertThatThrownBy(() -> accountService.getAccount(ACCOUNT_ID, ACCOUNT_ID))
                     .isInstanceOf(AccountNotFoundException.class)
                     .hasMessage("Account not found");
         }
@@ -100,13 +100,23 @@ class AccountServiceTest {
         }
 
         @Test
+        @DisplayName("A user with no linked bank account (null accountId claim) is ACC-403")
+        void unlinkedUserCannotRead() {
+            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+
+            assertThatThrownBy(() -> accountService.getAccount(ACCOUNT_ID, null))
+                    .isInstanceOf(AccountNotActiveException.class)
+                    .hasMessage("Account not active");
+        }
+
+        @Test
         @DisplayName("An inactive account is ACC-403")
         void inactiveAccount() {
             AccountRow row = activeAccount();
             row.setAccountState("CLOSED");
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(row));
 
-            assertThatThrownBy(() -> accountService.getPortfolio(ACCOUNT_ID, null))
+            assertThatThrownBy(() -> accountService.getPortfolio(ACCOUNT_ID, ACCOUNT_ID))
                     .isInstanceOf(AccountNotActiveException.class)
                     .hasMessage("Account not active");
             verify(positionMapper, org.mockito.Mockito.never()).listHoldings(any());
@@ -123,7 +133,7 @@ class AccountServiceTest {
         void getAccount_mapsRow() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
 
-            AccountResponse response = accountService.getAccount(ACCOUNT_ID, null);
+            AccountResponse response = accountService.getAccount(ACCOUNT_ID, ACCOUNT_ID);
 
             assertThat(response.getId()).isEqualTo(ACCOUNT_ID);
             assertThat(response.getAccountId()).isEqualTo("ACC-000001");
@@ -139,7 +149,7 @@ class AccountServiceTest {
         void getBalance_usesConfiguredCurrency() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
 
-            BalanceResponse response = accountService.getBalance(ACCOUNT_ID, null);
+            BalanceResponse response = accountService.getBalance(ACCOUNT_ID, ACCOUNT_ID);
 
             assertThat(response.getAccountId()).isEqualTo(ACCOUNT_ID);
             assertThat(response.getCashBalance()).isEqualByComparingTo(new BigDecimal("24500.75"));
@@ -161,7 +171,7 @@ class AccountServiceTest {
             given(positionMapper.listPositions(ACCOUNT_ID))
                     .willReturn(List.of(new PositionResponse(ACCOUNT_ID, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00"))));
 
-            PortfolioResponse portfolio = accountService.getPortfolio(ACCOUNT_ID, null);
+            PortfolioResponse portfolio = accountService.getPortfolio(ACCOUNT_ID, ACCOUNT_ID);
 
             assertThat(portfolio.getAccountId()).isEqualTo(ACCOUNT_ID);
             assertThat(portfolio.getHoldings()).singleElement().satisfies(holding -> {
@@ -196,7 +206,7 @@ class AccountServiceTest {
             given(orderMapper.listByAccount(any())).willReturn(List.of(row));
 
             List<OrderHistoryEntry> entries = accountService.getOrderHistory(
-                    ACCOUNT_ID, null, "FILLED", null, null);
+                    ACCOUNT_ID, ACCOUNT_ID, "FILLED", null, null);
 
             ArgumentCaptor<OrderHistoryFilter> filterCaptor = ArgumentCaptor.forClass(OrderHistoryFilter.class);
             verify(orderMapper).listByAccount(filterCaptor.capture());
@@ -216,7 +226,7 @@ class AccountServiceTest {
         void getOrderHistory_unknownStatus() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
 
-            assertThatThrownBy(() -> accountService.getOrderHistory(ACCOUNT_ID, null, "BOGUS", null, null))
+            assertThatThrownBy(() -> accountService.getOrderHistory(ACCOUNT_ID, ACCOUNT_ID, "BOGUS", null, null))
                     .isInstanceOf(InvalidOrderException.class)
                     .hasMessage("Invalid input");
             verify(orderMapper, org.mockito.Mockito.never()).listByAccount(any());

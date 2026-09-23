@@ -10,7 +10,6 @@ import java.util.Objects;
 public class Client {
 
     private Long clientId;
-    private String accountNumber;
     private String name;
     private String email;
     private String phone;
@@ -20,9 +19,8 @@ public class Client {
     private Integer version;
     private LocalDateTime updatedOn;
 
-    public Client(Long clientId, String accountNumber, String name, String email, String phone) {
+    public Client(Long clientId, String name, String email, String phone) {
         this.clientId = clientId;
-        this.accountNumber = Objects.requireNonNull(accountNumber, "accountNumber must not be null");
         this.name = name;
         this.email = email;
         this.phone = phone;
@@ -33,10 +31,9 @@ public class Client {
         this.updatedOn = this.createdOn;
     }
 
-    public Client(Long clientId, String accountNumber, String name, String email, String phone,
+    public Client(Long clientId, String name, String email, String phone,
                   LocalDateTime createdOn, String accountState, BigDecimal walletBalance) {
         this.clientId = clientId;
-        this.accountNumber = Objects.requireNonNull(accountNumber, "accountNumber must not be null");
         this.name = name;
         this.email = email;
         this.phone = phone;
@@ -47,20 +44,16 @@ public class Client {
         this.updatedOn = createdOn;
     }
 
-    public Client(Long clientId, String accountNumber, String name, String email, String phone,
+    public Client(Long clientId, String name, String email, String phone,
                   LocalDateTime createdOn, String accountState, BigDecimal walletBalance,
                   Integer version, LocalDateTime updatedOn) {
-        this(clientId, accountNumber, name, email, phone, createdOn, accountState, walletBalance);
+        this(clientId, name, email, phone, createdOn, accountState, walletBalance);
         this.version = Objects.requireNonNull(version, "version must not be null");
         this.updatedOn = Objects.requireNonNull(updatedOn, "updatedOn must not be null");
     }
 
     public Long getClientId() {
         return clientId;
-    }
-
-    public String getAccountNumber() {
-        return accountNumber;
     }
 
     public String getName() {

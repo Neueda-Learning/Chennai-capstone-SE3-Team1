@@ -59,7 +59,7 @@ def pg(source_db):
     source_db.run_or_die(
         "resetting source data",
         sql=(
-            "TRUNCATE order_history, orders, portfolio_holding, portfolio_positions, auth, "
+            "TRUNCATE order_history, orders, portfolio_holding, portfolio_positions, refresh_tokens, users, "
             "clients, bank_account, instruments RESTART IDENTITY CASCADE;"
         ),
     )

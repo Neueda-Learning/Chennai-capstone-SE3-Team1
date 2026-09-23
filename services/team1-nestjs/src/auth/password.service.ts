@@ -10,8 +10,16 @@ export class PasswordService {
     return hash(password, this.currentParams);
   }
 
+  /**
+   * A stored value that is not an argon2 hash (the seed's placeholder, for one) is a
+   * failed login, not a crash: the caller must answer AUTH-401 either way.
+   */
   async verify(password: string, storedHash: string): Promise<boolean> {
-    return verify(storedHash, password);
+    try {
+      return await verify(storedHash, password);
+    } catch {
+      return false;
+    }
   }
 
   needsRehash(storedHash: string): boolean {

@@ -88,7 +88,8 @@ public class AccountService {
     private AccountRow resolve(Long accountId, Long tokenAccountId) {
         AccountRow row = accountMapper.findRow(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
-        if (tokenAccountId != null && !tokenAccountId.equals(accountId)) {
+        // A null claim is a user who has not linked a bank account yet: they own no account.
+        if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
             throw new AccountNotActiveException(accountId, "TOKEN");
         }
         Client client = toClient(row);
@@ -113,7 +114,7 @@ public class AccountService {
     }
 
     private static Client toClient(AccountRow row) {
-        return new Client(row.getClientId(), row.getAccountNumber(), row.getName(), row.getEmail(),
+        return new Client(row.getClientId(), row.getName(), row.getEmail(),
                 row.getPhone(), row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
     }
 

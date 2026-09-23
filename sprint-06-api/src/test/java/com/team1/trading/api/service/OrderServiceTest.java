@@ -117,7 +117,7 @@ class OrderServiceTest {
         void missingAccount() {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(AccountNotFoundException.class)
                     .hasMessage("Account not found");
             verify(instrumentMapper, never()).findRowBySymbol(any());
@@ -136,13 +136,25 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("A user with no linked bank account (null accountId claim) is ACC-403")
+        void unlinkedUserCannotTrade() {
+            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+                    .isInstanceOf(AccountNotActiveException.class)
+                    .hasMessage("Account not active");
+            verify(instrumentMapper, never()).findRowBySymbol(any());
+            verify(orderMapper, never()).insert(any());
+        }
+
+        @Test
         @DisplayName("Rule 2: a non-active account is ACC-403")
         void inactiveAccount() {
             AccountRow row = activeAccount();
             row.setAccountState("SUSPENDED");
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(row));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(AccountNotActiveException.class)
                     .hasMessage("Account not active");
             verify(instrumentMapper, never()).findRowBySymbol(any());
@@ -154,7 +166,7 @@ class OrderServiceTest {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(InstrumentNotFoundException.class)
                     .hasMessage("Instrument not found");
         }
@@ -167,7 +179,7 @@ class OrderServiceTest {
             row.setActive(false);
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(row));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(InstrumentNotFoundException.class)
                     .hasMessage("Instrument not found");
         }
@@ -178,7 +190,7 @@ class OrderServiceTest {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(0, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(0, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(InvalidOrderException.class)
                     .hasMessage("Invalid input");
         }
@@ -189,7 +201,7 @@ class OrderServiceTest {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, BigDecimal.ZERO), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, BigDecimal.ZERO), ACCOUNT_ID))
                     .isInstanceOf(InvalidOrderException.class)
                     .hasMessage("Invalid input");
             verify(applicationEventPublisher, never()).publishEvent(any());
@@ -201,7 +213,7 @@ class OrderServiceTest {
             given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("26.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("26.00")), ACCOUNT_ID))
                     .isInstanceOf(InsufficientFundsException.class)
                     .hasMessage("Insufficient funds");
             verify(orderMapper, never()).insert(any());
@@ -215,7 +227,7 @@ class OrderServiceTest {
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
             given(positionMapper.findHeld(ACCOUNT_ID, SYMBOL)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.placeOrder(sellRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(sellRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(InsufficientHoldingsException.class)
                     .hasMessage("Insufficient holdings");
             verify(orderMapper, never()).insert(any());
@@ -231,7 +243,7 @@ class OrderServiceTest {
                     "statement", runtime("ERROR: duplicate key value violates unique constraint "
                     + "\"uq_orders_idempotency_key\"\nDetail: Key (idempotency_key) already exists.")));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(DuplicateOrderException.class)
                     .hasMessage("Duplicate order");
             verify(accountMapper, never()).updateCashGuarded(any());
@@ -246,7 +258,7 @@ class OrderServiceTest {
             given(orderMapper.insert(any())).willThrow(new DataIntegrityViolationException(
                     "statement", runtime("ERROR: some other constraint violated")));
 
-            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null))
+            assertThatThrownBy(() -> orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID))
                     .isInstanceOf(DataIntegrityViolationException.class)
                     .isNotInstanceOf(DuplicateOrderException.class);
         }
@@ -267,7 +279,7 @@ class OrderServiceTest {
             given(instrumentMapper.findRowBySymbol(SYMBOL)).willReturn(Optional.of(tradableInstrument()));
             given(orderMapper.insert(any())).willReturn(1);
 
-            var response = orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), null);
+            var response = orderService.placeOrder(buyRequest(100, new BigDecimal("25.00")), ACCOUNT_ID);
 
             assertThat(response.getOrderId()).startsWith("ORD-");
             assertThat(response.getStatus()).isEqualTo(OrderStatus.NEW);
@@ -316,7 +328,7 @@ class OrderServiceTest {
             given(positionMapper.findHeld(ACCOUNT_ID, SYMBOL)).willReturn(Optional.of(held));
             given(orderMapper.insert(any())).willReturn(1);
 
-            var response = orderService.placeOrder(sellRequest(40, new BigDecimal("25.00")), null);
+            var response = orderService.placeOrder(sellRequest(40, new BigDecimal("25.00")), ACCOUNT_ID);
 
             assertThat(response.getStatus()).isEqualTo(OrderStatus.NEW);
             assertThat(response.getMessage()).isEqualTo("Order accepted");
@@ -361,7 +373,7 @@ class OrderServiceTest {
             given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
 
             // every response carries orderId as ORD-<uuid>, so echoing it back is the normal case
-            var response = orderService.cancel("ORD-6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null);
+            var response = orderService.cancel("ORD-6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", ACCOUNT_ID);
 
             assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
             verify(orderMapper).deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e");
@@ -370,7 +382,7 @@ class OrderServiceTest {
         @Test
         @DisplayName("An id that is not a UUID is ORD-409, never an internal error")
         void cancelRejectsAMalformedId() {
-            assertThatThrownBy(() -> orderService.cancel("not-an-order", null))
+            assertThatThrownBy(() -> orderService.cancel("not-an-order", ACCOUNT_ID))
                     .isInstanceOf(OrderNotFoundException.class);
             // it must not reach the database and fail there as a 500
             verify(orderMapper, never()).findByUuid(any());
@@ -384,7 +396,7 @@ class OrderServiceTest {
                     .willReturn(Optional.of(newOrderRow()));
             given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
 
-            var response = orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null);
+            var response = orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", ACCOUNT_ID);
 
             assertThat(response.getOrderId()).isEqualTo("ORD-6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e");
             assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
@@ -399,7 +411,7 @@ class OrderServiceTest {
             String absent = "00000000-0000-4000-8000-000000000000";
             given(orderMapper.findByUuid(absent)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.cancel(absent, null))
+            assertThatThrownBy(() -> orderService.cancel(absent, ACCOUNT_ID))
                     .isInstanceOf(OrderNotFoundException.class)
                     .hasMessage("Order not found");
         }
@@ -417,6 +429,18 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("A user with no linked bank account (null accountId claim) cannot cancel: ACC-403")
+        void cancelWithoutLinkedAccount() {
+            given(orderMapper.findByUuid("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e"))
+                    .willReturn(Optional.of(newOrderRow()));
+
+            assertThatThrownBy(() -> orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null))
+                    .isInstanceOf(AccountNotActiveException.class)
+                    .hasMessage("Account not active");
+            verify(orderMapper, never()).deleteIfNew(any());
+        }
+
+        @Test
         @DisplayName("A terminal order cannot cancel: the guard reports zero rows and ORD-409 carries the state")
         void cancelFilledOrder() {
             OrderRow row = newOrderRow();
@@ -425,7 +449,7 @@ class OrderServiceTest {
                     .willReturn(Optional.of(row));
             given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(0);
 
-            assertThatThrownBy(() -> orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", null))
+            assertThatThrownBy(() -> orderService.cancel("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", ACCOUNT_ID))
                     .isInstanceOf(OrderNotCancellableException.class)
                     .hasMessage("Order is not cancellable")
                     .isInstanceOfSatisfying(OrderNotCancellableException.class,

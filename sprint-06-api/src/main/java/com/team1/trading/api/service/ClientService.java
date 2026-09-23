@@ -31,14 +31,14 @@ public class ClientService {
         return clientMapper.findByAccountNumber(accountNumber);
     }
 
-    public Client createClient(String accountNumber, String name, String email, String phone) {
-        Client client = new Client(null, accountNumber, name, email, phone);
+    public Client createClient(String name, String email, String phone) {
+        Client client = new Client(null, name, email, phone);
         clientMapper.save(client);
         return client;
     }
 
     public boolean updateClientProfile(Long clientId, String name, String email, String phone) {
-        Client client = new Client(clientId, "", name, email, phone);
+        Client client = new Client(clientId, name, email, phone);
         return clientMapper.updateProfile(client) > 0;
     }
 

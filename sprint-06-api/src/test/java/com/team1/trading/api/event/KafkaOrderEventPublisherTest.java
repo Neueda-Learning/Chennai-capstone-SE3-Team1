@@ -60,7 +60,7 @@ class KafkaOrderEventPublisherTest {
         AtomicReference<OrderResponse> response = new AtomicReference<>();
 
         tx.executeWithoutResult(status -> {
-            response.set(orderService.placeOrder(fundedBuy(), null));
+            response.set(orderService.placeOrder(fundedBuy(), 1L));
             verify(kafkaTemplate, never()).send(any(), any(), any());
         });
 
@@ -93,7 +93,7 @@ class KafkaOrderEventPublisherTest {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
 
         tx.executeWithoutResult(status -> {
-            orderService.placeOrder(fundedBuy(), null);
+            orderService.placeOrder(fundedBuy(), 1L);
             status.setRollbackOnly();
         });
 
@@ -107,7 +107,7 @@ class KafkaOrderEventPublisherTest {
                 new BigDecimal("100.00"), "idempotency-" + UUID.randomUUID());
 
         try {
-            orderService.placeOrder(invalid, null);
+            orderService.placeOrder(invalid, 1L);
         } catch (RuntimeException expected) {
             // caller-visible rejection; the point of the test is that nothing is published
         }

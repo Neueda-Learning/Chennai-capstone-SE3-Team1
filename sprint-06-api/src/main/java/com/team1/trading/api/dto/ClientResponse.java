@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 public class ClientResponse {
 
     private Long clientId;
-    private String accountNumber;
     private String name;
     private String email;
     private String phone;
@@ -17,10 +16,9 @@ public class ClientResponse {
     public ClientResponse() {
     }
 
-    public ClientResponse(Long clientId, String accountNumber, String name, String email, String phone,
+    public ClientResponse(Long clientId, String name, String email, String phone,
                          LocalDateTime createdOn, String accountState, BigDecimal walletBalance) {
         this.clientId = clientId;
-        this.accountNumber = accountNumber;
         this.name = name;
         this.email = email;
         this.phone = phone;
@@ -35,14 +33,6 @@ public class ClientResponse {
 
     public void setClientId(Long clientId) {
         this.clientId = clientId;
-    }
-
-    public String getAccountNumber() {
-        return accountNumber;
-    }
-
-    public void setAccountNumber(String accountNumber) {
-        this.accountNumber = accountNumber;
     }
 
     public String getName() {

@@ -1,7 +1,7 @@
 erDiagram
     BANK_ACCOUNT {
         varchar   account_number  PK
-        bigint    client_id       FK
+        bigint    client_id       FK,UK
         varchar   name
         varchar   phone
         varchar   email
@@ -11,7 +11,6 @@ erDiagram
     }
     CLIENTS {
         bigint    client_id       PK
-        varchar   account_number  FK
         varchar   name
         varchar   email           UK
         varchar   phone
@@ -19,12 +18,17 @@ erDiagram
         varchar   account_state
         decimal   wallet_balance
     }
-    AUTH {
-        varchar   email           PK,FK
+    USERS {
+        uuid      id              PK
+        varchar   username        UK
+        varchar   email           UK
+        bigint    account_id      FK,UK "NULL until a bank account is linked"
+        text      roles
         varchar   password_hash
-        timestamp created
-        timestamp updated
+        int       params_version
         int       version
+        timestamp created_on
+        timestamp updated
     }
     INSTRUMENTS {
         varchar   instrument_id   PK
@@ -85,7 +89,7 @@ erDiagram
     }
 
     CLIENTS              ||--o| BANK_ACCOUNT        : owns
-    CLIENTS              ||--o| AUTH                : authenticates
+    USERS                |o--o| CLIENTS             : trades
     CLIENTS              ||--o{ ORDERS              : places
     ORDERS               ||--o{ ORDER_HISTORY       : audited_by
     ORDERS               }o--|| INSTRUMENTS         : trades

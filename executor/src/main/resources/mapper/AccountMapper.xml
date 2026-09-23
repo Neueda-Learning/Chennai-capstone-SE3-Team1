@@ -7,7 +7,6 @@
     <resultMap id="accountResultMap" type="com.team1.executor.model.AccountRow">
         <constructor>
         <idArg column="client_id" javaType="java.lang.Long"/>
-        <arg column="account_number" javaType="java.lang.String"/>
         <arg column="name" javaType="java.lang.String"/>
         <arg column="email" javaType="java.lang.String"/>
         <arg column="phone" javaType="java.lang.String"/>
@@ -20,14 +19,14 @@
     </resultMap>
 
     <select id="findByClientId" resultMap="accountResultMap">
-        SELECT client_id, account_number, name, email, phone, created_on,
+        SELECT client_id, name, email, phone, created_on,
                account_state, wallet_balance, version, updated_on
         FROM clients
         WHERE client_id = #{clientId}
     </select>
 
     <select id="findByClientIdForUpdate" resultMap="accountResultMap">
-        SELECT client_id, account_number, name, email, phone, created_on,
+        SELECT client_id, name, email, phone, created_on,
                account_state, wallet_balance, version, updated_on
         FROM clients
         WHERE client_id = #{clientId}

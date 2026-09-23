@@ -34,6 +34,8 @@ class AccountMapperTest {
         AccountMapper.AccountRow row = accountOpt.get();
         assertThat(row.getClientId()).isEqualTo(SEED_ACCOUNT_ID);
         assertThat(row.getName()).isEqualTo("Aarav Mehta");
+        // Read from the client's bank_account row: clients has no account number column.
+        assertThat(row.getAccountNumber()).isEqualTo("IN45HDFC0000001234567");
         assertThat(row.getAccountState()).isEqualTo("ACTIVE");
         assertThat(row.getWalletBalance()).isNotNull();
         assertThat(row.getVersion()).isNotNull();

@@ -23,8 +23,8 @@ describe('AuthService', () => {
     recordSuccess: jest.Mock;
   };
   let users: {
-    accountExists: jest.Mock;
     findByUsername: jest.Mock;
+    findByEmail: jest.Mock;
     findById: jest.Mock;
     create: jest.Mock;
     updatePasswordHash: jest.Mock;
@@ -45,6 +45,7 @@ describe('AuthService', () => {
   const user: UserRecord = {
     id: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
     username: 'priya.menon',
+    email: 'priya.menon@example.com',
     accountId: 1,
     roles: [Role.CUSTOMER],
     passwordHash: 'argon2-hash-here',
@@ -72,8 +73,8 @@ describe('AuthService', () => {
       recordSuccess: jest.fn(),
     };
     users = {
-      accountExists: jest.fn(),
       findByUsername: jest.fn(),
+      findByEmail: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
       updatePasswordHash: jest.fn(),
@@ -108,40 +109,58 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('creates a CUSTOMER user against an existing account, ignoring supplied roles', async () => {
+    const body = {
+      username: 'priya.menon',
+      email: 'priya.menon@example.com',
+      password: 'correct horse battery staple',
+    };
+
+    function registrationPasses() {
       policy.evaluate.mockReturnValue({ valid: true, errors: [] });
-      users.accountExists.mockResolvedValue(true);
       users.findByUsername.mockResolvedValue(null);
+      users.findByEmail.mockResolvedValue(null);
       password.hash.mockResolvedValue('new-argon2-hash');
+    }
+
+    async function registerError(request = body): Promise<AuthServiceException> {
+      let caught: unknown;
+      try {
+        await service.register(request);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(AuthServiceException);
+      return caught as AuthServiceException;
+    }
+
+    it('creates a CUSTOMER user with no trading account, ignoring supplied roles', async () => {
+      registrationPasses();
       users.create.mockImplementation(
-        async (input: { username: string; roles: Role[] }) => ({
+        async (input: { username: string; email: string; roles: Role[] }) => ({
           ...user,
           username: input.username,
+          email: input.email,
           roles: input.roles,
+          accountId: null,
         }),
       );
 
-      const result = await service.register({
+      const result = await service.register({ ...body, roles: [Role.ADMIN] });
+
+      expect(users.create).toHaveBeenCalledWith({
         username: 'priya.menon',
-        password: 'correct horse battery staple',
-        accountId: 1,
-        roles: [Role.ADMIN],
+        email: 'priya.menon@example.com',
+        roles: [Role.CUSTOMER],
+        passwordHash: 'new-argon2-hash',
+        paramsVersion: 1,
       });
-
-      expect(users.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          username: 'priya.menon',
-          accountId: 1,
-          roles: [Role.CUSTOMER],
-          paramsVersion: 1,
-        }),
-      );
       // No tokens on registration.
       expect(tokens.createTokenPair).not.toHaveBeenCalled();
       expect(result).toEqual({
         id: user.id,
         username: 'priya.menon',
-        accountId: 1,
+        email: 'priya.menon@example.com',
+        accountId: null,
         roles: [Role.CUSTOMER],
         createdOn: user.createdOn,
       });
@@ -152,85 +171,76 @@ describe('AuthService', () => {
       );
     });
 
-    it('does not create a trading account: missing accountId fails with VAL-422', async () => {
-      policy.evaluate.mockReturnValue({ valid: true, errors: [] });
-      users.accountExists.mockResolvedValue(false);
-
-      let caught: unknown;
-      try {
-        await service.register({
-          username: 'new.user',
-          password: 'correct horse battery staple',
-          accountId: 404,
-        });
-      } catch (e) {
-        caught = e;
-      }
-
-      expect(caught).toBeInstanceOf(AuthServiceException);
-      expect((caught as AuthServiceException).getStatus()).toBe(422);
-      expect(users.create).not.toHaveBeenCalled();
-    });
-
     it('fails with VAL-422 when the password policy rejects the password', async () => {
       policy.evaluate.mockReturnValue({
         valid: false,
         errors: ['Password must be at least 12 characters'],
       });
 
-      await expect(
-        service.register({
-          username: 'new.user',
-          password: 'short',
-          accountId: 1,
-        }),
-      ).rejects.toMatchObject({ getStatus: expect.any(Function) });
+      const error = await registerError({ ...body, password: 'short' });
 
+      expect(error.getStatus()).toBe(422);
       expect(users.create).not.toHaveBeenCalled();
     });
 
     it('fails with AUTH-409 when the username is already taken', async () => {
-      policy.evaluate.mockReturnValue({ valid: true, errors: [] });
-      users.accountExists.mockResolvedValue(true);
+      registrationPasses();
       users.findByUsername.mockResolvedValue(user);
 
-      let caught: unknown;
-      try {
-        await service.register({
-          username: 'priya.menon',
-          password: 'correct horse battery staple',
-          accountId: 1,
-        });
-      } catch (e) {
-        caught = e;
-      }
+      const error = await registerError();
 
-      expect(caught).toBeInstanceOf(AuthServiceException);
-      expect((caught as AuthServiceException).getStatus()).toBe(409);
+      expect(error.getStatus()).toBe(409);
+      expect(error.getResponse()).toMatchObject({
+        message: 'Username already registered',
+      });
+      expect(users.create).not.toHaveBeenCalled();
     });
 
-    it('maps a DB unique-violation to AUTH-409', async () => {
-      policy.evaluate.mockReturnValue({ valid: true, errors: [] });
-      users.accountExists.mockResolvedValue(true);
-      users.findByUsername.mockResolvedValue(null);
-      const dbErr = Object.assign(new Error('duplicate key'), {
-        code: '23505',
+    it('fails with AUTH-409 when the email is already registered', async () => {
+      registrationPasses();
+      users.findByEmail.mockResolvedValue(user);
+
+      const error = await registerError({ ...body, username: 'someone.else' });
+
+      expect(error.getStatus()).toBe(409);
+      expect(error.getResponse()).toMatchObject({
+        message: 'Email already registered',
       });
-      users.create.mockRejectedValue(dbErr);
+      expect(users.create).not.toHaveBeenCalled();
+    });
 
-      let caught: unknown;
-      try {
-        await service.register({
-          username: 'priya.menon',
-          password: 'correct horse battery staple',
-          accountId: 1,
-        });
-      } catch (e) {
-        caught = e;
-      }
+    it('maps a username unique-violation from a concurrent registration to AUTH-409', async () => {
+      registrationPasses();
+      users.create.mockRejectedValue(
+        Object.assign(new Error('duplicate key'), {
+          code: '23505',
+          constraint: 'users_username_key',
+        }),
+      );
 
-      expect(caught).toBeInstanceOf(AuthServiceException);
-      expect((caught as AuthServiceException).getStatus()).toBe(409);
+      const error = await registerError();
+
+      expect(error.getStatus()).toBe(409);
+      expect(error.getResponse()).toMatchObject({
+        message: 'Username already registered',
+      });
+    });
+
+    it('maps an email unique-violation from a concurrent registration to AUTH-409', async () => {
+      registrationPasses();
+      users.create.mockRejectedValue(
+        Object.assign(new Error('duplicate key'), {
+          code: '23505',
+          constraint: 'uq_users_email',
+        }),
+      );
+
+      const error = await registerError();
+
+      expect(error.getStatus()).toBe(409);
+      expect(error.getResponse()).toMatchObject({
+        message: 'Email already registered',
+      });
     });
   });
 
@@ -269,6 +279,29 @@ describe('AuthService', () => {
         'login',
         expect.any(Object),
       );
+    });
+
+    it('lets a user with no linked bank account log in, with a null accountId claim', async () => {
+      rateLimiter.check.mockReturnValue({ allowed: true });
+      users.findByUsername.mockResolvedValue({ ...user, accountId: null });
+      password.verify.mockResolvedValue(true);
+      password.needsRehash.mockReturnValue(false);
+      tokens.createTokenPair.mockReturnValue(pair);
+      tokens.hashRefreshToken.mockReturnValue('a'.repeat(64));
+      tokens.refreshTokenExpiry.mockReturnValue(
+        new Date('2026-10-12T08:00:00Z'),
+      );
+
+      await service.login({
+        username: 'priya.menon',
+        password: 'correct horse battery staple',
+      });
+
+      expect(tokens.createTokenPair).toHaveBeenCalledWith({
+        sub: user.id,
+        accountId: null,
+        roles: [Role.CUSTOMER],
+      });
     });
 
     it('returns the identical AUTH-401 for an unknown username and a wrong password', async () => {
@@ -397,6 +430,22 @@ describe('AuthService', () => {
       });
       expect(result.accessToken).toBe(pair.accessToken);
       expect(result.refreshToken).toBe(pair.refreshToken);
+    });
+
+    it('re-reads the user, so a refresh after linking a bank account carries the new accountId', async () => {
+      refreshTokens.findByHash.mockResolvedValue(active);
+      users.findById.mockResolvedValue({ ...user, accountId: 42 });
+      tokens.createTokenPair.mockReturnValue(pair);
+      tokens.hashRefreshToken.mockReturnValue('b'.repeat(64));
+      tokens.refreshTokenExpiry.mockReturnValue(
+        new Date('2026-10-12T08:00:00Z'),
+      );
+
+      await service.refresh({ refreshToken: 'presented-token' });
+
+      expect(tokens.createTokenPair).toHaveBeenCalledWith(
+        expect.objectContaining({ accountId: 42 }),
+      );
     });
 
     it('treats reuse of a consumed token as theft and revokes the whole chain', async () => {

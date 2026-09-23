@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 
 public record AccountRow(
         Long clientId,
-        String accountNumber,
         String name,
         String email,
         String phone,

@@ -224,17 +224,18 @@ class Simulation:
         account = "SIM" + tag.upper()
         email = name.lower().replace(" ", ".") + "+" + tag + "@example.com"
         client_id = int(self.cfg.scalar("SELECT nextval('clients_client_id_seq');"))
+        # clients first: bank_account.client_id is a foreign key to it.
+        self.statements.append(
+            "INSERT INTO clients (client_id, name, email, phone, created_on, account_state, wallet_balance) "
+            "VALUES (" + str(client_id) + ", " + quote_literal(name) + ", "
+            + quote_literal(email) + ", '9" + tag[:9].translate(str.maketrans("abcdef", "123456"))
+            + "', now(), 'ACTIVE', 100000);"
+        )
         self.statements.append(
             "INSERT INTO bank_account (account_number, client_id, name, phone, email, account_balance, bank_name, ifsc_code) "
             "VALUES (" + quote_literal(account) + ", " + str(client_id) + ", " + quote_literal(name)
             + ", '9" + tag[:9].translate(str.maketrans("abcdef", "123456")) + "', " + quote_literal(email)
             + ", 250000, 'HDFC Bank', 'HDFC0000123');"
-        )
-        self.statements.append(
-            "INSERT INTO clients (client_id, account_number, name, email, phone, created_on, account_state, wallet_balance) "
-            "VALUES (" + str(client_id) + ", " + quote_literal(account) + ", " + quote_literal(name) + ", "
-            + quote_literal(email) + ", '9" + tag[:9].translate(str.maketrans("abcdef", "123456"))
-            + "', now(), 'ACTIVE', 100000);"
         )
         created = self._when()
         symbol = self.rng.choice(self.instruments)

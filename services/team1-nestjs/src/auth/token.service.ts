@@ -11,7 +11,8 @@ import {
 
 export interface AccessTokenClaims {
   sub: string;
-  accountId: number;
+  /** null until the user has linked a bank account; the Trade REST API refuses account routes. */
+  accountId: number | null;
   roles: string[];
   iat: number;
   exp: number;
@@ -41,7 +42,7 @@ export class TokenService {
    */
   signAccessToken(claims: {
     sub: string;
-    accountId: number;
+    accountId: number | null;
     roles: string[];
   }): string {
     const iat = Math.floor(Date.now() / 1000);
@@ -73,7 +74,7 @@ export class TokenService {
   private assertClaims(decoded: Partial<AccessTokenClaims>): AccessTokenClaims {
     if (
       typeof decoded.sub !== 'string' ||
-      typeof decoded.accountId !== 'number' ||
+      (decoded.accountId !== null && typeof decoded.accountId !== 'number') ||
       !Array.isArray(decoded.roles) ||
       decoded.roles.length === 0 ||
       typeof decoded.iat !== 'number' ||
@@ -102,7 +103,7 @@ export class TokenService {
 
   createTokenPair(claims: {
     sub: string;
-    accountId: number;
+    accountId: number | null;
     roles: string[];
   }): TokenPair {
     return {

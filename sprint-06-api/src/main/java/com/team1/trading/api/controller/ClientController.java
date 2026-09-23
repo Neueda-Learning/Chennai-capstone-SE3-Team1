@@ -30,7 +30,6 @@ public class ClientController {
     @PostMapping
     public ResponseEntity<ClientResponse> addClient(@Valid @RequestBody CreateClientRequest request) {
         Client client = clientService.createClient(
-                request.getAccountNumber(),
                 request.getName(),
                 request.getEmail(),
                 request.getPhone()
@@ -93,7 +92,6 @@ public class ClientController {
     private ClientResponse mapToResponse(Client client) {
         return new ClientResponse(
                 client.getClientId(),
-                client.getAccountNumber(),
                 client.getName(),
                 client.getEmail(),
                 client.getPhone(),

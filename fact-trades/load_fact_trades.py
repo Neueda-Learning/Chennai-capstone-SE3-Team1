@@ -161,7 +161,9 @@ def load_dim_instrument(con, cfg: DbConfig, load_id: str) -> int:
 
 def load_dim_account(con, cfg: DbConfig, load_id: str) -> int:
     rows = cfg.rows(
-        "SELECT client_id, account_number, name, email, account_state, created_on FROM clients;"
+        # clients has no account number since migration 015; it lives on the client's bank_account.
+        "SELECT c.client_id, b.account_number, c.name, c.email, c.account_state, c.created_on "
+        "FROM clients c LEFT JOIN bank_account b ON b.client_id = c.client_id;"
     )
     for r in rows:
         con.execute(

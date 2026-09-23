@@ -18,6 +18,7 @@ public final class ErrorCatalogue {
 
     public static final String ACC_404 = "ACC-404";
     public static final String ACC_403 = "ACC-403";
+    public static final String ACC_409 = "ACC-409";
     public static final String INS_404 = "INS-404";
     public static final String ORD_400 = "ORD-400";
     public static final String ORD_409 = "ORD-409";
@@ -29,6 +30,7 @@ public final class ErrorCatalogue {
     private static final Map<String, HttpStatus> STATUS_BY_CODE = Map.of(
             ACC_404, HttpStatus.NOT_FOUND,
             ACC_403, HttpStatus.FORBIDDEN,
+            ACC_409, HttpStatus.CONFLICT,
             INS_404, HttpStatus.NOT_FOUND,
             ORD_400, HttpStatus.BAD_REQUEST,
             ORD_409, HttpStatus.CONFLICT,

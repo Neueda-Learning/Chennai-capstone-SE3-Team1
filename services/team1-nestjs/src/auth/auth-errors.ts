@@ -55,18 +55,8 @@ export class AuthServiceException extends HttpException {
     return new AuthServiceException('AUTH-409', 'Username already registered');
   }
 
-  static accountNotFound(): AuthServiceException {
-    return new AuthServiceException(
-      'VAL-422',
-      'Account ID does not exist. Ensure the trading account is created first.',
-    );
-  }
-
-  static accountAlreadyRegistered(): AuthServiceException {
-    return new AuthServiceException(
-      'AUTH-409',
-      'This trading account is already registered to another user. Each account can only have one registered user.',
-    );
+  static emailTaken(): AuthServiceException {
+    return new AuthServiceException('AUTH-409', 'Email already registered');
   }
 
   static invalidInput(message = 'Invalid input'): AuthServiceException {

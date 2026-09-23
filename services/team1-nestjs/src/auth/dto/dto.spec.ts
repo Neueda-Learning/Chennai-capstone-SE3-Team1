@@ -11,7 +11,7 @@ describe('RegisterRequestDto validation', () => {
       {
         username: 'priya.menon',
         password: 'correct horse battery staple',
-        accountId: 1,
+        email: 'priya.menon@example.com',
       },
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
@@ -25,7 +25,7 @@ describe('RegisterRequestDto validation', () => {
       {
         username: 'priya@menon!',
         password: 'correct horse battery staple',
-        accountId: 1,
+        email: 'priya.menon@example.com',
       },
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
@@ -39,7 +39,7 @@ describe('RegisterRequestDto validation', () => {
       {
         username: 'ab',
         password: 'correct horse battery staple',
-        accountId: 1,
+        email: 'priya.menon@example.com',
       },
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
@@ -53,7 +53,7 @@ describe('RegisterRequestDto validation', () => {
       {
         username: 'priya.menon',
         password: 'short',
-        accountId: 1,
+        email: 'priya.menon@example.com',
       },
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
@@ -61,18 +61,27 @@ describe('RegisterRequestDto validation', () => {
     expect(errors.some((e) => e.property === 'password')).toBe(true);
   });
 
-  it('rejects a non-positive accountId', async () => {
+  it('rejects a malformed email', async () => {
     const dto = plainToInstance(
       RegisterRequestDto,
       {
         username: 'priya.menon',
         password: 'correct horse battery staple',
-        accountId: 0,
+        email: 'not-an-email',
       },
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === 'accountId')).toBe(true);
+    expect(errors.some((e) => e.property === 'email')).toBe(true);
+  });
+
+  it('normalises the email to trimmed lower case', () => {
+    const dto = plainToInstance(RegisterRequestDto, {
+      username: 'priya.menon',
+      password: 'correct horse battery staple',
+      email: '  Priya.Menon@Example.COM ',
+    }) as RegisterRequestDto;
+    expect(dto.email).toBe('priya.menon@example.com');
   });
 
   it('rejects a missing required field', async () => {
@@ -85,7 +94,7 @@ describe('RegisterRequestDto validation', () => {
       { enableImplicitConversion: true },
     ) as RegisterRequestDto;
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === 'accountId')).toBe(true);
+    expect(errors.some((e) => e.property === 'email')).toBe(true);
   });
 
   it('rejects roles values outside the Role enum', async () => {
@@ -94,7 +103,7 @@ describe('RegisterRequestDto validation', () => {
       {
         username: 'priya.menon',
         password: 'correct horse battery staple',
-        accountId: 1,
+        email: 'priya.menon@example.com',
         roles: ['SUPERUSER'],
       },
       { enableImplicitConversion: true },

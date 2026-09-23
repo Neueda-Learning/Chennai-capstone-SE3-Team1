@@ -14,6 +14,7 @@ describe('UserRepository', () => {
   const row = {
     id: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
     username: 'priya.menon',
+    email: 'priya.menon@example.com',
     account_id: 1,
     roles: ['CUSTOMER', 'ADMIN'],
     password_hash: 'argon2hash',
@@ -38,6 +39,7 @@ describe('UserRepository', () => {
       expect(result).toEqual({
         id: row.id,
         username: 'priya.menon',
+        email: 'priya.menon@example.com',
         accountId: 1,
         roles: ['CUSTOMER', 'ADMIN'],
         passwordHash: 'argon2hash',
@@ -65,43 +67,40 @@ describe('UserRepository', () => {
     });
   });
 
-  describe('accountExists', () => {
-    it('returns true when the clients row exists', async () => {
-      pool.query.mockResolvedValue({ rows: [{ '?column?': 1 }], rowCount: 1 });
-      expect(await repo.accountExists(1)).toBe(true);
+  describe('findByEmail', () => {
+    it('queries by email and maps the row', async () => {
+      pool.query.mockResolvedValue({ rows: [row] });
+      const result = await repo.findByEmail('priya.menon@example.com');
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('FROM clients WHERE client_id = $1'),
-        [1],
+        expect.stringContaining('FROM users WHERE email = $1'),
+        ['priya.menon@example.com'],
       );
-    });
-
-    it('returns false when the account does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [], rowCount: 0 });
-      expect(await repo.accountExists(404)).toBe(false);
+      expect(result?.email).toBe('priya.menon@example.com');
     });
   });
 
   describe('create', () => {
-    it('inserts and maps the returning row', async () => {
-      pool.query.mockResolvedValue({ rows: [row] });
+    it('inserts without an account and maps a null account_id to null', async () => {
+      pool.query.mockResolvedValue({ rows: [{ ...row, account_id: null }] });
       const result = await repo.create({
         username: 'priya.menon',
-        accountId: 1,
+        email: 'priya.menon@example.com',
         roles: [Role.CUSTOMER],
         passwordHash: 'argon2hash',
         paramsVersion: 1,
       });
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO users'),
-        expect.arrayContaining([
-          'priya.menon',
-          1,
-          [Role.CUSTOMER],
-          'argon2hash',
-          1,
-        ]),
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toContain(
+        'INSERT INTO users (username, email, roles, password_hash, params_version, version, created_on, updated)',
       );
-      expect(result.accountId).toBe(1);
+      expect(params).toEqual([
+        'priya.menon',
+        'priya.menon@example.com',
+        [Role.CUSTOMER],
+        'argon2hash',
+        1,
+      ]);
+      expect(result.accountId).toBeNull();
     });
   });
 
@@ -113,6 +112,18 @@ describe('UserRepository', () => {
         expect.stringContaining('version = version + 1'),
         ['newhash', 2, row.id],
       );
+    });
+  });
+
+  describe('violatedConstraint', () => {
+    it('reads the constraint name pg reports', () => {
+      expect(
+        UserRepository.violatedConstraint({
+          code: '23505',
+          constraint: 'uq_users_email',
+        }),
+      ).toBe('uq_users_email');
+      expect(UserRepository.violatedConstraint(null)).toBeUndefined();
     });
   });
 
