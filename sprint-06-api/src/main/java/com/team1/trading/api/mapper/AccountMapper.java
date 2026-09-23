@@ -13,11 +13,12 @@ import java.util.Optional;
 public interface AccountMapper {
 
     @Select("""
-            SELECT client_id AS clientId, account_number AS accountNumber, name, email, phone,
-                   created_on AS createdOn, account_state AS accountState, 
-                   wallet_balance AS walletBalance, version, updated_on AS updatedOn
-            FROM clients
-            WHERE client_id = #{accountId}
+            SELECT c.client_id AS clientId, b.account_number AS accountNumber, c.name, c.email, c.phone,
+                   c.created_on AS createdOn, c.account_state AS accountState,
+                   c.wallet_balance AS walletBalance, c.version, c.updated_on AS updatedOn
+            FROM clients c
+            LEFT JOIN bank_account b ON b.client_id = c.client_id
+            WHERE c.client_id = #{accountId}
             """)
     Optional<AccountRow> findRow(@Param("accountId") Long accountId);
 

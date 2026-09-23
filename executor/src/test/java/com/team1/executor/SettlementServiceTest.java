@@ -79,7 +79,7 @@ class SettlementServiceTest {
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
                 LocalDateTime.now(), LocalDateTime.now());
 
-        AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
+        AccountRow accountRow = new AccountRow(clientId, "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
@@ -117,7 +117,7 @@ class SettlementServiceTest {
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
                 LocalDateTime.now(), LocalDateTime.now());
 
-        AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
+        AccountRow accountRow = new AccountRow(clientId, "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));
@@ -182,7 +182,7 @@ class SettlementServiceTest {
                 BigDecimal.valueOf(10), new BigDecimal("100.00"), null, "NEW", "idem-1", null,
                 LocalDateTime.now(), LocalDateTime.now());
 
-        AccountRow accountRow = new AccountRow(clientId, "ACC-001", "Test", "test@test.com", "123",
+        AccountRow accountRow = new AccountRow(clientId, "Test", "test@test.com", "123",
                 LocalDateTime.now(), "ACTIVE", new BigDecimal("5000.00"), 1, LocalDateTime.now());
 
         when(orderMapper.findByOrderId(orderId)).thenReturn(Optional.of(orderRow));

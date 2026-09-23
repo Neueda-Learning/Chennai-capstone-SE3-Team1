@@ -16,7 +16,7 @@ info:
     | Claim | Type | Meaning |
     |---|---|---|
     | `sub` | string | The user identifier. A UUID. Stable for the life of the user. Not the username, not the email, because both can change. |
-    | `accountId` | integer | The numeric trading account key, `ACCOUNTS.id`. The Trade REST API compares this against the account in the request path or body and returns `ACC-403` if they differ. |
+    | `accountId` | integer or null | The numeric trading account key, `clients.client_id`. `null` until the user links a bank account through the Trade REST API's `POST /api/v1/bank-accounts`; the claim is always present. The Trade REST API compares this against the account in the request path or body and returns `ACC-403` if they differ or if it is `null`. |
     | `roles` | array of string | Authorisation roles. `CUSTOMER` for a normal trading user, `ADMIN` for an operator. Always present, never empty. |
     | `iat` | integer | Issued-at, seconds since the Unix epoch. |
     | `exp` | integer | Expiry, seconds since the Unix epoch. Fifteen minutes after `iat` for an access token. |
@@ -82,9 +82,10 @@ paths:
       security: []
       summary: Register a user
       description: |
-        Creates a user and links it to an existing trading account. It does not create the trading
-        account: accounts are owned by the Trade REST API's schema and seeded in Sprint 3. Registering
-        against an unknown `accountId` fails validation.
+        Creates a user and nothing else. The user can log in straight away, but their token's
+        `accountId` is `null` and the Trade REST API refuses every account and order route until
+        they link a bank account with `POST /api/v1/bank-accounts`. That call creates the trading
+        account; a refresh after it returns a token carrying the new `accountId`.
 
         Registration does not return tokens. The client logs in afterwards. Returning a session from
         a registration endpoint makes the endpoint an unauthenticated session factory, and any
@@ -103,7 +104,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserResponse'
         '409':
-          description: The username is already taken.
+          description: The username or the email is already registered.
           content:
             application/json:
               schema:
@@ -238,7 +239,7 @@ components:
     RegisterRequest:
       type: object
       additionalProperties: false
-      required: [username, password, accountId]
+      required: [username, email, password]
       properties:
         username:
           type: string
@@ -254,12 +255,12 @@ components:
             Minimum twelve characters. Length beats character-class rules, so do not impose a
             symbol requirement that pushes users towards a shorter password.
           writeOnly: true
-        accountId:
-          type: integer
-          format: int64
-          minimum: 1
-          description: The numeric trading account key, `ACCOUNTS.id`, that this user will trade.
-          example: 1
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          description: Stored trimmed and lower-cased. Unique across users.
+          example: priya.menon@example.com
         roles:
           type: array
           minItems: 1
@@ -271,8 +272,8 @@ components:
             privilege-escalation bug, and the Sprint 8 security review looks for it.
       example:
         username: priya.menon
+        email: priya.menon@example.com
         password: 'correct horse battery staple'
-        accountId: 1
 
     LoginRequest:
       type: object
@@ -320,7 +321,7 @@ components:
     UserResponse:
       type: object
       additionalProperties: false
-      required: [id, username, accountId, roles]
+      required: [id, username, email, accountId, roles]
       properties:
         id:
           type: string
@@ -330,10 +331,14 @@ components:
         username:
           type: string
           example: priya.menon
+        email:
+          type: string
+          format: email
+          example: priya.menon@example.com
         accountId:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          description: The numeric trading account key, `ACCOUNTS.id`.
+          description: The numeric trading account key, `clients.client_id`. `null` until a bank account is linked.
           example: 1
         roles:
           type: array
@@ -364,7 +369,7 @@ components:
             | Code | HTTP | Meaning |
             |---|---|---|
             | `AUTH-401` | 401 | Unauthorised or invalid token |
-            | `AUTH-409` | 409 | Username already taken |
+            | `AUTH-409` | 409 | Username or email already registered |
             | `VAL-422` | 422 | Invalid input |
 
             `AUTH-409` extends the platform error catalogue and is scoped to this service. The

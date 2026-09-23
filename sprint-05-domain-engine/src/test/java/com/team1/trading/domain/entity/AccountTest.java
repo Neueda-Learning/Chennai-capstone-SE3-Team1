@@ -19,7 +19,7 @@ class AccountTest {
 
     @BeforeEach
     void setUp() {
-        account = new Client(1L, "1001", "Ada Lovelace", "ada@example.com", "9000000001");
+        account = new Client(1L, "Ada Lovelace", "ada@example.com", "9000000001");
     }
 
     @Nested
@@ -228,7 +228,7 @@ class AccountTest {
         @Test
         @DisplayName("Nothing is affordable on an empty account except zero")
         void canAfford_falseOnEmptyAccount() {
-            Client empty = new Client(2L, "1002", "Grace Hopper", "grace@example.com", "9000000002");
+            Client empty = new Client(2L, "Grace Hopper", "grace@example.com", "9000000002");
 
             assertFalse(empty.canAfford(new BigDecimal("0.01")));
         }
@@ -292,20 +292,12 @@ class AccountTest {
         void reconstructedAccount_keepsItsValues() {
             LocalDateTime createdOn = LocalDateTime.now().minusDays(3);
 
-            Client stored = new Client(7L, "1007", "Alan Turing", "alan@example.com",
+            Client stored = new Client(7L, "Alan Turing", "alan@example.com",
                     "9000000007", createdOn, "SUSPENDED", new BigDecimal("42.50"));
 
             assertEquals(7L, stored.getClientId());
-            assertEquals("1007", stored.getAccountNumber());
             assertEquals("SUSPENDED", stored.getAccountState());
             assertEquals(0, new BigDecimal("42.50").compareTo(stored.getWalletBalance()));
-        }
-
-        @Test
-        @DisplayName("An account cannot be built without an account number")
-        void newAccount_withoutAccountNumber_isRefused() {
-            assertThrows(NullPointerException.class,
-                    () -> new Client(3L, null, "No Number", "none@example.com", "9000000003"));
         }
 
         @Test

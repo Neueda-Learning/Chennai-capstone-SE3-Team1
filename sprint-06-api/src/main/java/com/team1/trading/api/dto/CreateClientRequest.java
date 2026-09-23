@@ -5,9 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 
 public class CreateClientRequest {
 
-    @NotBlank(message = "Account number is required")
-    private String accountNumber;
-
     @NotBlank(message = "Name is required")
     private String name;
 
@@ -21,19 +18,10 @@ public class CreateClientRequest {
     public CreateClientRequest() {
     }
 
-    public CreateClientRequest(String accountNumber, String name, String email, String phone) {
-        this.accountNumber = accountNumber;
+    public CreateClientRequest(String name, String email, String phone) {
         this.name = name;
         this.email = email;
         this.phone = phone;
-    }
-
-    public String getAccountNumber() {
-        return accountNumber;
-    }
-
-    public void setAccountNumber(String accountNumber) {
-        this.accountNumber = accountNumber;
     }
 
     public String getName() {

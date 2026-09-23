@@ -36,18 +36,20 @@ BANK_ACCOUNTS = [
 
 
 CLIENTS = [
-    (1, "IN45HDFC0000001234567", "Aarav Mehta",   "aarav.mehta@example.com",   "+919812345001", "ACTIVE",    "125000.00"),
-    (2, "IN45ICIC0000002345678", "Diya Sharma",   "diya.sharma@example.com",   "+919812345002", "ACTIVE",     "48250.50"),
-    (3, "IN45SBIN0000003456789", "Rohan Iyer",    "rohan.iyer@example.com",    "+919812345003", "ACTIVE",    "310400.75"),
-    (4, "IN45AXIS0000004567890", "Meera Nair",    "meera.nair@example.com",    "+919812345004", "SUSPENDED",  "15000.00"),
-    (5, "IN45KKBK0000005678901", "Vikram Rao",    "vikram.rao@example.com",    "+919812345005", "ACTIVE",     "92750.25"),
-    (6, "IN45YESB0000006789012", "Sanya Kapoor",  "sanya.kapoor@example.com",  "+919812345006", "CLOSED",         "0.00"),
+    (1, "Aarav Mehta",   "aarav.mehta@example.com",   "+919812345001", "ACTIVE",    "125000.00"),
+    (2, "Diya Sharma",   "diya.sharma@example.com",   "+919812345002", "ACTIVE",     "48250.50"),
+    (3, "Rohan Iyer",    "rohan.iyer@example.com",    "+919812345003", "ACTIVE",    "310400.75"),
+    (4, "Meera Nair",    "meera.nair@example.com",    "+919812345004", "SUSPENDED",  "15000.00"),
+    (5, "Vikram Rao",    "vikram.rao@example.com",    "+919812345005", "ACTIVE",     "92750.25"),
+    (6, "Sanya Kapoor",  "sanya.kapoor@example.com",  "+919812345006", "CLOSED",         "0.00"),
 ]
 
 
 _PLACEHOLDER_HASH = "$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
-AUTH = [(client[3], _PLACEHOLDER_HASH) for client in CLIENTS]
+# Every seeded client already has a linked bank account, so each seeded user carries its
+# account_id. The username is the email's local part, which fits users' username rule.
+USERS = [(client[2].split("@")[0], client[2], client[0], _PLACEHOLDER_HASH) for client in CLIENTS]
 
 
 INSTRUMENTS = [
@@ -196,14 +198,13 @@ def build_bank_account():
 
 
 def build_clients():
-    header = ["client_id", "account_number", "name", "email", "phone",
-              "account_state", "wallet_balance"]
+    header = ["client_id", "name", "email", "phone", "account_state", "wallet_balance"]
     return header, [list(r) for r in CLIENTS]
 
 
-def build_auth():
-    header = ["email", "password_hash"]
-    return header, [list(r) for r in AUTH]
+def build_users():
+    header = ["username", "email", "account_id", "password_hash"]
+    return header, [list(r) for r in USERS]
 
 
 def build_instruments():
@@ -343,9 +344,10 @@ def build_portfolio_positions():
 # case that decision changes, just not wired into BUILDERS. Re-add them here to restore
 # the old behaviour.
 BUILDERS = [
-    ("010_bank_account.csv",        build_bank_account),
-    ("020_clients.csv",             build_clients),
-    ("030_auth.csv",                build_auth),
+    # clients before bank_account: bank_account.client_id is checked immediately.
+    ("010_clients.csv",             build_clients),
+    ("020_bank_account.csv",        build_bank_account),
+    ("030_users.csv",               build_users),
     ("040_instruments.csv",         build_instruments),
 ]
 

@@ -57,6 +57,11 @@ info:
     malformed, expired or wrongly signed token is `AUTH-401`, 401. A valid token whose `accountId`
     claim does not match the account being addressed is `ACC-403`, 403: a token proves who you are,
     not what you may reach.
+
+    A registered user who has not linked a bank account yet holds a token whose `accountId` claim
+    is `null`. Every account and order route answers that token with `ACC-403`. The one route it
+    is meant for is `POST /api/v1/bank-accounts`, which creates the user's trading account. After
+    linking, the client calls `/auth/refresh` to get a token that carries the new `accountId`.
   contact:
     name: Enterprise Trading Platform, programme materials
   license:
@@ -73,6 +78,8 @@ tags:
     description: Placing and cancelling orders.
   - name: Accounts
     description: Account details, cash balance, holdings and order history.
+  - name: Onboarding
+    description: Linking a bank account to a registered user.
 
 security:
   - bearerAuth: []
@@ -235,6 +242,48 @@ paths:
                   value:
                     errorCode: ORD-409
                     message: Order is not cancellable
+
+  /api/v1/bank-accounts:
+    post:
+      tags: [Onboarding]
+      operationId: linkBankAccount
+      summary: Link a bank account to the authenticated user
+      description: |
+        Second step of onboarding, after `/auth/register`. Creates the `bank_account` and `clients`
+        rows and sets `users.account_id` for the user named by the token's `sub`, in one
+        transaction. The account belongs to whoever the token says; the body carries no user,
+        client or email. The trading account starts `ACTIVE` with a zero cash balance.
+
+        A user links one bank account, once. A second attempt, or an account number or email that
+        is already on file, is `ACC-409` with the same message in every case.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkBankAccountRequest'
+      responses:
+        '201':
+          description: Bank account linked; the new trading account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkedBankAccountResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '409':
+          description: The user already has a linked account, or the details are already on file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conflict:
+                  value:
+                    errorCode: ACC-409
+                    message: Bank account could not be linked
+        '422':
+          $ref: '#/components/responses/InvalidInput'
 
   /api/v1/accounts/{id}:
     get:
@@ -581,6 +630,55 @@ components:
           format: date-time
           example: '2026-09-28T09:14:22Z'
 
+    LinkBankAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [accountHolderName, phone, accountNumber, bankName, ifscCode]
+      properties:
+        accountHolderName:
+          type: string
+          maxLength: 150
+          example: Priya Menon
+        phone:
+          type: string
+          pattern: '^\+?[0-9]{7,15}$'
+          example: '+919812345099'
+        accountNumber:
+          type: string
+          pattern: '^[A-Z0-9]{6,34}$'
+          example: IN45HDFC0000009999999
+        bankName:
+          type: string
+          maxLength: 150
+          example: HDFC Bank
+        ifscCode:
+          type: string
+          pattern: '^[A-Z]{4}0[A-Z0-9]{6}$'
+          description: Indian Financial System Code.
+          example: HDFC0009999
+
+    LinkedBankAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [accountId, accountNumber, bankName, ifscCode, accountState]
+      properties:
+        accountId:
+          type: integer
+          format: int64
+          description: The new numeric account key. The next token from `/auth/refresh` carries it.
+          example: 7
+        accountNumber:
+          type: string
+          example: IN45HDFC0000009999999
+        bankName:
+          type: string
+          example: HDFC Bank
+        ifscCode:
+          type: string
+          example: HDFC0009999
+        accountState:
+          $ref: '#/components/schemas/AccountStatus'
+
     AccountResponse:
       type: object
       additionalProperties: false
@@ -679,12 +777,13 @@ components:
       properties:
         errorCode:
           type: string
-          enum: [ACC-404, ACC-403, INS-404, ORD-400, ORD-409, VAL-422, AUTH-401]
+          enum: [ACC-404, ACC-403, ACC-409, INS-404, ORD-400, ORD-409, VAL-422, AUTH-401]
           description: |
             | Code | HTTP | Meaning |
             |---|---|---|
             | `ACC-404` | 404 | Account not found |
             | `ACC-403` | 403 | Account not active, or not reachable with this token |
+            | `ACC-409` | 409 | Bank account could not be linked |
             | `INS-404` | 404 | Instrument not found or not tradable |
             | `ORD-400` | 400 | Insufficient funds |
             | `ORD-409` | 409 | Insufficient holdings, duplicate order, or order not cancellable |

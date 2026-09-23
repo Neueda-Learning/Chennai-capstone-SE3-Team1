@@ -1,15 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEmail,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
-  Min,
   MinLength,
 } from 'class-validator';
 import { Role } from './role';
@@ -31,11 +30,13 @@ export class RegisterRequestDto {
   @MaxLength(128, { message: 'password must be at most 128 characters' })
   password: string;
 
-  @ApiProperty({ example: 1, description: 'The numeric trading account key' })
-  @Type(() => Number)
-  @IsInt({ message: 'accountId must be an integer' })
-  @Min(1, { message: 'accountId must be a positive integer' })
-  accountId: number;
+  @ApiProperty({ example: 'priya.menon@example.com', maxLength: 150 })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail({}, { message: 'email must be a valid email address' })
+  @MaxLength(150, { message: 'email must be at most 150 characters' })
+  email: string;
 
   @ApiPropertyOptional({
     enum: Role,

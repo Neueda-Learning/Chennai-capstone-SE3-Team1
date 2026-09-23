@@ -1,0 +1,7 @@
+client_id,name,email,phone,account_state,wallet_balance
+1,Aarav Mehta,aarav.mehta@example.com,+919812345001,ACTIVE,125000.00
+2,Diya Sharma,diya.sharma@example.com,+919812345002,ACTIVE,48250.50
+3,Rohan Iyer,rohan.iyer@example.com,+919812345003,ACTIVE,310400.75
+4,Meera Nair,meera.nair@example.com,+919812345004,SUSPENDED,15000.00
+5,Vikram Rao,vikram.rao@example.com,+919812345005,ACTIVE,92750.25
+6,Sanya Kapoor,sanya.kapoor@example.com,+919812345006,CLOSED,0.00

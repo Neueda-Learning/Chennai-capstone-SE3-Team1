@@ -59,23 +59,19 @@ export class AuthService {
       );
     }
 
-    const accountExists = await this.users.accountExists(request.accountId);
-    if (!accountExists) {
-      throw AuthServiceException.accountNotFound();
-    }
-
     const existing = await this.users.findByUsername(request.username);
     if (existing) {
       throw AuthServiceException.usernameTaken();
     }
 
-    const accountUser = await this.users.findByAccountId(request.accountId);
-    if (accountUser) {
-      throw AuthServiceException.accountAlreadyRegistered();
+    const emailUser = await this.users.findByEmail(request.email);
+    if (emailUser) {
+      throw AuthServiceException.emailTaken();
     }
 
     const hash = await this.password.hash(request.password);
-    // Public registration: never accept a self-declared role.
+    // Public registration: never accept a self-declared role. No trading account is
+    // created here; account_id stays null until the user links a bank account.
     const user = await this.createUser(request, hash, [Role.CUSTOMER]);
 
     this.logger.log('credential_created', 'register', {
@@ -196,14 +192,17 @@ export class AuthService {
     try {
       return await this.users.create({
         username: request.username,
-        accountId: request.accountId,
+        email: request.email,
         roles,
         passwordHash,
         paramsVersion: this.CURRENT_PARAMS_VERSION,
       });
     } catch (error) {
       if (UserRepository.isUniqueViolation(error)) {
-        throw AuthServiceException.usernameTaken();
+        // Lost a race with a concurrent registration after the pre-checks passed.
+        throw UserRepository.violatedConstraint(error) === 'uq_users_email'
+          ? AuthServiceException.emailTaken()
+          : AuthServiceException.usernameTaken();
       }
       throw error;
     }
@@ -218,7 +217,7 @@ export class AuthService {
 
   private claimsFrom(user: UserRecord): {
     sub: string;
-    accountId: number;
+    accountId: number | null;
     roles: string[];
   } {
     return {
@@ -251,6 +250,7 @@ export class AuthService {
     return {
       id: user.id,
       username: user.username,
+      email: user.email,
       accountId: user.accountId,
       roles: user.roles,
       createdOn: user.createdOn,

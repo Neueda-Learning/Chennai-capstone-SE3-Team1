@@ -6,7 +6,9 @@ import { Role } from './dto/role';
 export interface UserRecord {
   id: string;
   username: string;
-  accountId: number;
+  email: string;
+  /** clients.client_id once a bank account is linked; null until then. */
+  accountId: number | null;
   roles: Role[];
   passwordHash: string;
   paramsVersion: number;
@@ -16,7 +18,7 @@ export interface UserRecord {
 
 export interface NewUserInput {
   username: string;
-  accountId: number;
+  email: string;
   roles: Role[];
   passwordHash: string;
   paramsVersion: number;
@@ -29,13 +31,14 @@ export class DuplicateUsernameError extends Error {
   }
 }
 
-const USER_COLUMNS = `id, username, account_id, roles, password_hash, params_version, version, created_on`;
+const USER_COLUMNS = `id, username, email, account_id, roles, password_hash, params_version, version, created_on`;
 
 function mapRow(row: any): UserRecord {
   return {
     id: row.id,
     username: row.username,
-    accountId: Number(row.account_id),
+    email: row.email,
+    accountId: row.account_id === null ? null : Number(row.account_id),
     roles: row.roles,
     passwordHash: row.password_hash,
     paramsVersion: row.params_version,
@@ -64,30 +67,26 @@ export class UserRepository {
     return r.rows[0] ? mapRow(r.rows[0]) : null;
   }
 
-  async accountExists(accountId: number): Promise<boolean> {
-    const r = await this.pool.query(
-      `SELECT 1 FROM clients WHERE client_id = $1`,
-      [accountId],
-    );
-    return (r.rowCount ?? 0) > 0;
-  }
-
-  async findByAccountId(accountId: number): Promise<UserRecord | null> {
+  async findByEmail(email: string): Promise<UserRecord | null> {
     const r = await this.pool.query<Record<string, any>>(
-      `SELECT ${USER_COLUMNS} FROM users WHERE account_id = $1`,
-      [accountId],
+      `SELECT ${USER_COLUMNS} FROM users WHERE email = $1`,
+      [email],
     );
     return r.rows[0] ? mapRow(r.rows[0]) : null;
   }
 
+  /**
+   * Registration creates the user only. account_id stays NULL until the user links a
+   * bank account through the Trade REST API, which fills it in.
+   */
   async create(input: NewUserInput): Promise<UserRecord> {
     const r = await this.pool.query<Record<string, any>>(
-      `INSERT INTO users (username, account_id, roles, password_hash, params_version, version, created_on, updated)
+      `INSERT INTO users (username, email, roles, password_hash, params_version, version, created_on, updated)
        VALUES ($1, $2, $3, $4, $5, 1, now(), now())
        RETURNING ${USER_COLUMNS}`,
       [
         input.username,
-        input.accountId,
+        input.email,
         input.roles,
         input.passwordHash,
         input.paramsVersion,
@@ -107,6 +106,12 @@ export class UserRepository {
        WHERE id = $3`,
       [passwordHash, paramsVersion, id],
     );
+  }
+
+  static violatedConstraint(error: unknown): string | undefined {
+    return typeof error === 'object' && error !== null
+      ? (error as { constraint?: string }).constraint
+      : undefined;
   }
 
   static isUniqueViolation(error: unknown): boolean {

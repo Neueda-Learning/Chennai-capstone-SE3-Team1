@@ -14,7 +14,7 @@ from dbenv import SCRATCH_DB, TEST_DB, drop_database
 MIGRATIONS = sorted(MIGRATIONS_DIR.glob("*.sql"), key=lambda p: p.name)
 
 EXPECTED_TABLES = {
-    "auth", "bank_account", "clients", "instruments", "order_history", "orders",
+    "bank_account", "clients", "instruments", "order_history", "orders",
     "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations",
     "users",
 }
@@ -179,33 +179,28 @@ def test_reseeding_is_stable(built_db, table_counts):
     assert table_counts(built_db) == before
 
 
-def test_the_bank_account_foreign_key_is_deferrable(built_db):
+def test_the_bank_account_foreign_key_is_checked_immediately(built_db):
+    # Since migration 015 ownership runs one way, bank_account -> clients, so nothing
+    # needs to wait for COMMIT.
     definition = built_db.scalar(
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
         "WHERE conname = 'fk_bank_account_client';")
     assert definition, "fk_bank_account_client is missing"
-    assert "DEFERRABLE" in definition.upper()
+    assert "DEFERRABLE" not in definition.upper()
+    back = built_db.scalar(
+        "SELECT count(*) FROM pg_constraint c "
+        "JOIN pg_class src ON src.oid = c.conrelid JOIN pg_class tgt ON tgt.oid = c.confrelid "
+        "WHERE c.contype = 'f' AND src.relname = 'clients' AND tgt.relname = 'bank_account';")
+    assert back == "0", "clients references bank_account again"
 
 
-def test_the_seed_cannot_load_outside_one_transaction(built_db):
-    first = SEED_DIR / make_seed.BUILDERS[0][0]
-    table = apply_db.table_for_seed_file(first)
-    header = first.read_text(encoding="utf-8").splitlines()[0]
-    try:
-        proc = built_db.run(
-            script="BEGIN;\nTRUNCATE TABLE " + quote_ident(table) + " CASCADE;\n"
-                   "COMMIT;\n"
-                   "\\copy " + quote_ident(table) + " (" + header + ") FROM '"
-                   + first.resolve().as_posix() + "' WITH (FORMAT csv, HEADER true)\n"
-        )
-        assert proc.returncode != 0, (
-            "loading " + table + " in its own transaction succeeded; the deferrable "
-            "foreign key that makes the seed order work is gone, and the docker init "
-            "script no longer needs its single transaction"
-        )
-        assert "fk_bank_account_client" in (proc.stderr or ""), (
-            "the load failed, but not on the deferred foreign key: "
-            + (proc.stderr or "").strip()[:200]
-        )
-    finally:
-        assert apply_db.main(["--dbname", TEST_DB, "--reseed"]) == 0
+def test_a_bank_account_for_a_missing_client_is_refused_at_insert(built_db):
+    # Rolled back, so a deferred key would never have been checked at all.
+    proc = built_db.run(
+        script="BEGIN;\n"
+               "INSERT INTO bank_account (account_number, client_id, name, bank_name, ifsc_code) "
+               "VALUES ('NOCLIENT0001', 999999, 'Nobody', 'Bank', 'HDFC0000001');\n"
+               "ROLLBACK;\n"
+    )
+    assert proc.returncode != 0, "a bank_account row for a missing client was accepted"
+    assert "fk_bank_account_client" in (proc.stderr or ""), (proc.stderr or "").strip()[:200]

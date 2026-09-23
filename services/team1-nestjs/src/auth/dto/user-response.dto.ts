@@ -11,8 +11,16 @@ export class UserResponseDto {
   @ApiProperty()
   username: string;
 
-  @ApiProperty({ description: 'The numeric trading account key, ACCOUNTS.id' })
-  accountId: number;
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'The numeric trading account key, clients.client_id. Null until the user links a bank account.',
+  })
+  accountId: number | null;
 
   @ApiProperty({ enum: Role, isArray: true })
   roles: Role[];

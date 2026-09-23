@@ -13,10 +13,10 @@ ORDER_3 = "550e8400-e29b-41d4-a716-446655440003"
 
 def seed_reference_data(pg):
     pg.run_or_die("seeding reference data", sql="""
+        INSERT INTO clients (client_id, name, email, phone, created_on, account_state, wallet_balance)
+        VALUES (1, 'Aarav', 'aarav@example.com', '9999', '2025-12-01', 'ACTIVE', 50000);
         INSERT INTO bank_account (account_number, client_id, name, phone, email, account_balance, bank_name, ifsc_code)
         VALUES ('ACC001', 1, 'Aarav', '9999', 'aarav@example.com', 100000, 'SBI', 'SBIN0001');
-        INSERT INTO clients (client_id, account_number, name, email, phone, created_on, account_state, wallet_balance)
-        VALUES (1, 'ACC001', 'Aarav', 'aarav@example.com', '9999', '2025-12-01', 'ACTIVE', 50000);
         INSERT INTO instruments (instrument_id, instrument_name, active) VALUES ('RELIANCE', 'Reliance', TRUE);
         SELECT setval('clients_client_id_seq', 1);
     """)

@@ -24,7 +24,7 @@ build, and so does the reverse.
 erDiagram
     BANK_ACCOUNT {
         varchar   account_number  PK
-        bigint    client_id       FK
+        bigint    client_id       FK,UK
         varchar   name
         varchar   phone
         varchar   email
@@ -34,7 +34,6 @@ erDiagram
     }
     CLIENTS {
         bigint    client_id       PK
-        varchar   account_number  FK
         varchar   name
         varchar   email           UK
         varchar   phone
@@ -42,12 +41,17 @@ erDiagram
         varchar   account_state
         decimal   wallet_balance
     }
-    AUTH {
-        varchar   email           PK,FK
+    USERS {
+        uuid      id              PK
+        varchar   username        UK
+        varchar   email           UK
+        bigint    account_id      FK,UK "NULL until a bank account is linked"
+        text      roles
         varchar   password_hash
-        timestamp created
-        timestamp updated
+        int       params_version
         int       version
+        timestamp created_on
+        timestamp updated
     }
     INSTRUMENTS {
         varchar   instrument_id   PK
@@ -108,7 +112,7 @@ erDiagram
     }
 
     CLIENTS              ||--o| BANK_ACCOUNT        : owns
-    CLIENTS              ||--o| AUTH                : authenticates
+    USERS                |o--o| CLIENTS             : trades
     CLIENTS              ||--o{ ORDERS              : places
     ORDERS               ||--o{ ORDER_HISTORY       : audited_by
     ORDERS               }o--|| INSTRUMENTS         : trades
@@ -132,7 +136,7 @@ way. Keep it if you edit the file.
 | From | To | Cardinality | Meaning |
 |---|---|---|---|
 | `CLIENTS` | `BANK_ACCOUNT` | 1 → 0..1 | Funding account |
-| `CLIENTS` | `AUTH` | 1 → 0..1 | Credentials, keyed on email |
+| `USERS` | `CLIENTS` | 0..1 → 0..1 | Login; `users.account_id` is set when a bank account is linked |
 | `CLIENTS` | `ORDERS` | 1 → 0..N | Orders placed |
 | `ORDERS` | `ORDER_HISTORY` | 1 → 0..N | Audit trail of status changes |
 | `ORDERS` | `INSTRUMENTS` | N → 1 | Instrument traded |
@@ -141,17 +145,17 @@ way. Keep it if you edit the file.
 | `PORTFOLIO_HOLDING` | `INSTRUMENTS` | N → 1 | What is held |
 | `PORTFOLIO_POSITIONS` | `INSTRUMENTS` | N → 1 | What is positioned in |
 
-### Clients and bank accounts point at each other
+### A bank account names its client; the client does not name it back
 
-`Client.accountNumber` and `BankAccount.clientId` both exist in the entities, so
-both exist as columns, and both carry a foreign key. That is a cycle: neither
-table can be loaded first if both keys are checked immediately.
-
-`fk_bank_account_client` is therefore `DEFERRABLE INITIALLY DEFERRED` — checked
-at `COMMIT` rather than at `INSERT`. The seed loader and the docker init script
-both load every CSV inside one transaction for this reason, and
-`tests/test_migrations.py` asserts that loading `bank_account` on its own fails,
-so nobody can quietly split that transaction back up.
+Ownership runs one way: `bank_account.client_id` references `clients`, and is
+unique, so a client has at most one bank account. Until migration 015 `clients`
+also carried `account_number` back to `bank_account`, a cycle that forced
+`fk_bank_account_client` to be deferred to `COMMIT`. That column is gone and the
+key is checked at `INSERT`, so `clients` is always written first: the seed loads
+`010_clients.csv` before `020_bank_account.csv`, and linking a bank account
+inserts the client row, then the bank account that names it.
+`tests/test_migrations.py` asserts the key is immediate and that `clients`
+references nothing in `bank_account`.
 
 ## Instruments are keyed by their symbol
 

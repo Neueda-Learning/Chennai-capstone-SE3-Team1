@@ -7,6 +7,7 @@
 
 DROP TABLE IF EXISTS clients;
 DROP TABLE IF EXISTS bank_account;
+DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS auth;
 DROP TABLE IF EXISTS instruments;
 DROP TABLE IF EXISTS orders;
@@ -18,7 +19,6 @@ DROP TABLE IF EXISTS holdings;
 
 CREATE TABLE clients (
     client_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
-    account_number  VARCHAR(34),
     name            VARCHAR(150)    NOT NULL,
     email           VARCHAR(150)    NOT NULL UNIQUE,
     phone           VARCHAR(20),
@@ -31,7 +31,7 @@ CREATE TABLE clients (
 
 CREATE TABLE bank_account (
     account_number  VARCHAR(34)     PRIMARY KEY,
-    client_id       BIGINT          NOT NULL,
+    client_id       BIGINT          NOT NULL UNIQUE,
     name            VARCHAR(150)    NOT NULL,
     phone           VARCHAR(20),
     email           VARCHAR(150),
@@ -40,12 +40,18 @@ CREATE TABLE bank_account (
     ifsc_code       VARCHAR(11)     NOT NULL
 );
 
-CREATE TABLE auth (
-    email         VARCHAR(150)  PRIMARY KEY,
-    password_hash VARCHAR(255)  NOT NULL,
-    created       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    version       INT           NOT NULL DEFAULT 0
+-- users replaced auth in migration 014. account_id is NULL until a bank account is linked.
+CREATE TABLE users (
+    id             UUID          DEFAULT RANDOM_UUID() PRIMARY KEY,
+    username       VARCHAR(64)   NOT NULL UNIQUE,
+    email          VARCHAR(150)  NOT NULL UNIQUE,
+    account_id     BIGINT        UNIQUE,
+    roles          VARCHAR(20) ARRAY NOT NULL DEFAULT ARRAY['CUSTOMER'],
+    password_hash  VARCHAR(255)  NOT NULL,
+    params_version INT           NOT NULL DEFAULT 1,
+    version        INT           NOT NULL DEFAULT 0,
+    created_on     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE instruments (

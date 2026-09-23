@@ -21,14 +21,13 @@ FIELD_RE = re.compile(r"^\s*private\s+(?:final\s+|static\s+|transient\s+)*"
 ENUM_BODY_RE = re.compile(r"enum\s+\w+\s*\{(.*?)\}", re.S)
 
 EXPECTED_TABLES = [
-    "auth", "bank_account", "clients", "instruments", "order_history", "orders",
-    "portfolio_holding", "portfolio_positions", "schema_migrations",
+    "bank_account", "clients", "instruments", "order_history", "orders",
+    "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations", "users",
 ]
 
 ENTITY_TABLES = {
     "bank_account": ("BankAccount", {}),
     "clients": ("Client", {}),
-    "auth": ("Auth", {}),
     "instruments": ("Instrument", {}),
     "orders": ("Order", {}),
     "order_history": ("OrderHistory", {}),
@@ -418,9 +417,10 @@ def b03_idempotency_unique(v):
 
 def b04_foreign_keys_present(v):
     expected = {
-        ("clients", "bank_account"),
+        # One direction only since migration 015: a client's bank account names the client.
         ("bank_account", "clients"),
-        ("auth", "clients"),
+        ("users", "clients"),
+        ("refresh_tokens", "users"),
         ("orders", "clients"),
         ("orders", "instruments"),
         # order_history -> orders was dropped in migration 010. The history row survives
@@ -485,15 +485,17 @@ def b08_order_history_records_a_real_transition(v):
     )
 
 
-def b09_bank_account_and_clients_reference_each_other(v):
+def b09_bank_account_owns_the_link_to_clients(v):
     require(v.constraint_def("fk_bank_account_client"),
             "bank_account.client_id has no foreign key to clients")
-    definition = v.constraint_def("fk_bank_account_client")
-    require(
-        "DEFERRABLE" in definition.upper(),
-        "fk_bank_account_client must be DEFERRABLE: bank_account and clients point at "
-        "each other, so one of the two has to be checked at COMMIT for either to load",
+    require(v.constraint_def("uq_bank_account_client_id"),
+            "bank_account.client_id is not UNIQUE: a client links one bank account")
+    back = v.count(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = 'clients' "
+        "AND column_name = 'account_number';"
     )
+    equal(back, 0, "clients.account_number is back: the link is bank_account.client_id only")
 
 
 _NEW_ORDER = (
@@ -686,21 +688,21 @@ def c19_one_portfolio_row_per_client_instrument(v):
 
 
 def c20_optimistic_concurrency_detects_the_loser(v):
-    email = v.scalar("SELECT email FROM auth ORDER BY email LIMIT 1;")
+    email = v.scalar("SELECT email FROM users ORDER BY email LIMIT 1;")
     require(email, "no seeded credentials to test with")
     v.expect_accepted(
         "BEGIN;\n"
         "DO $verify$\n"
         "DECLARE stale INT; n INT;\n"
         "BEGIN\n"
-        "  SELECT version INTO stale FROM auth WHERE email = " + quote_literal(email) + ";\n"
-        "  UPDATE auth SET password_hash = 'rotated-1', updated = now(), "
+        "  SELECT version INTO stale FROM users WHERE email = " + quote_literal(email) + ";\n"
+        "  UPDATE users SET password_hash = 'rotated-1', updated = now(), "
         "version = version + 1\n"
         "   WHERE email = " + quote_literal(email) + " AND version = stale;\n"
         "  GET DIAGNOSTICS n = ROW_COUNT;\n"
         "  IF n <> 1 THEN RAISE EXCEPTION 'first writer should have won, updated % row(s)', n; "
         "END IF;\n"
-        "  UPDATE auth SET password_hash = 'rotated-2', updated = now(), "
+        "  UPDATE users SET password_hash = 'rotated-2', updated = now(), "
         "version = version + 1\n"
         "   WHERE email = " + quote_literal(email) + " AND version = stale;\n"
         "  GET DIAGNOSTICS n = ROW_COUNT;\n"
@@ -709,7 +711,7 @@ def c20_optimistic_concurrency_detects_the_loser(v):
         "END\n"
         "$verify$;\n"
         "ROLLBACK;\n",
-        "optimistic concurrency on auth.version",
+        "optimistic concurrency on users.version",
     )
 
 
@@ -758,11 +760,11 @@ def c23_generated_order_id_does_not_collide(v):
 
 
 def c24_blank_password_rejected(v):
-    email = v.scalar("SELECT email FROM clients ORDER BY client_id LIMIT 1;")
+    email = v.scalar("SELECT email FROM users ORDER BY email LIMIT 1;")
     v.expect_rejected(
-        "UPDATE auth SET password_hash = '   ' WHERE email = " + quote_literal(email) + ";",
+        "UPDATE users SET password_hash = '   ' WHERE email = " + quote_literal(email) + ";",
         "23514",
-        "a blank auth password_hash",
+        "a blank users password_hash",
     )
 
 
@@ -950,28 +952,26 @@ def d13_positions_matches_position_orders(v):
     _compare_book(v, "portfolio_positions", positions, POSITION_BOOK)
 
 
-def d14_bank_account_and_clients_agree(v):
-    problems = v.rows(
-        "SELECT c.client_id, c.account_number, b.client_id FROM clients c "
-        "JOIN bank_account b ON b.account_number = c.account_number "
-        "WHERE b.client_id <> c.client_id;"
+def d14_every_client_has_a_bank_account(v):
+    # A clients row is created by linking a bank account, so none should be without one.
+    missing = v.rows(
+        "SELECT c.client_id FROM clients c "
+        "WHERE NOT EXISTS (SELECT 1 FROM bank_account b WHERE b.client_id = c.client_id);"
     )
     require(
-        not problems,
-        "clients and bank_account disagree about ownership: "
-        + ", ".join("client " + r[0] + " holds " + r[1] + " but that account names client "
-                    + r[2] for r in problems),
+        not missing,
+        "clients with no bank_account row: " + ", ".join(r[0] for r in missing),
     )
 
 
 def d15_every_client_has_credentials(v):
     missing = v.rows(
         "SELECT c.client_id, c.email FROM clients c "
-        "WHERE NOT EXISTS (SELECT 1 FROM auth a WHERE a.email = c.email);"
+        "WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.account_id = c.client_id);"
     )
     require(
         not missing,
-        "clients with no auth row: "
+        "clients with no users row: "
         + ", ".join(r[0] + " (" + r[1] + ")" for r in missing),
     )
 
@@ -997,8 +997,8 @@ CHECKS = [
     ("B", "portfolio_positions allows negative quantity", b06_positions_allows_negative),
     ("B", "one portfolio row per (client, instrument)", b07_unique_portfolio_keys),
     ("B", "order_history refuses a no-op transition", b08_order_history_records_a_real_transition),
-    ("B", "bank_account and clients reference each other",
-     b09_bank_account_and_clients_reference_each_other),
+    ("B", "bank_account.client_id is the only link to clients",
+     b09_bank_account_owns_the_link_to_clients),
 
     ("C", "duplicate idempotency_key raises 23505", c01_duplicate_idempotency_key_rejected),
     ("C", "unknown order_type rejected", c02_bad_order_type_rejected),
@@ -1024,7 +1024,7 @@ CHECKS = [
     ("C", "negative bank balance rejected", c21_negative_bank_balance_rejected),
     ("C", "negative wallet balance rejected", c22_negative_wallet_balance_rejected),
     ("C", "a generated order_id does not collide", c23_generated_order_id_does_not_collide),
-    ("C", "blank auth password rejected", c24_blank_password_rejected),
+    ("C", "blank users password rejected", c24_blank_password_rejected),
     ("C", "duplicate settled idempotency key rejected", c25_duplicate_settled_idempotency_key_rejected),
     ("C", "audit row for a real transition accepted", c26_history_accepts_a_real_transition),
     ("C", "audit row with an unknown status rejected", c27_history_rejects_an_unknown_status),
@@ -1042,7 +1042,7 @@ CHECKS = [
     ("D", "portfolio_holding has no negatives", d11_holding_has_no_negatives),
     ("D", "portfolio_holding matches the HOLDING orders", d12_holding_matches_holding_orders),
     ("D", "portfolio_positions matches the POSITION orders", d13_positions_matches_position_orders),
-    ("D", "bank_account and clients agree on ownership", d14_bank_account_and_clients_agree),
+    ("D", "every client has a bank account", d14_every_client_has_a_bank_account),
     ("D", "every client has credentials", d15_every_client_has_credentials),
 ]
 

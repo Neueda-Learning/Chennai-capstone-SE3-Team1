@@ -84,7 +84,8 @@ public class OrderService {
 
         AccountRow accountRow = accountMapper.findRow(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));          // rule 1
-        if (tokenAccountId != null && !tokenAccountId.equals(accountId)) {
+        // A null claim is a user who has not linked a bank account yet: they own no account.
+        if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
             throw new AccountNotActiveException(accountId, "TOKEN");
         }
         Client client = toClient(accountRow);
@@ -157,7 +158,7 @@ public class OrderService {
         String orderUuid = toOrderUuid(orderId);
         OrderRow row = orderMapper.findByUuid(orderUuid)
                 .orElseThrow(() -> new OrderNotFoundException(displayId(orderUuid)));
-        if (tokenAccountId != null && !tokenAccountId.equals(row.getAccountId())) {
+        if (tokenAccountId == null || !tokenAccountId.equals(row.getAccountId())) {
             throw new AccountNotActiveException(row.getAccountId(), "TOKEN");
         }
         // Cancelling is terminal, so the order moves to order_history and leaves the live
@@ -173,7 +174,7 @@ public class OrderService {
     }
 
     private static Client toClient(AccountRow row) {
-        return new Client(row.getClientId(), row.getAccountNumber(), row.getName(), row.getEmail(),
+        return new Client(row.getClientId(), row.getName(), row.getEmail(),
                 row.getPhone(), row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
     }
 

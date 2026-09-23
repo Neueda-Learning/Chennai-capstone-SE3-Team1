@@ -54,7 +54,7 @@ The number is the order.
 | `000_migration_ledger.sql` | `schema_migrations` tracking table |
 | `001_bank_account.sql` | funding account |
 | `002_clients.sql` | clients, wallet balance, account state rules |
-| `003_auth.sql` | credentials, `version` for optimistic concurrency |
+| `003_auth.sql` | credentials, `version` for optimistic concurrency (dropped in 014) |
 | `004_instruments.sql` | instruments keyed by symbol, delisting |
 | `005_orders.sql` | orders, `order_type`, `side`, idempotency key |
 | `006_order_history.sql` | audit trail of order status changes |
@@ -64,6 +64,9 @@ The number is the order.
 | `010_terminal_orders_move_to_history.sql` | terminal orders archived to history |
 | `011_credential_argon2.sql` | `auth.params_version` for argon2 cost upgrades |
 | `012_auth_service_tables.sql` | `users` + `refresh_tokens` for the Sprint 8 auth service |
+| `013_unique_user_per_account.sql` | one user per trading account |
+| `014_users_replace_auth.sql` | drops `auth`; `users` gains `email`, `account_id` becomes nullable until a bank account is linked |
+| `015_clients_drop_account_number.sql` | drops `clients.account_number`; `bank_account.client_id` (unique, checked immediately) is the only link |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.
@@ -90,9 +93,9 @@ python scripts/apply_db.py --dry-run
   re-running is a no-op.
 - Aborts if a migration changed after it was applied (`--allow-modified` to
   re-record, `--reset` to rebuild).
-- Loads `seed/*.csv` in filename order inside one transaction. This is required,
-  not stylistic: `clients` and `bank_account` reference each other, so one of the
-  two foreign keys is deferred to `COMMIT`.
+- Loads `seed/*.csv` in filename order inside one transaction, so a bad file
+  leaves nothing half-loaded. `clients` loads before `bank_account`, whose
+  `client_id` foreign key is checked at insert.
 - Validates every seed file before loading any of it — unknown column, duplicate
   column, blank line, wrong field count, each reported with file and line. Type
   and constraint errors roll the whole load back. Bad rows are never skipped.
@@ -152,7 +155,7 @@ What it covers beyond `verify_db.py`:
 - seed row counts in the database match the CSV files
 - a seed file with an unknown column or a short row is rejected, with the line
 - reseeding is stable
-- the seed genuinely cannot be loaded outside one transaction
+- `fk_bank_account_client` is checked at insert, and `clients` references nothing in `bank_account`
 
 ## scripts/make_seed.py
 

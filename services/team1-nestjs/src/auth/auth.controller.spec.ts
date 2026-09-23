@@ -43,11 +43,12 @@ describe('AuthController', () => {
     const body = new RegisterRequestDto();
     body.username = 'priya.menon';
     body.password = 'correct horse battery staple';
-    body.accountId = 1;
+    body.email = 'priya.menon@example.com';
 
     const expected: UserResponseDto = {
       id: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
       username: 'priya.menon',
+      email: 'priya.menon@example.com',
       accountId: 1,
       roles: [Role.CUSTOMER],
       createdOn: new Date(),
@@ -103,6 +104,7 @@ describe('AuthController', () => {
     const expected: UserResponseDto = {
       id: identity.sub,
       username: 'priya.menon',
+      email: 'priya.menon@example.com',
       accountId: 1,
       roles: [Role.CUSTOMER],
       createdOn: new Date(),

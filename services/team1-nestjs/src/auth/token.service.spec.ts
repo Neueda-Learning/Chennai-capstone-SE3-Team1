@@ -94,6 +94,40 @@ describe('TokenService', () => {
       expect(claims.exp - claims.iat).toBe(ACCESS_TOKEN_TTL_SECONDS);
     });
 
+    it('round-trips a null accountId for a user with no linked bank account', () => {
+      const token = service.signAccessToken({
+        sub: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
+        accountId: null,
+        roles: ['CUSTOMER'],
+      });
+      const { payload } = splitToken(token);
+      const decoded = JSON.parse(
+        Buffer.from(payload, 'base64url').toString('utf8'),
+      );
+      // Present and null, not absent: the claim set stays exact.
+      expect(decoded).toHaveProperty('accountId', null);
+      expect(service.verifyAccessToken(token).accountId).toBeNull();
+    });
+
+    it('rejects a token with no accountId claim at all', () => {
+      const jsonwebtoken = jest.requireActual('jsonwebtoken');
+      const noAccount = jsonwebtoken.sign(
+        {
+          sub: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
+          roles: ['CUSTOMER'],
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS,
+          iss: ISSUER,
+        },
+        SECRET,
+        { algorithm: 'HS256' },
+      );
+
+      expect(() => service.verifyAccessToken(noAccount)).toThrow(
+        AuthServiceException,
+      );
+    });
+
     it('rejects an expired token with AUTH-401', () => {
       // Sign with an explicit past expiry using the same library/secret.
       const jsonwebtoken = jest.requireActual('jsonwebtoken');
