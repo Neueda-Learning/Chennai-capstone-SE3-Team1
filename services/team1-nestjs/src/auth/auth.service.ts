@@ -54,17 +54,24 @@ export class AuthService {
   async register(request: RegisterRequestDto): Promise<UserResponseDto> {
     const policyResult = this.policy.evaluate(request.password);
     if (!policyResult.valid) {
-      throw AuthServiceException.invalidInput();
+      throw AuthServiceException.invalidInput(
+        'Password does not meet security requirements (minimum 12 characters, must include uppercase, lowercase, number, special character)',
+      );
     }
 
     const accountExists = await this.users.accountExists(request.accountId);
     if (!accountExists) {
-      throw AuthServiceException.invalidInput();
+      throw AuthServiceException.accountNotFound();
     }
 
     const existing = await this.users.findByUsername(request.username);
     if (existing) {
       throw AuthServiceException.usernameTaken();
+    }
+
+    const accountUser = await this.users.findByAccountId(request.accountId);
+    if (accountUser) {
+      throw AuthServiceException.accountAlreadyRegistered();
     }
 
     const hash = await this.password.hash(request.password);

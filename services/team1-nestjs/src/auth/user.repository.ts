@@ -72,6 +72,14 @@ export class UserRepository {
     return (r.rowCount ?? 0) > 0;
   }
 
+  async findByAccountId(accountId: number): Promise<UserRecord | null> {
+    const r = await this.pool.query<Record<string, any>>(
+      `SELECT ${USER_COLUMNS} FROM users WHERE account_id = $1`,
+      [accountId],
+    );
+    return r.rows[0] ? mapRow(r.rows[0]) : null;
+  }
+
   async create(input: NewUserInput): Promise<UserRecord> {
     const r = await this.pool.query<Record<string, any>>(
       `INSERT INTO users (username, account_id, roles, password_hash, params_version, version, created_on, updated)
