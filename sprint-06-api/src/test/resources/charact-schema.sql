@@ -37,7 +37,7 @@ CREATE TABLE clients (
 
 CREATE TABLE bank_account (
     account_number  VARCHAR(34)     PRIMARY KEY,
-    client_id       BIGINT          NOT NULL UNIQUE,
+    client_id       BIGINT          UNIQUE,          -- NULL: unclaimed (migration 017)
     name            VARCHAR(150)    NOT NULL,
     phone           VARCHAR(20),
     email           VARCHAR(150),

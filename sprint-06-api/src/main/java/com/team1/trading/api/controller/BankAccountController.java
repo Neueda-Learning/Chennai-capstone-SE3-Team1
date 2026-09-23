@@ -37,7 +37,10 @@ public class BankAccountController {
         this.accessGuard = accessGuard;
     }
 
-    /** Admin only: a customer links their bank account with POST /api/v1/bank-accounts. */
+    /**
+     * Admin only. Without a {@code clientId} this adds an unclaimed bank account, which a customer
+     * then claims with POST /api/v1/bank-accounts.
+     */
     @PostMapping
     public ResponseEntity<BankAccount> createBankAccount(@Valid @RequestBody CreateBankAccountRequest request) {
         accessGuard.requireAdmin();

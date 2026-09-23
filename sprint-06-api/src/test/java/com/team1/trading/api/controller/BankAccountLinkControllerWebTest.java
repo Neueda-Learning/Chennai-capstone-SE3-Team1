@@ -6,6 +6,7 @@ import com.team1.trading.api.exception.BankAccountLinkConflictException.Reason;
 import com.team1.trading.api.security.JwtValidator;
 import com.team1.trading.api.security.TestJwtBuilder;
 import com.team1.trading.api.service.BankAccountLinkService;
+import com.team1.trading.domain.exception.AccountNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -41,13 +42,7 @@ class BankAccountLinkControllerWebTest {
 
     private static final String USER_ID = "8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f";
     private static final String BODY = """
-            {
-              "accountHolderName": "Priya Menon",
-              "phone": "+919812345099",
-              "accountNumber": "IN45HDFC0000009999999",
-              "bankName": "HDFC Bank",
-              "ifscCode": "HDFC0009999"
-            }
+            {"accountNumber": "IN45HDFC0000007890123"}
             """;
 
     @Autowired
@@ -63,7 +58,7 @@ class BankAccountLinkControllerWebTest {
     @Test
     void links_for_a_registered_user_whose_token_has_no_account_yet() throws Exception {
         given(bankAccountLinkService.link(eq(USER_ID), any())).willReturn(new LinkedBankAccountResponse(
-                42L, "IN45HDFC0000009999999", "HDFC Bank", "HDFC0009999", "ACTIVE"));
+                42L, "IN45HDFC0000007890123", "HDFC Bank", "HDFC0007890", "ACTIVE"));
 
         mockMvc.perform(post("/api/v1/bank-accounts")
                         .header("Authorization", unlinkedToken())
@@ -71,7 +66,7 @@ class BankAccountLinkControllerWebTest {
                         .content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accountId").value(42))
-                .andExpect(jsonPath("$.accountNumber").value("IN45HDFC0000009999999"))
+                .andExpect(jsonPath("$.accountNumber").value("IN45HDFC0000007890123"))
                 .andExpect(jsonPath("$.accountState").value("ACTIVE"));
 
         verify(bankAccountLinkService).link(eq(USER_ID), any());
@@ -89,15 +84,27 @@ class BankAccountLinkControllerWebTest {
     }
 
     @Test
-    void rejects_a_malformed_ifsc_code_with_val_422() throws Exception {
+    void rejects_a_malformed_account_number_with_val_422() throws Exception {
         mockMvc.perform(post("/api/v1/bank-accounts")
                         .header("Authorization", unlinkedToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY.replace("HDFC0009999", "HDFC9")))
+                        .content(BODY.replace("IN45HDFC0000007890123", "in45-not valid")))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode").value("VAL-422"));
 
         verifyNoInteractions(bankAccountLinkService);
+    }
+
+    @Test
+    void an_unknown_account_number_is_acc_404() throws Exception {
+        given(bankAccountLinkService.link(eq(USER_ID), any())).willThrow(new AccountNotFoundException(null));
+
+        mockMvc.perform(post("/api/v1/bank-accounts")
+                        .header("Authorization", unlinkedToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("ACC-404"));
     }
 
     @Test

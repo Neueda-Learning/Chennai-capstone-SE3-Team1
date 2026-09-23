@@ -1,7 +1,7 @@
 erDiagram
     BANK_ACCOUNT {
         varchar   account_number  PK
-        bigint    client_id       FK,UK
+        bigint    client_id       FK,UK "NULL while unclaimed"
         varchar   name
         varchar   phone
         varchar   email
@@ -97,7 +97,7 @@ erDiagram
         timestamp updated_at
     }
 
-    CLIENTS              ||--o| BANK_ACCOUNT        : owns
+    CLIENTS              |o--o| BANK_ACCOUNT        : claims
     USERS                |o--o| CLIENTS             : trades
     CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
     BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
