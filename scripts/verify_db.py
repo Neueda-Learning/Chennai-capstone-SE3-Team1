@@ -210,7 +210,8 @@ def rollback_script(body):
 def a01_tables_exist(v):
     found = [r[0] for r in v.rows(
         "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
+        "WHERE table_schema IN ('public', 'auth_db') AND table_type = 'BASE TABLE' "
+        "ORDER BY table_name;"
     )]
     missing = [t for t in EXPECTED_TABLES if t not in found]
     require(not missing, "missing table(s): " + ", ".join(missing))
@@ -341,7 +342,7 @@ def a08_money_is_exact(v):
 def a09_no_inexact_numeric_anywhere(v):
     bad = v.rows(
         "SELECT table_name, column_name, data_type FROM information_schema.columns "
-        "WHERE table_schema='public' AND data_type IN "
+        "WHERE table_schema IN ('public', 'auth_db') AND data_type IN "
         "('real','double precision','money') ORDER BY table_name, column_name;"
     )
     require(
@@ -384,7 +385,7 @@ def a11_numbered_in_order(v):
 def b01_at_least_three_checks(v):
     n = v.count(
         "SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace "
-        "WHERE c.contype='c' AND n.nspname='public' AND c.conname LIKE 'chk_%';"
+        "WHERE c.contype='c' AND n.nspname IN ('public', 'auth_db') AND c.conname LIKE 'chk_%';"
     )
     require(n >= 3, "expected at least 3 named CHECK constraints, found " + str(n))
 
@@ -440,7 +441,7 @@ def b04_foreign_keys_present(v):
             "JOIN pg_class src ON src.oid = c.conrelid "
             "JOIN pg_class tgt ON tgt.oid = c.confrelid "
             "JOIN pg_namespace n ON n.oid = c.connamespace "
-            "WHERE c.contype = 'f' AND n.nspname = 'public';"
+            "WHERE c.contype = 'f' AND n.nspname IN ('public', 'auth_db');"
         )
     }
     missing = sorted(expected - found)
