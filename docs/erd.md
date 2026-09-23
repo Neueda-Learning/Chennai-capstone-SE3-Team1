@@ -18,10 +18,18 @@ to, if a field has no column, or if a `CHECK` vocabulary differs from the Java
 enum it stands for. Adding a field to an entity without a migration breaks the
 build, and so does the reverse.
 
+Every table lives in the default `public` schema except `users` and
+`refresh_tokens`, which live in `auth_db` (`018_users_to_auth_db_schema.sql`) —
+the credential store, structurally separated from the trading tables. Nothing
+that reads or writes them needs to say so explicitly: the database's default
+`search_path` includes both schemas, so `FROM users` still resolves.
+
 ## Entity relationship diagram
 
 ```mermaid
 erDiagram
+    %% USERS and REFRESH_TOKENS live in the auth_db schema (018_users_to_auth_db_schema.sql);
+    %% every other table here is in public.
     BANK_ACCOUNT {
         varchar   account_number  PK
         bigint    client_id       FK,UK "NULL while unclaimed"
@@ -61,6 +69,14 @@ erDiagram
         int       version
         timestamp created_on
         timestamp updated
+    }
+    REFRESH_TOKENS {
+        uuid      id              PK
+        uuid      user_id         FK
+        char      token_hash      UK
+        timestamp expires_at
+        timestamp revoked_at
+        timestamp created_at
     }
     INSTRUMENTS {
         varchar   instrument_id   PK
@@ -122,6 +138,7 @@ erDiagram
 
     CLIENTS              |o--o| BANK_ACCOUNT        : claims
     USERS                |o--o| CLIENTS             : trades
+    USERS                ||--o{ REFRESH_TOKENS      : issues
     CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
     BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
     CLIENTS              ||--o{ ORDERS              : places
@@ -148,6 +165,7 @@ way. Keep it if you edit the file.
 |---|---|---|---|
 | `CLIENTS` | `BANK_ACCOUNT` | 0..1 → 0..1 | Funding account; an unclaimed bank account has no client |
 | `USERS` | `CLIENTS` | 0..1 → 0..1 | Login; `users.account_id` is set when a bank account is linked |
+| `USERS` | `REFRESH_TOKENS` | 1 → 0..N | Rotated on every refresh; both tables live in `auth_db` |
 | `CLIENTS` | `WALLET_TRANSFERS` | 1 → 0..N | Money moved into or out of the wallet |
 | `BANK_ACCOUNT` | `WALLET_TRANSFERS` | 1 → 0..N | The bank account each transfer used |
 | `CLIENTS` | `ORDERS` | 1 → 0..N | Orders placed |

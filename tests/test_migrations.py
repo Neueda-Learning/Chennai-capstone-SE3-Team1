@@ -49,7 +49,7 @@ def test_migrations_apply_to_an_empty_database(scratch_db):
     assert apply_db.main(["--dbname", SCRATCH_DB, "--migrations-only"]) == 0
     found = {r[0] for r in scratch_db.rows(
         "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema='public' AND table_type='BASE TABLE';"
+        "WHERE table_schema IN ('public', 'auth_db') AND table_type='BASE TABLE';"
     )}
     assert EXPECTED_TABLES <= found, "missing: " + str(sorted(EXPECTED_TABLES - found))
 
@@ -58,7 +58,7 @@ def test_migrations_create_no_unexpected_tables(scratch_db):
     apply_db.main(["--dbname", SCRATCH_DB, "--migrations-only"])
     found = {r[0] for r in scratch_db.rows(
         "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema='public' AND table_type='BASE TABLE';"
+        "WHERE table_schema IN ('public', 'auth_db') AND table_type='BASE TABLE';"
     )}
     assert found == EXPECTED_TABLES, "unexpected: " + str(sorted(found - EXPECTED_TABLES))
 

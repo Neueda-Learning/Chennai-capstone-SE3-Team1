@@ -1,4 +1,6 @@
 erDiagram
+    %% USERS and REFRESH_TOKENS live in the auth_db schema (018_users_to_auth_db_schema.sql);
+    %% every other table here is in public.
     BANK_ACCOUNT {
         varchar   account_number  PK
         bigint    client_id       FK,UK "NULL while unclaimed"
@@ -38,6 +40,14 @@ erDiagram
         int       version
         timestamp created_on
         timestamp updated
+    }
+    REFRESH_TOKENS {
+        uuid      id              PK
+        uuid      user_id         FK
+        char      token_hash      UK
+        timestamp expires_at
+        timestamp revoked_at
+        timestamp created_at
     }
     INSTRUMENTS {
         varchar   instrument_id   PK
@@ -99,6 +109,7 @@ erDiagram
 
     CLIENTS              |o--o| BANK_ACCOUNT        : claims
     USERS                |o--o| CLIENTS             : trades
+    USERS                ||--o{ REFRESH_TOKENS      : issues
     CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
     BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
     CLIENTS              ||--o{ ORDERS              : places
