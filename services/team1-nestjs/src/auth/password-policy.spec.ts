@@ -10,63 +10,52 @@ describe('PasswordPolicy', () => {
     );
   });
 
-  it('rejects missing uppercase', () => {
-    expect(policy.evaluate('shortpass123!').valid).toBe(false);
-    expect(policy.evaluate('shortpass123!').errors).toContain(
-      'Password must contain an uppercase letter',
+  it('rejects very long passwords (> 128 chars)', () => {
+    const p = 'a'.repeat(129);
+    expect(policy.evaluate(p).valid).toBe(false);
+    expect(policy.evaluate(p).errors).toContain(
+      'Password must be at most 128 characters',
     );
   });
 
-  it('rejects missing lowercase', () => {
-    expect(policy.evaluate('SHORTPASS123!').valid).toBe(false);
-    expect(policy.evaluate('SHORTPASS123!').errors).toContain(
-      'Password must contain a lowercase letter',
-    );
-  });
-
-  it('rejects missing number', () => {
-    expect(policy.evaluate('ShortPass!').valid).toBe(false);
-    expect(policy.evaluate('ShortPass!').errors).toContain(
-      'Password must contain a number',
-    );
-  });
-
-  it('rejects missing special character', () => {
-    expect(policy.evaluate('ShortPass123').valid).toBe(false);
-    expect(policy.evaluate('ShortPass123').errors).toContain(
-      'Password must contain a special character',
-    );
+  it('accepts passwords without upper/lower/number/symbol requirements (length-first)', () => {
+    // 12+ lower-case only must pass: length beats character-class rules per the contract.
+    expect(policy.evaluate('twelvecharlower').valid).toBe(true);
+    expect(policy.evaluate('ALLUPPERLENGTH12').valid).toBe(true);
   });
 
   it('rejects containing "password"', () => {
-    expect(policy.evaluate('Password123!').valid).toBe(false);
-    expect(policy.evaluate('Password123!').errors).toContain(
+    const p = 'Password1234!x';
+    expect(policy.evaluate(p).valid).toBe(false);
+    expect(policy.evaluate(p).errors).toContain(
       'Password cannot contain "password"',
     );
   });
 
   it('rejects containing sequential numbers', () => {
-    expect(policy.evaluate('Pass123456!').valid).toBe(false);
-    expect(policy.evaluate('Pass123456!').errors).toContain(
+    const p = 'Pass123456!x';
+    expect(policy.evaluate(p).valid).toBe(false);
+    expect(policy.evaluate(p).errors).toContain(
       'Password cannot contain sequential numbers',
     );
   });
 
   it('rejects containing keyboard patterns', () => {
-    expect(policy.evaluate('QwertyPass1!').valid).toBe(false);
-    expect(policy.evaluate('QwertyPass1!').errors).toContain(
+    const p = 'QwertyPass1234';
+    expect(policy.evaluate(p).valid).toBe(false);
+    expect(policy.evaluate(p).errors).toContain(
       'Password cannot contain keyboard patterns',
     );
   });
 
-  it('accepts valid password', () => {
-    const result = policy.evaluate('Strong-Pass-123!');
+  it('accepts a 12+ char password with no special chars', () => {
+    const result = policy.evaluate('correcthorsebattery');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
-  it('returns all errors for invalid password', () => {
-    const result = policy.evaluate('short');
+  it('returns all errors for an invalid password', () => {
+    const result = policy.evaluate('qwerty123456');
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(1);
   });

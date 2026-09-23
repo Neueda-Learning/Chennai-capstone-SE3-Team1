@@ -15,7 +15,8 @@ MIGRATIONS = sorted(MIGRATIONS_DIR.glob("*.sql"), key=lambda p: p.name)
 
 EXPECTED_TABLES = {
     "auth", "bank_account", "clients", "instruments", "order_history", "orders",
-    "portfolio_holding", "portfolio_positions", "schema_migrations",
+    "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations",
+    "users",
 }
 
 

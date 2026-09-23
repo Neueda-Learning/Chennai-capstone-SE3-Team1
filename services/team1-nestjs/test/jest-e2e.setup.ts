@@ -1,0 +1,10 @@
+process.env.NODE_ENV = 'test';
+process.env.PORT = '3000';
+process.env.JWT_SECRET = 'e2e-secret-that-is-at-least-32-characters-long';
+process.env.JWT_ISSUER = 'auth-service';
+process.env.DB_HOST = 'localhost';
+process.env.DB_PORT = '5432';
+process.env.DB_USERNAME = 'postgres';
+process.env.DB_PASSWORD = 'postgres';
+process.env.DB_NAME = 'trading_platform';
+process.env.KAFKA_BROKER = 'localhost:9092';

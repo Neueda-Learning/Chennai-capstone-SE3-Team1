@@ -28,6 +28,9 @@ npm run start:prod
 # Run tests
 npm test
 
+# Run e2e integration tests
+npm run test:e2e
+
 # Run tests with coverage
 npm run test:cov
 
@@ -47,7 +50,7 @@ All configuration is loaded from environment variables. See `.env.example` for a
 | `NODE_ENV` | Environment (development/production/test) | `development` |
 | `PORT` | HTTP server port | `3000` |
 | `JWT_SECRET` | JWT signing secret (min 32 chars) | *required* |
-| `JWT_EXPIRES_IN` | JWT expiration | `1h` |
+| `JWT_ISSUER` | JWT issuer claim | `auth-service` |
 | `DB_HOST` | PostgreSQL host | `localhost` |
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `DB_USERNAME` | PostgreSQL username | *required* |
@@ -88,10 +91,16 @@ docker ps
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/` | Application info |
+| `GET` | `/` | Application info |
 | `GET` | `/health` | Liveness probe |
 | `GET` | `/health/ready` | Readiness probe |
 | `GET` | `/health/startup` | Startup probe |
+| `POST` | `/auth/register` | Register a user (no tokens issued) |
+| `POST` | `/auth/login` | Log in, receive access + refresh tokens |
+| `POST` | `/auth/refresh` | Rotate a refresh token for a new pair |
+| `GET` | `/auth/me` | Current user (protected by bearer token) |
+| `GET` | `/docs` | Swagger UI |
+| `GET` | `/docs/json` | OpenAPI JSON document |
 
 ## Project Structure
 
@@ -103,6 +112,17 @@ src/
 ├── main.ts                 # Application entry point
 ├── config/
 │   └── configuration.ts    # Configuration with validation
+├── auth/                   # Sprint 8 auth service (see AUTH_IMPLEMENTATION.md)
+│   ├── auth.controller.ts  # /auth/register, /auth/login, /auth/refresh, /auth/me
+│   ├── auth.service.ts     # registration, login, refresh rotation, current user
+│   ├── jwt-auth.guard.ts   # bearer-token guard for protected routes
+│   ├── token.service.ts    # HS256 access tokens + refresh token hashing
+│   ├── user.repository.ts  # users table (parametrised SQL)
+│   ├── refresh-token.repository.ts  # refresh_tokens table
+│   ├── auth-errors.ts      # AuthServiceException + error envelope
+│   ├── auth-exception.filter.ts     # global filter -> AUTH-401/409, VAL-422
+│   ├── dto/                # request/response DTOs + Role enum
+│   └── password-*.ts, rate-limiter.ts  # argon2id, policy, login throttle
 └── health/
     ├── health.module.ts    # Health module
     ├── health.controller.ts # Health endpoints

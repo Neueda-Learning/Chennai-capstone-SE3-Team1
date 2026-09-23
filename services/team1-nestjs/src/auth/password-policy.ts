@@ -10,20 +10,8 @@ export class PasswordPolicy {
       error: 'Password must be at least 12 characters',
     },
     {
-      test: (p: string) => /[A-Z]/.test(p),
-      error: 'Password must contain an uppercase letter',
-    },
-    {
-      test: (p: string) => /[a-z]/.test(p),
-      error: 'Password must contain a lowercase letter',
-    },
-    {
-      test: (p: string) => /[0-9]/.test(p),
-      error: 'Password must contain a number',
-    },
-    {
-      test: (p: string) => /[^A-Za-z0-9]/.test(p),
-      error: 'Password must contain a special character',
+      test: (p: string) => p.length <= 128,
+      error: 'Password must be at most 128 characters',
     },
     {
       test: (p: string) => !/password/i.test(p),

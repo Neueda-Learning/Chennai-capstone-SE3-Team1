@@ -7,7 +7,7 @@ export const configuration = registerAs('app', () => ({
 
   jwt: {
     secret: process.env.JWT_SECRET ?? 'local-dev-secret-change-me',
-    expiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
+    issuer: process.env.JWT_ISSUER ?? 'auth-service',
   },
 
   database: {
@@ -37,7 +37,7 @@ export const validationSchema = Joi.object({
   PORT: Joi.number().port().default(3000),
 
   JWT_SECRET: Joi.string().min(32).required(),
-  JWT_EXPIRES_IN: Joi.string().default('1h'),
+  JWT_ISSUER: Joi.string().default('auth-service'),
 
   DB_HOST: Joi.string().required(),
   DB_PORT: Joi.number().port().default(5432),

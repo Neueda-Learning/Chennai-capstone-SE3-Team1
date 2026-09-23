@@ -58,6 +58,36 @@ services:
       retries: 12
       start_period: 30s
 
+  auth-service:
+    build:
+      context: ../../services/team1-nestjs
+      dockerfile: Dockerfile
+    container_name: team1_auth_service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-auth-service}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-trading_platform}
+      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:9092}
+    ports:
+      - "${AUTH_PORT:-3000}:3000"
+    networks:
+      - trading_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
 networks:
   trading_net:
     name: trading_platform_net

@@ -2,9 +2,12 @@ import { Module, Global } from '@nestjs/common';
 import { PasswordService } from './password.service';
 import { PasswordPolicy } from './password-policy';
 import { LoginRateLimiter } from './rate-limiter';
-import { CredentialRepository } from './credential.repository';
-import { CredentialService } from './credential.service';
+import { UserRepository } from './user.repository';
+import { RefreshTokenRepository } from './refresh-token.repository';
+import { TokenService } from './token.service';
+import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Global()
 @Module({
@@ -13,15 +16,21 @@ import { AuthController } from './auth.controller';
     PasswordService,
     PasswordPolicy,
     LoginRateLimiter,
-    CredentialRepository,
-    CredentialService,
+    UserRepository,
+    RefreshTokenRepository,
+    TokenService,
+    AuthService,
+    JwtAuthGuard,
   ],
   exports: [
     PasswordService,
     PasswordPolicy,
     LoginRateLimiter,
-    CredentialRepository,
-    CredentialService,
+    UserRepository,
+    RefreshTokenRepository,
+    TokenService,
+    AuthService,
+    JwtAuthGuard,
   ],
 })
 export class AuthModule {}
