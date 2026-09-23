@@ -3,6 +3,11 @@ package com.team1.trading.domain.entity;
 import java.math.BigDecimal;
 import java.util.Objects;
 
+/**
+ * A bank account a client funds their wallet from and pays out to. {@code clientId} is
+ * {@code null} while the account is unclaimed: bank accounts can exist before anyone owns them,
+ * and onboarding claims one.
+ */
 public class BankAccount {
 
     private Long clientId;
@@ -16,7 +21,7 @@ public class BankAccount {
 
     public BankAccount(Long clientId, String accountNumber, String name, String phone,
                        String email, String bankName, String ifscCode) {
-        this.clientId = Objects.requireNonNull(clientId, "clientId must not be null");
+        this.clientId = clientId;
         this.accountNumber =  Objects.requireNonNull(accountNumber, "accountNumber must not be null");
         this.name = name;
         this.phone = phone;
@@ -28,7 +33,7 @@ public class BankAccount {
 
     public BankAccount(Long clientId, String accountNumber, String name, String phone, String email,
                        BigDecimal accountBalance, String bankName, String ifscCode) {
-        this.clientId = Objects.requireNonNull(clientId, "clientId must not be null");
+        this.clientId = clientId;
         this.accountNumber = Objects.requireNonNull(accountNumber, "accountNumber must not be null");
         this.name = name;
         this.phone = phone;;
@@ -40,6 +45,10 @@ public class BankAccount {
 
     public Long getClientId() {
         return clientId;
+    }
+
+    public boolean isClaimed() {
+        return clientId != null;
     }
 
     public String getAccountNumber() {

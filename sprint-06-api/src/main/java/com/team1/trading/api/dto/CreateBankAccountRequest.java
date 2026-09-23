@@ -2,12 +2,11 @@ package com.team1.trading.api.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public class CreateBankAccountRequest {
 
-    @NotNull(message = "Client ID is required")
+    /** Optional: leave it out to add an unclaimed bank account for onboarding to claim later. */
     private Long clientId;
 
     @NotBlank(message = "Account number is required")

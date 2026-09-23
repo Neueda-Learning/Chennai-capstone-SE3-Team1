@@ -16,7 +16,9 @@ public class BankAccountLinkConflictException extends DomainException {
     public enum Reason {
         /** The user already has a linked trading account. */
         USER_ALREADY_LINKED,
-        /** The bank account number, or the user's email, is already held by another client. */
+        /** The bank account has already been claimed by another client. */
+        ACCOUNT_ALREADY_CLAIMED,
+        /** The user's email is already held by another client. */
         ALREADY_ON_FILE
     }
 

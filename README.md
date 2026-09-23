@@ -68,6 +68,7 @@ The number is the order.
 | `014_users_replace_auth.sql` | drops `auth`; `users` gains `email`, `account_id` becomes nullable until a bank account is linked |
 | `015_clients_drop_account_number.sql` | drops `clients.account_number`; `bank_account.client_id` (unique, checked immediately) is the only link |
 | `016_wallet_transfers.sql` | `wallet_transfers`: every movement between a wallet and its linked bank account, idempotency key unique |
+| `017_bank_account_unclaimed.sql` | `bank_account.client_id` nullable: bank accounts exist unclaimed until onboarding claims one |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.

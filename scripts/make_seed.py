@@ -32,6 +32,15 @@ BANK_ACCOUNTS = [
     ("IN45AXIS0000004567890", 4, "Meera Nair",    "+919812345004", "meera.nair@example.com",     "64300.00", "Axis Bank",      "UTIB0004567"),
     ("IN45KKBK0000005678901", 5, "Vikram Rao",    "+919812345005", "vikram.rao@example.com",    "251000.75", "Kotak Mahindra", "KKBK0005678"),
     ("IN45YESB0000006789012", 6, "Sanya Kapoor",  "+919812345006", "sanya.kapoor@example.com",       "0.00", "Yes Bank",       "YESB0006789"),
+
+    # Unclaimed (client_id NULL, migration 017): bank accounts that exist before anyone owns
+    # them. Onboarding claims one by account number; the rest stay unclaimed.
+    ("IN45HDFC0000007890123", None, "Priya Menon",    "+919812345007", "priya.menon@example.com",    "150000.00", "HDFC Bank",      "HDFC0007890"),
+    ("IN45ICIC0000008901234", None, "Arjun Reddy",    "+919812345008", "arjun.reddy@example.com",     "92500.00", "ICICI Bank",     "ICIC0008901"),
+    ("IN45SBIN0000009012345", None, "Kavya Pillai",   "+919812345009", "kavya.pillai@example.com",   "310000.00", "State Bank",     "SBIN0009012"),
+    ("IN45AXIS0000010123456", None, "Rahul Verma",    "+919812345010", "rahul.verma@example.com",     "48000.50", "Axis Bank",      "UTIB0010123"),
+    ("IN45KKBK0000011234567", None, "Ananya Das",     "+919812345011", "ananya.das@example.com",     "225750.00", "Kotak Mahindra", "KKBK0011234"),
+    ("IN45YESB0000012345678", None, "Farhan Qureshi", "+919812345012", "farhan.qureshi@example.com",   "5000.00", "Yes Bank",       "YESB0012345"),
 ]
 
 

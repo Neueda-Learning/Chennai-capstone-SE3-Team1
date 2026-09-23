@@ -11,18 +11,21 @@ import com.team1.trading.api.mapper.UserMapper.UserRow;
 import com.team1.trading.api.security.JwtAuthenticationException;
 import com.team1.trading.domain.entity.BankAccount;
 import com.team1.trading.domain.entity.Client;
+import com.team1.trading.domain.exception.AccountNotFoundException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Second step of onboarding: a registered user links a bank account, which is what gives them a
- * trading account.
+ * Second step of onboarding: a registered user claims an existing bank account, which is what
+ * gives them a trading account.
  *
- * <p>Registration (the auth service) creates only a {@code users} row with a null
- * {@code account_id}. This service creates the {@code clients} row, then the {@code bank_account}
- * row that names it, and points {@code users.account_id} at the new client, all in one
- * transaction, so a failure part-way leaves the user exactly as unlinked as before.
+ * <p>Bank accounts exist before anyone owns them (migration 017: {@code client_id} NULL means
+ * unclaimed). Registration (the auth service) creates only a {@code users} row with a null
+ * {@code account_id}. This service, in one transaction, creates the {@code clients} row from the
+ * bank account's holder details, claims the bank account for it and points
+ * {@code users.account_id} at the new client, so a failure part-way leaves the user and the bank
+ * account exactly as they were.
  */
 @Service
 public class BankAccountLinkService {
@@ -50,23 +53,28 @@ public class BankAccountLinkService {
             throw new BankAccountLinkConflictException(Reason.USER_ALREADY_LINKED);
         }
 
-        Client client = new Client(null, request.getAccountHolderName(), user.getEmail(),
-                request.getPhone());
-        BankAccount bankAccount;
-        // clients first: bank_account.client_id is a foreign key to the row it creates.
+        String accountNumber = request.getAccountNumber();
+        BankAccount bankAccount = bankAccountMapper.findByAccountNumberForUpdate(accountNumber)
+                .orElseThrow(() -> new AccountNotFoundException(null));
+        if (bankAccount.isClaimed()) {
+            throw new BankAccountLinkConflictException(Reason.ACCOUNT_ALREADY_CLAIMED);
+        }
+
+        // The client is the bank account's holder; its email is the user's, which is unique.
+        Client client = new Client(null, bankAccount.getName(), user.getEmail(), bankAccount.getPhone());
         try {
             clientMapper.save(client);
-            bankAccount = new BankAccount(client.getClientId(), request.getAccountNumber(),
-                    request.getAccountHolderName(), request.getPhone(), user.getEmail(),
-                    request.getBankName(), request.getIfscCode());
-            bankAccountMapper.save(bankAccount);
         } catch (DuplicateKeyException e) {
             throw new BankAccountLinkConflictException(Reason.ALREADY_ON_FILE);
         }
         Long clientId = client.getClientId();
 
+        // Guarded on client_id IS NULL; unreachable while the row lock above holds, kept so the
+        // claim never fails open.
+        if (bankAccountMapper.claim(accountNumber, clientId) == 0) {
+            throw new BankAccountLinkConflictException(Reason.ACCOUNT_ALREADY_CLAIMED);
+        }
         if (userMapper.linkAccount(userId, clientId) == 0) {
-            // Unreachable while the row lock above holds; kept so the guard never fails open.
             throw new BankAccountLinkConflictException(Reason.USER_ALREADY_LINKED);
         }
 

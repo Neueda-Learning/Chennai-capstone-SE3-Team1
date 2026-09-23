@@ -31,6 +31,11 @@ INSERT INTO bank_account (account_number, client_id, name, account_balance, bank
 VALUES ('IN45KKBK0000005678901', 5, 'Vikram Rao', 0.00, 'Kotak Mahindra', 'KKBK0005678');
 INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
 VALUES ('IN45YESB0000006789012', 6, 'Sanya Kapoor', 0.00, 'Yes Bank', 'YESB0006789');
+-- Unclaimed bank accounts (client_id NULL), as in seed/020_bank_account.csv.
+INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
+VALUES ('IN45HDFC0000007890123', NULL, 'Priya Menon', 150000.00, 'HDFC Bank', 'HDFC0007890');
+INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
+VALUES ('IN45ICIC0000008901234', NULL, 'Arjun Reddy', 92500.00, 'ICICI Bank', 'ICIC0008901');
 
 -- Users (matches seed/030_users.csv); each owns the client with the same id.
 INSERT INTO users (username, email, account_id, password_hash)

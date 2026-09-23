@@ -249,15 +249,18 @@ paths:
     post:
       tags: [Onboarding]
       operationId: linkBankAccount
-      summary: Link a bank account to the authenticated user
+      summary: Claim a bank account for the authenticated user
       description: |
-        Second step of onboarding, after `/auth/register`. Creates the `bank_account` and `clients`
-        rows and sets `users.account_id` for the user named by the token's `sub`, in one
-        transaction. The account belongs to whoever the token says; the body carries no user,
-        client or email. The trading account starts `ACTIVE` with a zero cash balance.
+        Second step of onboarding, after `/auth/register`. Bank accounts exist before anyone owns
+        them; this claims an existing, unclaimed one by its account number. In one transaction it
+        creates the `clients` row from the bank account's holder name and phone (with the user's
+        email), sets the bank account's `client_id` to it and sets `users.account_id` for the
+        user named by the token's `sub`. The body names only the bank account. The trading
+        account starts `ACTIVE` with a zero cash balance; the bank account keeps its balance.
 
-        A user links one bank account, once. A second attempt, or an account number or email that
-        is already on file, is `ACC-409` with the same message in every case.
+        An account number that does not exist is `ACC-404`. A user who already has an account, a
+        bank account someone already claimed, or an email already held by a client is `ACC-409`,
+        with the same message in every case.
       requestBody:
         required: true
         content:
@@ -273,8 +276,10 @@ paths:
                 $ref: '#/components/schemas/LinkedBankAccountResponse'
         '401':
           $ref: '#/components/responses/Unauthorised'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
         '409':
-          description: The user already has a linked account, or the details are already on file.
+          description: The user already has a linked account, the bank account is already claimed, or the email is already on file.
           content:
             application/json:
               schema:
@@ -697,29 +702,13 @@ components:
     LinkBankAccountRequest:
       type: object
       additionalProperties: false
-      required: [accountHolderName, phone, accountNumber, bankName, ifscCode]
+      required: [accountNumber]
       properties:
-        accountHolderName:
-          type: string
-          maxLength: 150
-          example: Priya Menon
-        phone:
-          type: string
-          pattern: '^\+?[0-9]{7,15}$'
-          example: '+919812345099'
         accountNumber:
           type: string
           pattern: '^[A-Z0-9]{6,34}$'
-          example: IN45HDFC0000009999999
-        bankName:
-          type: string
-          maxLength: 150
-          example: HDFC Bank
-        ifscCode:
-          type: string
-          pattern: '^[A-Z]{4}0[A-Z0-9]{6}$'
-          description: Indian Financial System Code.
-          example: HDFC0009999
+          description: The number of an existing, unclaimed bank account.
+          example: IN45HDFC0000007890123
 
     LinkedBankAccountResponse:
       type: object

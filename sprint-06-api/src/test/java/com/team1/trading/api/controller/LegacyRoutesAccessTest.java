@@ -94,6 +94,28 @@ class LegacyRoutesAccessTest {
         }
 
         @Test
+        void an_unclaimed_bank_account_is_admin_only() throws Exception {
+            mockMvc.perform(get("/api/bank-accounts/account/IN45ICIC0000008901234").header("Authorization", customer(1)))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/bank-accounts/account/IN45ICIC0000008901234").header("Authorization", admin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.clientId").doesNotExist())
+                    .andExpect(jsonPath("$.claimed").value(false));
+        }
+
+        @Test
+        void an_admin_can_add_an_unclaimed_bank_account() throws Exception {
+            mockMvc.perform(post("/api/bank-accounts").header("Authorization", admin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"accountNumber":"IN45NEWW0000000000002","name":"Nisha Rao","phone":"+919800000002",
+                                     "email":"nisha@example.com","bankName":"New Bank","ifscCode":"NEWW0000002"}
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.claimed").value(false));
+        }
+
+        @Test
         void a_user_with_no_linked_account_reaches_none() throws Exception {
             mockMvc.perform(get("/api/bank-accounts/client/1").header("Authorization", unlinked()))
                     .andExpect(status().isForbidden());

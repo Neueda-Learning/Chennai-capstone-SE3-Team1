@@ -24,7 +24,7 @@ build, and so does the reverse.
 erDiagram
     BANK_ACCOUNT {
         varchar   account_number  PK
-        bigint    client_id       FK,UK
+        bigint    client_id       FK,UK "NULL while unclaimed"
         varchar   name
         varchar   phone
         varchar   email
@@ -120,7 +120,7 @@ erDiagram
         timestamp updated_at
     }
 
-    CLIENTS              ||--o| BANK_ACCOUNT        : owns
+    CLIENTS              |o--o| BANK_ACCOUNT        : claims
     USERS                |o--o| CLIENTS             : trades
     CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
     BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
@@ -146,7 +146,7 @@ way. Keep it if you edit the file.
 
 | From | To | Cardinality | Meaning |
 |---|---|---|---|
-| `CLIENTS` | `BANK_ACCOUNT` | 1 → 0..1 | Funding account |
+| `CLIENTS` | `BANK_ACCOUNT` | 0..1 → 0..1 | Funding account; an unclaimed bank account has no client |
 | `USERS` | `CLIENTS` | 0..1 → 0..1 | Login; `users.account_id` is set when a bank account is linked |
 | `CLIENTS` | `WALLET_TRANSFERS` | 1 → 0..N | Money moved into or out of the wallet |
 | `BANK_ACCOUNT` | `WALLET_TRANSFERS` | 1 → 0..N | The bank account each transfer used |
@@ -169,6 +169,11 @@ key is checked at `INSERT`, so `clients` is always written first: the seed loads
 inserts the client row, then the bank account that names it.
 `tests/test_migrations.py` asserts the key is immediate and that `clients`
 references nothing in `bank_account`.
+
+Since migration 017 `client_id` may also be NULL: bank accounts exist before anyone
+owns them, and the seed loads six claimed and six unclaimed. Onboarding claims one
+by account number: it creates the client from the bank account's holder details,
+then sets this row's `client_id`. Unclaimed rows simply stay unclaimed.
 
 ## Instruments are keyed by their symbol
 
