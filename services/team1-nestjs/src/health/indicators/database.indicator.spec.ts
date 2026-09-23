@@ -30,7 +30,7 @@ describe('DatabaseHealthIndicator', () => {
       providers: [
         DatabaseHealthIndicator,
         { provide: Pool, useValue: mockPool },
-        { provide: 'DATABASE_LOGGER', useValue: mockLogger },
+        { provide: 'MULTI_FILE_LOGGER', useValue: mockLogger },
       ],
     }).compile();
 

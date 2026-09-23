@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Update;
 import java.util.Optional;
 
 /**
- * The two statements the Trade REST API needs against {@code users}, which the auth service
- * owns. This side only reads a user's email and links a trading account to them; it never
- * touches credentials, usernames or roles.
+ * The statements the Trade REST API needs against {@code users}, which the auth service owns.
+ * This side only reads a user's email, links a trading account to them and keeps their email in
+ * step with their client's; it never touches credentials, usernames or roles.
  */
 @Mapper
 public interface UserMapper {
@@ -40,6 +40,19 @@ public interface UserMapper {
               AND account_id IS NULL
             """)
     int linkAccount(@Param("userId") String userId, @Param("accountId") Long accountId);
+
+    /**
+     * Keeps a user's email in step with their client's: both are the same person's address, and
+     * both are unique, so a profile change writes the two in one transaction.
+     */
+    @Update("""
+            UPDATE users
+            SET email = #{email},
+                version = version + 1,
+                updated = now()
+            WHERE account_id = #{accountId}
+            """)
+    int updateEmailForAccount(@Param("accountId") Long accountId, @Param("email") String email);
 
     class UserRow {
         private String id;

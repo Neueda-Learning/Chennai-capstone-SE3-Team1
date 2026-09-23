@@ -23,6 +23,7 @@ ENUM_BODY_RE = re.compile(r"enum\s+\w+\s*\{(.*?)\}", re.S)
 EXPECTED_TABLES = [
     "bank_account", "clients", "instruments", "order_history", "orders",
     "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations", "users",
+    "wallet_transfers",
 ]
 
 ENTITY_TABLES = {
@@ -421,6 +422,8 @@ def b04_foreign_keys_present(v):
         ("bank_account", "clients"),
         ("users", "clients"),
         ("refresh_tokens", "users"),
+        ("wallet_transfers", "clients"),
+        ("wallet_transfers", "bank_account"),
         ("orders", "clients"),
         ("orders", "instruments"),
         # order_history -> orders was dropped in migration 010. The history row survives

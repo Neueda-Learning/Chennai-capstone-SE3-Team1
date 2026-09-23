@@ -35,7 +35,7 @@ describe('KafkaHealthIndicator', () => {
       providers: [
         KafkaHealthIndicator,
         { provide: ConfigService, useValue: configService },
-        { provide: 'KAFKA_LOGGER', useValue: mockLogger },
+        { provide: 'MULTI_FILE_LOGGER', useValue: mockLogger },
       ],
     }).compile();
 
