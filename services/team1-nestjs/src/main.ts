@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -10,22 +10,26 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3000);
 
   app.enableCors();
-  app.setGlobalPrefix('api/v1');
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Auth service')
+    .setDescription(
+      'Registration, login, token refresh and current-user lookup. ' +
+        'Serves contracts/auth-api.yaml.',
+    )
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, {
+    jsonDocumentUrl: 'docs/json',
+  });
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Health check available at: http://localhost:${port}/health`);
+  console.log(`OpenAPI docs at: http://localhost:${port}/docs`);
+  console.log(`OpenAPI JSON at: http://localhost:${port}/docs/json`);
 }
 
 bootstrap();

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DatabaseHealthIndicator } from './database.indicator';
-import { ConfigService } from '@nestjs/config';
+import { Pool } from 'pg';
 
 const mockPool = {
   connect: jest.fn(),
@@ -24,26 +24,12 @@ jest.mock('pg', () => ({
 
 describe('DatabaseHealthIndicator', () => {
   let indicator: DatabaseHealthIndicator;
-  let configService: ConfigService;
 
   beforeEach(async () => {
-    configService = {
-      get: jest.fn((key: string) => {
-        const values: Record<string, any> = {
-          'app.database.host': 'localhost',
-          'app.database.port': 5432,
-          'app.database.username': 'postgres',
-          'app.database.password': 'postgres',
-          'app.database.name': 'trading_platform',
-        };
-        return values[key];
-      }),
-    } as any;
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DatabaseHealthIndicator,
-        { provide: ConfigService, useValue: configService },
+        { provide: Pool, useValue: mockPool },
         { provide: 'DATABASE_LOGGER', useValue: mockLogger },
       ],
     }).compile();

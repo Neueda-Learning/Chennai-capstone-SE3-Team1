@@ -10,12 +10,12 @@ export class LoginRateLimiter {
   private readonly WINDOW_MS = 15 * 60 * 1000;
   private readonly LOCKOUT_MS = 15 * 60 * 1000;
 
-  check(email: string): { allowed: boolean; retryAfterMs?: number } {
+  check(username: string): { allowed: boolean; retryAfterMs?: number } {
     const now = Date.now();
-    const rec = this.attempts.get(email);
+    const rec = this.attempts.get(username);
     if (!rec) return { allowed: true };
     if (now - rec.firstAttempt > this.WINDOW_MS) {
-      this.attempts.delete(email);
+      this.attempts.delete(username);
       return { allowed: true };
     }
     if (rec.lockedUntil && now < rec.lockedUntil) {
@@ -28,13 +28,13 @@ export class LoginRateLimiter {
     return { allowed: true };
   }
 
-  recordSuccess(email: string) {
-    this.attempts.delete(email);
+  recordSuccess(username: string) {
+    this.attempts.delete(username);
   }
-  recordFailure(email: string) {
+  recordFailure(username: string) {
     const now = Date.now();
-    const rec = this.attempts.get(email) || { count: 0, firstAttempt: now };
+    const rec = this.attempts.get(username) || { count: 0, firstAttempt: now };
     rec.count++;
-    this.attempts.set(email, rec);
+    this.attempts.set(username, rec);
   }
 }

@@ -60,6 +60,10 @@ The number is the order.
 | `006_order_history.sql` | audit trail of order status changes |
 | `007_portfolio.sql` | `portfolio_holding` and `portfolio_positions` |
 | `008_maintenance.sql` | `fn_resync_sequences()` |
+| `009_clients_version_and_order_uuid.sql` | `clients.version`, `orders.uuid` |
+| `010_terminal_orders_move_to_history.sql` | terminal orders archived to history |
+| `011_credential_argon2.sql` | `auth.params_version` for argon2 cost upgrades |
+| `012_auth_service_tables.sql` | `users` + `refresh_tokens` for the Sprint 8 auth service |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.
