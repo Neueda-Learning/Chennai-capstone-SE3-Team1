@@ -286,12 +286,20 @@ if ($SkipBuild -and (Test-Path $apiJar) -and (Test-Path $execJar)) {
 Say "Auth service (services\team1-nestjs)"
 Push-Location $AuthDir
 try {
-    if (-not (Test-Path (Join-Path $AuthDir "node_modules"))) {
-        Write-Host "    npm ci"
+    # npm writes node_modules\.package-lock.json on every install. If package-lock.json is newer
+    # than it, a dependency was added/changed since the last install (e.g. trustme-secrets) and
+    # node_modules is stale - skipping npm ci then only surfaces later as the auth service
+    # dying at startup with "Cannot find module", so reinstall instead.
+    $lock       = Join-Path $AuthDir "package-lock.json"
+    $hiddenLock = Join-Path $AuthDir "node_modules\.package-lock.json"
+    $needCi = -not (Test-Path $hiddenLock) -or
+        ((Get-Item $lock).LastWriteTimeUtc -gt (Get-Item $hiddenLock).LastWriteTimeUtc)
+    if ($needCi) {
+        Write-Host "    npm ci (node_modules missing or older than package-lock.json)"
         & npm ci --no-audit --no-fund 2>&1 | Where-Object { $_ -match "error|ERR!" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
         if ($LASTEXITCODE -ne 0) { Fail "npm ci failed in $AuthDir" }
     } else {
-        Write-Host "    node_modules present, skipping npm ci"
+        Write-Host "    node_modules up to date with package-lock.json, skipping npm ci"
     }
     if ($SkipBuild -and (Test-Path $AuthMain)) {
         Write-Host "    build skipped (-SkipBuild), using dist\main.js"
