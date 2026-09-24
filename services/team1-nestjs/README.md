@@ -112,7 +112,7 @@ src/
 ├── main.ts                 # Application entry point
 ├── config/
 │   └── configuration.ts    # Configuration with validation
-├── auth/                   # Sprint 8 auth service (see AUTH_IMPLEMENTATION.md)
+├── auth/                   # Sprint 8 auth service (see AUTH_IMPLEMENTATION.md, security-review/)
 │   ├── auth.controller.ts  # /auth/register, /auth/login, /auth/refresh, /auth/me
 │   ├── auth.service.ts     # registration, login, refresh rotation, current user
 │   ├── jwt-auth.guard.ts   # bearer-token guard for protected routes

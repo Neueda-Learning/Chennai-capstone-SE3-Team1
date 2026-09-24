@@ -6,9 +6,16 @@
 |---|---|
 | Service | auth service, Sprint 8 |
 | Reviewed by | Team 1 (auth service author; JIRA-2, JIRA-4) |
-| Date of review | 2026-09-22 |
-| Commit reviewed | Branch `security` at HEAD `f72da85`, working tree (auth module not yet committed at time of review) |
+| Date of review | 2026-09-22 (refreshed 2026-09-24, see revision log) |
+| Commit reviewed | First pass against branch `security` at HEAD `f72da85` (working tree, 2026-09-22). Refreshed 2026-09-24 to the committed implementation in `ac13d76` |
 | Version of the OWASP Top Ten used | 2021 |
+
+## Revision log
+
+| Date | What changed |
+|---|---|
+| 2026-09-22 | Initial pass written against a working tree (auth module not yet committed) |
+| 2026-09-24 | Refresh: review now references the committed implementation (`ac13d76`) rather than a working tree; findings and dispositions unchanged |
 
 ## Categories
 
