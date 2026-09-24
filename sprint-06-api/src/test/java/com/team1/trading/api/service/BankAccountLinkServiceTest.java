@@ -60,8 +60,8 @@ class BankAccountLinkServiceTest {
     }
 
     private static BankAccount bankAccount(Long clientId) {
-        return new BankAccount(clientId, ACCOUNT_NUMBER, "Priya Menon", "+919812345007",
-                "priya@bank.example", new BigDecimal("150000.00"), "HDFC Bank", "HDFC0007890");
+        return new BankAccount(clientId, ACCOUNT_NUMBER, "Priya Menon",
+                new BigDecimal("150000.00"), "HDFC Bank", "HDFC0007890");
     }
 
     private static UserRow user(Long accountId) {
@@ -110,8 +110,9 @@ class BankAccountLinkServiceTest {
         verify(bankAccountMapper, never()).save(any());
 
         assertThat(client.getValue().getName()).isEqualTo("Priya Menon");
-        assertThat(client.getValue().getPhone()).isEqualTo("+919812345007");
-        // The client's email is the user's (unique, their login's), not the bank's contact email.
+        // bank_account carries no contact details (migration 019): phone starts null, and the
+        // client's email is the user's (unique, their login's), not the bank's.
+        assertThat(client.getValue().getPhone()).isNull();
         assertThat(client.getValue().getEmail()).isEqualTo(EMAIL);
         assertThat(client.getValue().getAccountState()).isEqualTo("ACTIVE");
         assertThat(client.getValue().getWalletBalance()).isEqualByComparingTo(BigDecimal.ZERO);

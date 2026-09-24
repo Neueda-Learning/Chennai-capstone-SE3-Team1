@@ -1,6 +1,5 @@
 package com.team1.trading.api.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 
@@ -14,13 +13,6 @@ public class CreateBankAccountRequest {
 
     @NotBlank(message = "Name is required")
     private String name;
-
-    @NotBlank(message = "Phone is required")
-    private String phone;
-
-    @Email(message = "Email should be valid")
-    @NotBlank(message = "Email is required")
-    private String email;
 
     @NotBlank(message = "Bank name is required")
     private String bankName;
@@ -55,22 +47,6 @@ public class CreateBankAccountRequest {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
     }
 
     public String getBankName() {

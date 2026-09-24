@@ -32,19 +32,14 @@ public class BankAccountService {
         return bankAccountMapper.findAll();
     }
 
-    public BankAccount createBankAccount(Long clientId, String accountNumber, String name, String phone,
-                                        String email, String bankName, String ifscCode, BigDecimal initialBalance) {
-        BankAccount bankAccount = new BankAccount(clientId, accountNumber, name, phone, email, bankName, ifscCode);
+    public BankAccount createBankAccount(Long clientId, String accountNumber, String name,
+                                        String bankName, String ifscCode, BigDecimal initialBalance) {
+        BankAccount bankAccount = new BankAccount(clientId, accountNumber, name, bankName, ifscCode);
         if (initialBalance != null && initialBalance.compareTo(BigDecimal.ZERO) > 0) {
             bankAccount.deposit(initialBalance);
         }
         bankAccountMapper.save(bankAccount);
         return bankAccount;
-    }
-
-    public boolean updateContact(String accountNumber, String phone, String email) {
-        BankAccount bankAccount = new BankAccount(null, accountNumber, null, phone, email, null, null);
-        return bankAccountMapper.updateContact(bankAccount) > 0;
     }
 
     /**

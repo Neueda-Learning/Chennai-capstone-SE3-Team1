@@ -238,12 +238,12 @@ to an existing client instead of leaving it unclaimed.
 
 curl (Postman / Bruno / bash):
 ```
-curl -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"accountNumber":"IN45HDFC0000099999999","name":"Test Holder","phone":"9999999999","email":"holder@example.com","bankName":"HDFC Bank","ifscCode":"HDFC0000099","initialBalance":0}'
+curl -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"accountNumber":"IN45HDFC0000099999999","name":"Test Holder","bankName":"HDFC Bank","ifscCode":"HDFC0000099","initialBalance":0}'
 ```
 
 PowerShell (curl.exe) — verified live, returns `201`:
 ```
-curl.exe --% -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"accountNumber\":\"IN45HDFC0000099999999\",\"name\":\"Test Holder\",\"phone\":\"9999999999\",\"email\":\"holder@example.com\",\"bankName\":\"HDFC Bank\",\"ifscCode\":\"HDFC0000099\",\"initialBalance\":0}"
+curl.exe --% -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"accountNumber\":\"IN45HDFC0000099999999\",\"name\":\"Test Holder\",\"bankName\":\"HDFC Bank\",\"ifscCode\":\"HDFC0000099\",\"initialBalance\":0}"
 ```
 
 **Reads (owner or admin)** *(no body)*
@@ -253,10 +253,9 @@ curl -s http://localhost:8081/api/bank-accounts/client/1 -H "Authorization: Bear
 curl -s http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-**Update contact / deposit / withdraw (owner or admin)** — query params, not a body, so these
+**Deposit / withdraw (owner or admin)** — query params, not a body, so these
 work unmodified everywhere:
 ```
-curl -s -X PUT "http://localhost:8081/api/bank-accounts/IN45ICIC0000008901234/contact?phone=9999999999&email=new@example.com" -H "Authorization: Bearer <ACCESS_TOKEN>"
 curl -s -X PUT "http://localhost:8081/api/bank-accounts/IN45ICIC0000008901234/deposit?amount=5000" -H "Authorization: Bearer <ACCESS_TOKEN>"
 curl -s -X PUT "http://localhost:8081/api/bank-accounts/IN45ICIC0000008901234/withdraw?amount=1000" -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```

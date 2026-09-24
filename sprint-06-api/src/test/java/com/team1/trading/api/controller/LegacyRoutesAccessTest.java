@@ -108,8 +108,8 @@ class LegacyRoutesAccessTest {
             mockMvc.perform(post("/api/bank-accounts").header("Authorization", admin())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"accountNumber":"IN45NEWW0000000000002","name":"Nisha Rao","phone":"+919800000002",
-                                     "email":"nisha@example.com","bankName":"New Bank","ifscCode":"NEWW0000002"}
+                                    {"accountNumber":"IN45NEWW0000000000002","name":"Nisha Rao",
+                                     "bankName":"New Bank","ifscCode":"NEWW0000002"}
                                     """))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.claimed").value(false));
@@ -167,8 +167,8 @@ class LegacyRoutesAccessTest {
             mockMvc.perform(post("/api/bank-accounts").header("Authorization", customer(1))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"clientId":1,"accountNumber":"IN45NEWW0000000000001","name":"X","phone":"+919800000000",
-                                     "email":"x@example.com","bankName":"B","ifscCode":"HDFC0000001"}
+                                    {"clientId":1,"accountNumber":"IN45NEWW0000000000001","name":"X",
+                                     "bankName":"B","ifscCode":"HDFC0000001"}
                                     """))
                     .andExpect(status().isForbidden());
         }
