@@ -9,8 +9,10 @@ import java.util.Optional;
 
 /**
  * The statements the Trade REST API needs against {@code users}, which the auth service owns.
- * This side only reads a user's email, links a trading account to them and keeps their email in
- * step with their client's; it never touches credentials, usernames or roles.
+ * This side reads a user's email and username, links a trading account to them and keeps their
+ * email in step with their client's; it never touches credentials or roles. Username is read
+ * only to name the {@code clients} row a claim creates (bank_account carries no name of its
+ * own since migration 020); it is never written back.
  */
 @Mapper
 public interface UserMapper {
@@ -20,7 +22,7 @@ public interface UserMapper {
      * for the same user serialise here and the second one sees the first one's account.
      */
     @Select("""
-            SELECT id::text AS id, email, account_id AS accountId
+            SELECT id::text AS id, username, email, account_id AS accountId
             FROM users
             WHERE id = CAST(#{userId} AS uuid)
             FOR UPDATE
@@ -56,11 +58,14 @@ public interface UserMapper {
 
     class UserRow {
         private String id;
+        private String username;
         private String email;
         private Long accountId;
 
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
         public Long getAccountId() { return accountId; }

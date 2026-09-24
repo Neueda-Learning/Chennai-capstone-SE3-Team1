@@ -32,9 +32,9 @@ public class BankAccountService {
         return bankAccountMapper.findAll();
     }
 
-    public BankAccount createBankAccount(Long clientId, String accountNumber, String name,
+    public BankAccount createBankAccount(Long clientId, String accountNumber,
                                         String bankName, String ifscCode, BigDecimal initialBalance) {
-        BankAccount bankAccount = new BankAccount(clientId, accountNumber, name, bankName, ifscCode);
+        BankAccount bankAccount = new BankAccount(clientId, accountNumber, bankName, ifscCode);
         if (initialBalance != null && initialBalance.compareTo(BigDecimal.ZERO) > 0) {
             bankAccount.deposit(initialBalance);
         }

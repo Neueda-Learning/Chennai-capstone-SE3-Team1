@@ -108,7 +108,7 @@ class LegacyRoutesAccessTest {
             mockMvc.perform(post("/api/bank-accounts").header("Authorization", admin())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"accountNumber":"IN45NEWW0000000000002","name":"Nisha Rao",
+                                    {"accountNumber":"IN45NEWW0000000000002",
                                      "bankName":"New Bank","ifscCode":"NEWW0000002"}
                                     """))
                     .andExpect(status().isCreated())
@@ -167,7 +167,7 @@ class LegacyRoutesAccessTest {
             mockMvc.perform(post("/api/bank-accounts").header("Authorization", customer(1))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"clientId":1,"accountNumber":"IN45NEWW0000000000001","name":"X",
+                                    {"clientId":1,"accountNumber":"IN45NEWW0000000000001",
                                      "bankName":"B","ifscCode":"HDFC0000001"}
                                     """))
                     .andExpect(status().isForbidden());

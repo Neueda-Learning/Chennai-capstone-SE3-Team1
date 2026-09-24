@@ -4,7 +4,6 @@ erDiagram
     BANK_ACCOUNT {
         varchar   account_number  PK
         bigint    client_id       FK,UK "NULL while unclaimed"
-        varchar   name
         decimal   account_balance
         varchar   bank_name
         varchar   ifsc_code

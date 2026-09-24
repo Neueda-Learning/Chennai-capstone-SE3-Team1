@@ -11,9 +11,6 @@ public class CreateBankAccountRequest {
     @NotBlank(message = "Account number is required")
     private String accountNumber;
 
-    @NotBlank(message = "Name is required")
-    private String name;
-
     @NotBlank(message = "Bank name is required")
     private String bankName;
 
@@ -39,14 +36,6 @@ public class CreateBankAccountRequest {
 
     public void setAccountNumber(String accountNumber) {
         this.accountNumber = accountNumber;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     public String getBankName() {

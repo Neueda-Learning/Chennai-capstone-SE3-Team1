@@ -37,7 +37,7 @@ class BankAccountServiceTest {
     private BankAccountService service;
 
     private static BankAccount account() {
-        return new BankAccount(1L, ACCOUNT, "Aarav Mehta",
+        return new BankAccount(1L, ACCOUNT,
                 new BigDecimal("100.00"), "HDFC Bank", "HDFC0001234");
     }
 

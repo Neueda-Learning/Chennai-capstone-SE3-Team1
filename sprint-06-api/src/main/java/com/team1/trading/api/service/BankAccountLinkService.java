@@ -21,12 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
  * gives them a trading account.
  *
  * <p>Bank accounts exist before anyone owns them (migration 017: {@code client_id} NULL means
- * unclaimed; migration 019 dropped its phone/email columns, so it carries no contact details).
- * Registration (the auth service) creates only a {@code users} row with a null
- * {@code account_id}. This service, in one transaction, creates the {@code clients} row from the
- * bank account's holder name, claims the bank account for it and points
- * {@code users.account_id} at the new client, so a failure part-way leaves the user and the bank
- * account exactly as they were.
+ * unclaimed; migrations 019 and 020 dropped its phone/email/name columns, so it carries no
+ * identity of its own beyond {@code client_id}). Registration (the auth service) creates only a
+ * {@code users} row with a null {@code account_id}. This service, in one transaction, creates the
+ * {@code clients} row from the claiming user's username and email, claims the bank account for it
+ * and points {@code users.account_id} at the new client, so a failure part-way leaves the user and
+ * the bank account exactly as they were.
  */
 @Service
 public class BankAccountLinkService {
@@ -61,10 +61,10 @@ public class BankAccountLinkService {
             throw new BankAccountLinkConflictException(Reason.ACCOUNT_ALREADY_CLAIMED);
         }
 
-        // The client is the bank account's holder; its email is the user's, which is unique.
-        // Phone is not carried over from the bank account (it holds no contact details) and
-        // starts null; the client sets it themselves via their profile.
-        Client client = new Client(null, bankAccount.getName(), user.getEmail(), null);
+        // The bank account carries no name; the new client is named from the claiming user's
+        // username instead, and its email is the user's, which is unique. Phone starts null;
+        // the client sets it themselves via their profile.
+        Client client = new Client(null, user.getUsername(), user.getEmail(), null);
         try {
             clientMapper.save(client);
         } catch (DuplicateKeyException e) {

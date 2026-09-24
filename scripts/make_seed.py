@@ -26,21 +26,21 @@ def price(value):
 
 
 BANK_ACCOUNTS = [
-    ("IN45HDFC0000001234567", 1, "Aarav Mehta",   "485200.00", "HDFC Bank",      "HDFC0001234"),
-    ("IN45ICIC0000002345678", 2, "Diya Sharma",   "129750.50", "ICICI Bank",     "ICIC0002345"),
-    ("IN45SBIN0000003456789", 3, "Rohan Iyer",    "873400.25", "State Bank",     "SBIN0003456"),
-    ("IN45AXIS0000004567890", 4, "Meera Nair",     "64300.00", "Axis Bank",      "UTIB0004567"),
-    ("IN45KKBK0000005678901", 5, "Vikram Rao",    "251000.75", "Kotak Mahindra", "KKBK0005678"),
-    ("IN45YESB0000006789012", 6, "Sanya Kapoor",       "0.00", "Yes Bank",       "YESB0006789"),
+    ("IN45HDFC0000001234567", 1, "485200.00", "HDFC Bank",      "HDFC0001234"),
+    ("IN45ICIC0000002345678", 2, "129750.50", "ICICI Bank",     "ICIC0002345"),
+    ("IN45SBIN0000003456789", 3, "873400.25", "State Bank",     "SBIN0003456"),
+    ("IN45AXIS0000004567890", 4,  "64300.00", "Axis Bank",      "UTIB0004567"),
+    ("IN45KKBK0000005678901", 5, "251000.75", "Kotak Mahindra", "KKBK0005678"),
+    ("IN45YESB0000006789012", 6,      "0.00", "Yes Bank",       "YESB0006789"),
 
     # Unclaimed (client_id NULL, migration 017): bank accounts that exist before anyone owns
     # them. Onboarding claims one by account number; the rest stay unclaimed.
-    ("IN45HDFC0000007890123", None, "Priya Menon",    "150000.00", "HDFC Bank",      "HDFC0007890"),
-    ("IN45ICIC0000008901234", None, "Arjun Reddy",     "92500.00", "ICICI Bank",     "ICIC0008901"),
-    ("IN45SBIN0000009012345", None, "Kavya Pillai",   "310000.00", "State Bank",     "SBIN0009012"),
-    ("IN45AXIS0000010123456", None, "Rahul Verma",     "48000.50", "Axis Bank",      "UTIB0010123"),
-    ("IN45KKBK0000011234567", None, "Ananya Das",     "225750.00", "Kotak Mahindra", "KKBK0011234"),
-    ("IN45YESB0000012345678", None, "Farhan Qureshi",   "5000.00", "Yes Bank",       "YESB0012345"),
+    ("IN45HDFC0000007890123", None, "150000.00", "HDFC Bank",      "HDFC0007890"),
+    ("IN45ICIC0000008901234", None,  "92500.00", "ICICI Bank",     "ICIC0008901"),
+    ("IN45SBIN0000009012345", None, "310000.00", "State Bank",     "SBIN0009012"),
+    ("IN45AXIS0000010123456", None,  "48000.50", "Axis Bank",      "UTIB0010123"),
+    ("IN45KKBK0000011234567", None, "225750.00", "Kotak Mahindra", "KKBK0011234"),
+    ("IN45YESB0000012345678", None,   "5000.00", "Yes Bank",       "YESB0012345"),
 ]
 
 
@@ -201,7 +201,7 @@ def settle_orders():
 
 
 def build_bank_account():
-    header = ["account_number", "client_id", "name",
+    header = ["account_number", "client_id",
               "account_balance", "bank_name", "ifsc_code"]
     return header, [list(r) for r in BANK_ACCOUNTS]
 
