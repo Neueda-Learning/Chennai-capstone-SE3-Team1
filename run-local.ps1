@@ -329,17 +329,20 @@ $env:JWT_SECRET = $JwtSecret
 $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 
 # The auth service's settings go into this process's environment only for as long as it takes
-# to start it (Start-Process hands the child a copy), then come straight back out, so the
-# database password is not left behind in the PowerShell session that ran this script.
+# to start it (Start-Process hands the child a copy), then come straight back out. DB_PASSWORD
+# is deliberately not among them: the auth service's own config (configuration.ts) fetches its
+# JWT secret and database password straight from the TrustMe vault, the same way Java's
+# application.properties and Python's db_config.py already do - so the two --trustme-* args
+# below are handed to it directly instead, the same way $jvmCommon does for the JVM services.
 $authEnv = @{
     PORT = "$AuthPort"; NODE_ENV = "development"; JWT_ISSUER = "auth-service"
-    DB_HOST = $Db.host; DB_PORT = $Db.port; DB_NAME = $Db.name; DB_USERNAME = $Db.user; DB_PASSWORD = $Db.password
+    DB_HOST = $Db.host; DB_PORT = $Db.port; DB_NAME = $Db.name; DB_USERNAME = $Db.user
 }
 foreach ($k in $authEnv.Keys) { Set-Item -Path "Env:$k" -Value $authEnv[$k] }
 try {
     $authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthDir `
         -RedirectStandardOutput (Join-Path $LogDir "auth.log") -RedirectStandardError (Join-Path $LogDir "auth.err") `
-        -ArgumentList @("dist\main.js")
+        -ArgumentList @("dist\main.js", "--trustme-key-file=$KeyFile", "--trustme-password=$TrustMePassword")
 } finally {
     foreach ($k in $authEnv.Keys) { Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue }
 }

@@ -15,12 +15,12 @@ export const AUTH_ERRORS: Record<
   UNAUTHORISED: {
     code: 'AUTH-401',
     status: HttpStatus.UNAUTHORIZED,
-    message: 'Invalid username or password',
+    message: 'Unauthorised',
   },
   USERNAME_TAKEN: {
     code: 'AUTH-409',
     status: HttpStatus.CONFLICT,
-    message: 'Username already registered',
+    message: 'Registration failed',
   },
   INVALID_INPUT: {
     code: 'VAL-422',
@@ -47,16 +47,21 @@ export class AuthServiceException extends HttpException {
     );
   }
 
-  static unauthorised(message = 'Invalid username or password'): AuthServiceException {
+  // Deliberately vague (see contracts/auth-api.yaml's Unauthorised response and
+  // AUTH_IMPLEMENTATION.md): a specific message here ("wrong password", "unknown user", ...)
+  // would tell an attacker which half of the credential pair to keep guessing.
+  static unauthorised(message = 'Unauthorised'): AuthServiceException {
     return new AuthServiceException('AUTH-401', message);
   }
 
+  // Same reasoning as unauthorised() - "Username already registered" vs. "Email already
+  // registered" would let a caller enumerate which accounts exist on this service.
   static usernameTaken(): AuthServiceException {
-    return new AuthServiceException('AUTH-409', 'Username already registered');
+    return new AuthServiceException('AUTH-409', 'Registration failed');
   }
 
   static emailTaken(): AuthServiceException {
-    return new AuthServiceException('AUTH-409', 'Email already registered');
+    return new AuthServiceException('AUTH-409', 'Registration failed');
   }
 
   static invalidInput(message = 'Invalid input'): AuthServiceException {
