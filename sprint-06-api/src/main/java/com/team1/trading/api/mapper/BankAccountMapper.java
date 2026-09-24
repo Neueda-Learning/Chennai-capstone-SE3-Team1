@@ -14,7 +14,7 @@ import java.util.Optional;
 public interface BankAccountMapper {
 
     @Select("""
-            SELECT client_id, account_number, name, account_balance, bank_name, ifsc_code
+            SELECT client_id, account_number, account_balance, bank_name, ifsc_code
             FROM bank_account
             WHERE account_number = #{accountNumber}
             """)
@@ -25,7 +25,7 @@ public interface BankAccountMapper {
      * account serialise here and the second sees it already claimed.
      */
     @Select("""
-            SELECT client_id, account_number, name, account_balance, bank_name, ifsc_code
+            SELECT client_id, account_number, account_balance, bank_name, ifsc_code
             FROM bank_account
             WHERE account_number = #{accountNumber}
             FOR UPDATE
@@ -45,22 +45,22 @@ public interface BankAccountMapper {
     int claim(@Param("accountNumber") String accountNumber, @Param("clientId") Long clientId);
 
     @Select("""
-            SELECT client_id, account_number, name, account_balance, bank_name, ifsc_code
+            SELECT client_id, account_number, account_balance, bank_name, ifsc_code
             FROM bank_account
             WHERE client_id = #{clientId}
             """)
     Optional<BankAccount> findByClientId(@Param("clientId") Long clientId);
 
     @Select("""
-            SELECT client_id, account_number, name, account_balance, bank_name, ifsc_code
+            SELECT client_id, account_number, account_balance, bank_name, ifsc_code
             FROM bank_account
             ORDER BY account_number
             """)
     List<BankAccount> findAll();
 
     @Insert("""
-            INSERT INTO bank_account (client_id, account_number, name, account_balance, bank_name, ifsc_code)
-            VALUES (#{clientId}, #{accountNumber}, #{name}, #{accountBalance}, #{bankName}, #{ifscCode})
+            INSERT INTO bank_account (client_id, account_number, account_balance, bank_name, ifsc_code)
+            VALUES (#{clientId}, #{accountNumber}, #{accountBalance}, #{bankName}, #{ifscCode})
             """)
     int save(BankAccount bankAccount);
 

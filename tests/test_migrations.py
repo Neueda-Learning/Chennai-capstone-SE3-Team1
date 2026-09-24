@@ -198,8 +198,8 @@ def test_a_bank_account_for_a_missing_client_is_refused_at_insert(built_db):
     # Rolled back, so a deferred key would never have been checked at all.
     proc = built_db.run(
         script="BEGIN;\n"
-               "INSERT INTO bank_account (account_number, client_id, name, bank_name, ifsc_code) "
-               "VALUES ('NOCLIENT0001', 999999, 'Nobody', 'Bank', 'HDFC0000001');\n"
+               "INSERT INTO bank_account (account_number, client_id, bank_name, ifsc_code) "
+               "VALUES ('NOCLIENT0001', 999999, 'Bank', 'HDFC0000001');\n"
                "ROLLBACK;\n"
     )
     assert proc.returncode != 0, "a bank_account row for a missing client was accepted"

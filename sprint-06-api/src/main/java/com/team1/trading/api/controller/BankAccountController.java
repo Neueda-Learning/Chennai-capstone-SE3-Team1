@@ -47,7 +47,6 @@ public class BankAccountController {
         BankAccount bankAccount = bankAccountService.createBankAccount(
                 request.getClientId(),
                 request.getAccountNumber(),
-                request.getName(),
                 request.getBankName(),
                 request.getIfscCode(),
                 request.getInitialBalance()

@@ -18,24 +18,24 @@ VALUES (6, 'Sanya Kapoor', 'sanya.kapoor@example.com', '+919812345006', 'CLOSED'
 -- Move the identity past the explicit ids, as fn_resync_sequences() does after the real seed.
 ALTER TABLE clients ALTER COLUMN client_id RESTART WITH 7;
 
--- Bank accounts (matches seed/020_bank_account.csv); each names its client.
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45HDFC0000001234567', 1, 'Aarav Mehta', 0.00, 'HDFC Bank', 'HDFC0001234');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45ICIC0000002345678', 2, 'Diya Sharma', 0.00, 'ICICI Bank', 'ICIC0002345');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45SBIN0000003456789', 3, 'Rohan Iyer', 0.00, 'State Bank', 'SBIN0003456');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45AXIS0000004567890', 4, 'Meera Nair', 0.00, 'Axis Bank', 'UTIB0004567');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45KKBK0000005678901', 5, 'Vikram Rao', 0.00, 'Kotak Mahindra', 'KKBK0005678');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45YESB0000006789012', 6, 'Sanya Kapoor', 0.00, 'Yes Bank', 'YESB0006789');
+-- Bank accounts (matches seed/020_bank_account.csv); no name of its own, client_id is the link.
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45HDFC0000001234567', 1, 0.00, 'HDFC Bank', 'HDFC0001234');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45ICIC0000002345678', 2, 0.00, 'ICICI Bank', 'ICIC0002345');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45SBIN0000003456789', 3, 0.00, 'State Bank', 'SBIN0003456');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45AXIS0000004567890', 4, 0.00, 'Axis Bank', 'UTIB0004567');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45KKBK0000005678901', 5, 0.00, 'Kotak Mahindra', 'KKBK0005678');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45YESB0000006789012', 6, 0.00, 'Yes Bank', 'YESB0006789');
 -- Unclaimed bank accounts (client_id NULL), as in seed/020_bank_account.csv.
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45HDFC0000007890123', NULL, 'Priya Menon', 150000.00, 'HDFC Bank', 'HDFC0007890');
-INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code)
-VALUES ('IN45ICIC0000008901234', NULL, 'Arjun Reddy', 92500.00, 'ICICI Bank', 'ICIC0008901');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45HDFC0000007890123', NULL, 150000.00, 'HDFC Bank', 'HDFC0007890');
+INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
+VALUES ('IN45ICIC0000008901234', NULL, 92500.00, 'ICICI Bank', 'ICIC0008901');
 
 -- Users (matches seed/030_users.csv); each owns the client with the same id.
 INSERT INTO users (username, email, account_id, password_hash)

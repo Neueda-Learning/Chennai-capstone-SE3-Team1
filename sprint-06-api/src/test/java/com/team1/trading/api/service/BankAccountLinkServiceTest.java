@@ -41,6 +41,7 @@ import static org.mockito.Mockito.verify;
 class BankAccountLinkServiceTest {
 
     private static final String USER_ID = "8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f";
+    private static final String USERNAME = "priya.menon";
     private static final String EMAIL = "priya.menon@example.com";
     private static final String ACCOUNT_NUMBER = "IN45HDFC0000007890123";
     private static final Long NEW_CLIENT_ID = 42L;
@@ -60,13 +61,14 @@ class BankAccountLinkServiceTest {
     }
 
     private static BankAccount bankAccount(Long clientId) {
-        return new BankAccount(clientId, ACCOUNT_NUMBER, "Priya Menon",
+        return new BankAccount(clientId, ACCOUNT_NUMBER,
                 new BigDecimal("150000.00"), "HDFC Bank", "HDFC0007890");
     }
 
     private static UserRow user(Long accountId) {
         UserRow row = new UserRow();
         row.setId(USER_ID);
+        row.setUsername(USERNAME);
         row.setEmail(EMAIL);
         row.setAccountId(accountId);
         return row;
@@ -109,9 +111,10 @@ class BankAccountLinkServiceTest {
         order.verify(userMapper).linkAccount(USER_ID, NEW_CLIENT_ID);
         verify(bankAccountMapper, never()).save(any());
 
-        assertThat(client.getValue().getName()).isEqualTo("Priya Menon");
-        // bank_account carries no contact details (migration 019): phone starts null, and the
-        // client's email is the user's (unique, their login's), not the bank's.
+        // bank_account carries no identity of its own (migrations 019, 020): the client is
+        // named from the claiming user's username, phone starts null, and the client's email is
+        // the user's (unique, their login's), not the bank's.
+        assertThat(client.getValue().getName()).isEqualTo(USERNAME);
         assertThat(client.getValue().getPhone()).isNull();
         assertThat(client.getValue().getEmail()).isEqualTo(EMAIL);
         assertThat(client.getValue().getAccountState()).isEqualTo("ACTIVE");

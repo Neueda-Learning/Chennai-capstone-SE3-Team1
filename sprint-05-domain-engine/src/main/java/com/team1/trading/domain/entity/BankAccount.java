@@ -6,31 +6,29 @@ import java.util.Objects;
 /**
  * A bank account a client funds their wallet from and pays out to. {@code clientId} is
  * {@code null} while the account is unclaimed: bank accounts can exist before anyone owns them,
- * and onboarding claims one.
+ * and onboarding claims one. It carries no holder name of its own; {@code clientId} is the only
+ * identity it needs, and joining to {@code clients} gets the name once one is linked.
  */
 public class BankAccount {
 
     private Long clientId;
     private String accountNumber;
-    private String name;
     private BigDecimal accountBalance;
     private String bankName;
     private String ifscCode;
 
-    public BankAccount(Long clientId, String accountNumber, String name, String bankName, String ifscCode) {
+    public BankAccount(Long clientId, String accountNumber, String bankName, String ifscCode) {
         this.clientId = clientId;
         this.accountNumber =  Objects.requireNonNull(accountNumber, "accountNumber must not be null");
-        this.name = name;
         this.bankName = bankName;
         this.ifscCode = ifscCode;
         this.accountBalance = BigDecimal.ZERO;
     }
 
-    public BankAccount(Long clientId, String accountNumber, String name,
+    public BankAccount(Long clientId, String accountNumber,
                        BigDecimal accountBalance, String bankName, String ifscCode) {
         this.clientId = clientId;
         this.accountNumber = Objects.requireNonNull(accountNumber, "accountNumber must not be null");
-        this.name = name;
         this.accountBalance = accountBalance;
         this.bankName = bankName;
         this.ifscCode = ifscCode;
@@ -46,10 +44,6 @@ public class BankAccount {
 
     public String getAccountNumber() {
         return accountNumber;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public String getBankName() {

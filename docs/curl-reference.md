@@ -238,12 +238,12 @@ to an existing client instead of leaving it unclaimed.
 
 curl (Postman / Bruno / bash):
 ```
-curl -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"accountNumber":"IN45HDFC0000099999999","name":"Test Holder","bankName":"HDFC Bank","ifscCode":"HDFC0000099","initialBalance":0}'
+curl -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"accountNumber":"IN45HDFC0000099999999","bankName":"HDFC Bank","ifscCode":"HDFC0000099","initialBalance":0}'
 ```
 
 PowerShell (curl.exe) — verified live, returns `201`:
 ```
-curl.exe --% -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"accountNumber\":\"IN45HDFC0000099999999\",\"name\":\"Test Holder\",\"bankName\":\"HDFC Bank\",\"ifscCode\":\"HDFC0000099\",\"initialBalance\":0}"
+curl.exe --% -s -X POST http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"accountNumber\":\"IN45HDFC0000099999999\",\"bankName\":\"HDFC Bank\",\"ifscCode\":\"HDFC0000099\",\"initialBalance\":0}"
 ```
 
 **Reads (owner or admin)** *(no body)*
