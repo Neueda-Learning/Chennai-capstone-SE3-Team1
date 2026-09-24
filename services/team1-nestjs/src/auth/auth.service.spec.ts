@@ -191,7 +191,7 @@ describe('AuthService', () => {
 
       expect(error.getStatus()).toBe(409);
       expect(error.getResponse()).toMatchObject({
-        message: 'Username already registered',
+        message: 'Registration failed',
       });
       expect(users.create).not.toHaveBeenCalled();
     });
@@ -204,7 +204,7 @@ describe('AuthService', () => {
 
       expect(error.getStatus()).toBe(409);
       expect(error.getResponse()).toMatchObject({
-        message: 'Email already registered',
+        message: 'Registration failed',
       });
       expect(users.create).not.toHaveBeenCalled();
     });
@@ -222,7 +222,7 @@ describe('AuthService', () => {
 
       expect(error.getStatus()).toBe(409);
       expect(error.getResponse()).toMatchObject({
-        message: 'Username already registered',
+        message: 'Registration failed',
       });
     });
 
@@ -239,7 +239,7 @@ describe('AuthService', () => {
 
       expect(error.getStatus()).toBe(409);
       expect(error.getResponse()).toMatchObject({
-        message: 'Email already registered',
+        message: 'Registration failed',
       });
     });
   });

@@ -4,6 +4,9 @@
   "testEnvironment": "node",
   "setupFiles": ["<rootDir>/jest-e2e.setup.ts"],
   "testRegex": ".e2e-spec.ts$",
+  "moduleNameMapper": {
+    "^trustme-secrets$": "<rootDir>/__mocks__/trustme-secrets.js"
+  },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

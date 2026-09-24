@@ -18,7 +18,8 @@ DEFAULTS = {
     "port": "5432",
     "dbname": "trading_platform",
     "user": "postgres",
-    "password": "postgres",
+    # No hardcoded fallback for password - see the check in resolve() below. It must come
+    # from the TrustMe vault (or an explicit override), never a guessable literal default.
 }
 
 ENV_KEYS = {
@@ -100,7 +101,14 @@ class DbConfig:
                 or os.environ.get(env_key)
                 or trustme.get(env_key)
                 or dotenv.get(env_key)
-                or DEFAULTS[name]
+                or DEFAULTS.get(name)
+            )
+        if not settings["password"]:
+            raise DbError(
+                "No database password found. Add a " + repr(ENV_KEYS["password"])
+                + " secret to the TrustMe vault, or override it with --password, "
+                "the " + ENV_KEYS["password"] + " environment variable, or "
+                + ENV_KEYS["password"] + "= in .env."
             )
         psql = getattr(args, "psql", None) if args is not None else None
         return cls(psql=psql or dotenv.get("PSQL_BIN") or find_psql(), **settings)
