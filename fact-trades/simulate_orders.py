@@ -232,9 +232,8 @@ class Simulation:
             + "', now(), 'ACTIVE', 100000);"
         )
         self.statements.append(
-            "INSERT INTO bank_account (account_number, client_id, name, phone, email, account_balance, bank_name, ifsc_code) "
+            "INSERT INTO bank_account (account_number, client_id, name, account_balance, bank_name, ifsc_code) "
             "VALUES (" + quote_literal(account) + ", " + str(client_id) + ", " + quote_literal(name)
-            + ", '9" + tag[:9].translate(str.maketrans("abcdef", "123456")) + "', " + quote_literal(email)
             + ", 250000, 'HDFC Bank', 'HDFC0000123');"
         )
         created = self._when()

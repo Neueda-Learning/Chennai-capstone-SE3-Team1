@@ -14,8 +14,8 @@ class BankAccountTest {
 
     @Test
     void a_bank_account_can_exist_before_anyone_claims_it() {
-        BankAccount unclaimed = new BankAccount(null, "IN45HDFC0000007890123", "Priya Menon", "+919812345007",
-                "priya.menon@example.com", new BigDecimal("150000.00"), "HDFC Bank", "HDFC0007890");
+        BankAccount unclaimed = new BankAccount(null, "IN45HDFC0000007890123", "Priya Menon",
+                new BigDecimal("150000.00"), "HDFC Bank", "HDFC0007890");
 
         assertNull(unclaimed.getClientId());
         assertFalse(unclaimed.isClaimed());
@@ -24,8 +24,8 @@ class BankAccountTest {
 
     @Test
     void a_bank_account_with_a_client_is_claimed() {
-        BankAccount claimed = new BankAccount(1L, "IN45HDFC0000001234567", "Aarav Mehta", "+919812345001",
-                "aarav.mehta@example.com", "HDFC Bank", "HDFC0001234");
+        BankAccount claimed = new BankAccount(1L, "IN45HDFC0000001234567", "Aarav Mehta",
+                "HDFC Bank", "HDFC0001234");
 
         assertTrue(claimed.isClaimed());
     }
@@ -33,6 +33,6 @@ class BankAccountTest {
     @Test
     void the_account_number_is_still_required() {
         assertThrows(NullPointerException.class,
-                () -> new BankAccount(null, null, "X", null, null, "Bank", "HDFC0000001"));
+                () -> new BankAccount(null, null, "X", "Bank", "HDFC0000001"));
     }
 }

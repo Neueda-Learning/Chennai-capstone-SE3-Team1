@@ -70,6 +70,7 @@ The number is the order.
 | `016_wallet_transfers.sql` | `wallet_transfers`: every movement between a wallet and its linked bank account, idempotency key unique |
 | `017_bank_account_unclaimed.sql` | `bank_account.client_id` nullable: bank accounts exist unclaimed until onboarding claims one |
 | `018_users_to_auth_db_schema.sql` | `users` and `refresh_tokens` move to a new `auth_db` schema; default `search_path` extended so unqualified references still resolve |
+| `019_bank_account_drop_contact.sql` | drops `bank_account.phone` and `.email`: an unclaimed or claimed bank account is never a contact record |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.

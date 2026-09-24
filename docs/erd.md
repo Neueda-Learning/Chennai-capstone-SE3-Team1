@@ -34,8 +34,6 @@ erDiagram
         varchar   account_number  PK
         bigint    client_id       FK,UK "NULL while unclaimed"
         varchar   name
-        varchar   phone
-        varchar   email
         decimal   account_balance
         varchar   bank_name
         varchar   ifsc_code
@@ -190,8 +188,10 @@ references nothing in `bank_account`.
 
 Since migration 017 `client_id` may also be NULL: bank accounts exist before anyone
 owns them, and the seed loads six claimed and six unclaimed. Onboarding claims one
-by account number: it creates the client from the bank account's holder details,
-then sets this row's `client_id`. Unclaimed rows simply stay unclaimed.
+by account number: it creates the client from the bank account's holder name (and
+the user's email; migration 019 dropped `bank_account.phone`/`email`, so it carries
+no contact details), then sets this row's `client_id`. Unclaimed rows simply stay
+unclaimed.
 
 ## Instruments are keyed by their symbol
 

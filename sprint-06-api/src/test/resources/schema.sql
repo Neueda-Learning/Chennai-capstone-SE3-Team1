@@ -34,8 +34,6 @@ CREATE TABLE bank_account (
     account_number  VARCHAR(34)     PRIMARY KEY,
     client_id       BIGINT          UNIQUE,          -- NULL: unclaimed (migration 017)
     name            VARCHAR(150)    NOT NULL,
-    phone           VARCHAR(20),
-    email           VARCHAR(150),
     account_balance DECIMAL(18,2)   NOT NULL DEFAULT 0,
     bank_name       VARCHAR(150)    NOT NULL,
     ifsc_code       VARCHAR(11)     NOT NULL

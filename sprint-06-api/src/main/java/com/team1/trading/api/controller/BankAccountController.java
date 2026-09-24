@@ -48,8 +48,6 @@ public class BankAccountController {
                 request.getClientId(),
                 request.getAccountNumber(),
                 request.getName(),
-                request.getPhone(),
-                request.getEmail(),
                 request.getBankName(),
                 request.getIfscCode(),
                 request.getInitialBalance()
@@ -75,15 +73,6 @@ public class BankAccountController {
     public List<BankAccount> getAllBankAccounts() {
         accessGuard.requireAdmin();
         return bankAccountService.getAllBankAccounts();
-    }
-
-    @PutMapping("/{accountNumber}/contact")
-    public ResponseEntity<Void> updateContact(@PathVariable String accountNumber,
-                                              @RequestParam String phone,
-                                              @RequestParam String email) {
-        requireOwnerOrAdmin(accountNumber);
-        boolean updated = bankAccountService.updateContact(accountNumber, phone, email);
-        return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
     @PutMapping("/{accountNumber}/deposit")
