@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface AccountMapper {
 
     @Select("""
-            SELECT c.client_id AS clientId, b.account_number AS accountNumber, c.name, c.email, c.phone,
+            SELECT c.client_id AS clientId, b.account_number AS accountNumber, c.name,
                    c.created_on AS createdOn, c.account_state AS accountState,
                    c.wallet_balance AS walletBalance, c.version, c.updated_on AS updatedOn
             FROM clients c
@@ -36,8 +36,6 @@ public interface AccountMapper {
         private Long clientId;
         private String accountNumber;
         private String name;
-        private String email;
-        private String phone;
         private LocalDateTime createdOn;
         private String accountState;
         private BigDecimal walletBalance;
@@ -52,12 +50,6 @@ public interface AccountMapper {
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
-
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
 
         public LocalDateTime getCreatedOn() { return createdOn; }
         public void setCreatedOn(LocalDateTime createdOn) { this.createdOn = createdOn; }

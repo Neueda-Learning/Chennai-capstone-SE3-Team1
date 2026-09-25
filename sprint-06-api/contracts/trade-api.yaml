@@ -253,15 +253,16 @@ paths:
       description: |
         Second step of onboarding, after `/auth/register`. Bank accounts exist before anyone owns
         them; this claims an existing, unclaimed one by its account number. In one transaction it
-        creates the `clients` row named from the user's username, with the user's email (the bank
-        account carries no name, phone or email of its own - `client_id` is its only identity),
-        sets the bank account's `client_id` to it and sets `users.account_id` for the user named
-        by the token's `sub`. The body names only the bank account. The trading account starts
-        `ACTIVE` with a zero cash balance; the bank account keeps its balance.
+        creates the `clients` row named from the user's username (the bank account carries no
+        name, phone or email of its own - `client_id` is its only identity; email and phone live
+        only on `auth_db.users`, never on `clients`), sets the bank account's `client_id` to it
+        and sets `users.account_id` for the user named by the token's `sub`. The body names only
+        the bank account. The trading account starts `ACTIVE` with a zero cash balance; the bank
+        account keeps its balance.
 
-        An account number that does not exist is `ACC-404`. A user who already has an account, a
-        bank account someone already claimed, or an email already held by a client is `ACC-409`,
-        with the same message in every case.
+        An account number that does not exist is `ACC-404`. A user who already has an account, or
+        a bank account someone already claimed, is `ACC-409`, with the same message in every
+        case.
       requestBody:
         required: true
         content:
@@ -280,7 +281,7 @@ paths:
         '404':
           $ref: '#/components/responses/AccountNotFound'
         '409':
-          description: The user already has a linked account, the bank account is already claimed, or the email is already on file.
+          description: The user already has a linked account, or the bank account is already claimed.
           content:
             application/json:
               schema:

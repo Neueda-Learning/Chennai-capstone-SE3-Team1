@@ -8,8 +8,6 @@
         <constructor>
         <idArg column="client_id" javaType="java.lang.Long"/>
         <arg column="name" javaType="java.lang.String"/>
-        <arg column="email" javaType="java.lang.String"/>
-        <arg column="phone" javaType="java.lang.String"/>
         <arg column="created_on" javaType="java.time.LocalDateTime"/>
         <arg column="account_state" javaType="java.lang.String"/>
         <arg column="wallet_balance" javaType="java.math.BigDecimal"/>
@@ -19,14 +17,14 @@
     </resultMap>
 
     <select id="findByClientId" resultMap="accountResultMap">
-        SELECT client_id, name, email, phone, created_on,
+        SELECT client_id, name, created_on,
                account_state, wallet_balance, version, updated_on
         FROM clients
         WHERE client_id = #{clientId}
     </select>
 
     <select id="findByClientIdForUpdate" resultMap="accountResultMap">
-        SELECT client_id, name, email, phone, created_on,
+        SELECT client_id, name, created_on,
                account_state, wallet_balance, version, updated_on
         FROM clients
         WHERE client_id = #{clientId}

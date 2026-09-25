@@ -24,9 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
  * unclaimed; migrations 019 and 020 dropped its phone/email/name columns, so it carries no
  * identity of its own beyond {@code client_id}). Registration (the auth service) creates only a
  * {@code users} row with a null {@code account_id}. This service, in one transaction, creates the
- * {@code clients} row from the claiming user's username and email, claims the bank account for it
- * and points {@code users.account_id} at the new client, so a failure part-way leaves the user and
- * the bank account exactly as they were.
+ * {@code clients} row from the claiming user's username - email and phone stay on {@code users}
+ * (migration 021), nothing to copy - claims the bank account for it and points
+ * {@code users.account_id} at the new client, so a failure part-way leaves the user and the bank
+ * account exactly as they were.
  */
 @Service
 public class BankAccountLinkService {
@@ -62,9 +63,9 @@ public class BankAccountLinkService {
         }
 
         // The bank account carries no name; the new client is named from the claiming user's
-        // username instead, and its email is the user's, which is unique. Phone starts null;
-        // the client sets it themselves via their profile.
-        Client client = new Client(null, user.getUsername(), user.getEmail(), null);
+        // username instead. Since migration 021 clients carries no email/phone at all - both
+        // already live on the user row from registration, nothing to copy over here.
+        Client client = new Client(null, user.getUsername());
         try {
             clientMapper.save(client);
         } catch (DuplicateKeyException e) {

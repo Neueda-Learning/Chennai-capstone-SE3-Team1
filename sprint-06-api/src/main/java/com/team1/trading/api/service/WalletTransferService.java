@@ -48,7 +48,7 @@ public class WalletTransferService {
         if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
             throw new AccountNotActiveException(accountId, "TOKEN");
         }
-        Client client = new Client(row.getClientId(), row.getName(), row.getEmail(), row.getPhone(),
+        Client client = new Client(row.getClientId(), row.getName(),
                 row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
         if (!client.canTrade()) {
             throw new AccountNotActiveException(accountId, client.getAccountState());

@@ -37,27 +37,30 @@ public class ClientService {
         return clientMapper.findByAccountNumber(accountNumber);
     }
 
-    public Client createClient(String name, String email, String phone) {
-        Client client = new Client(null, name, email, phone);
-        clientMapper.save(client);
-        return client;
+    /**
+     * Email and phone live only on auth_db.users (migration 021) - clients carries neither.
+     * Every current client has one (created only via bank-account linking, which always creates
+     * the user first); empty only for data pre-dating that migration.
+     */
+    public Optional<UserMapper.ContactRow> getContactByClientId(Long clientId) {
+        return userMapper.findContactByAccountId(clientId);
     }
 
     /**
-     * Updates the client's contact details and, in the same transaction, the email of the user
-     * who owns this client, so the two never disagree. The email is stored the way registration
-     * stores it: trimmed and lower-cased.
+     * Updates the client's name and, in the same transaction, the email/phone of the user who
+     * owns this client - the only place either is stored. The email is stored the way
+     * registration stores it: trimmed and lower-cased.
      */
     @Transactional
     public boolean updateClientProfile(Long clientId, String name, String email, String phone) {
         String normalisedEmail = email.trim().toLowerCase(Locale.ROOT);
-        Client client = new Client(clientId, name, normalisedEmail, phone);
+        Client client = new Client(clientId, name);
         try {
             if (clientMapper.updateProfile(client) == 0) {
                 return false;
             }
-            // 0 rows is fine: a client an admin created outside onboarding has no user.
-            userMapper.updateEmailForAccount(clientId, normalisedEmail);
+            // 0 rows is fine: a client from data pre-dating migration 021 may have no user.
+            userMapper.updateContact(clientId, normalisedEmail, phone);
         } catch (DuplicateKeyException e) {
             throw new EmailInUseException(clientId);
         }

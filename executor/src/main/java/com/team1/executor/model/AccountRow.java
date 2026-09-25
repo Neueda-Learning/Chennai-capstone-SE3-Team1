@@ -6,8 +6,6 @@ import java.time.LocalDateTime;
 public record AccountRow(
         Long clientId,
         String name,
-        String email,
-        String phone,
         LocalDateTime createdOn,
         String accountState,
         BigDecimal walletBalance,

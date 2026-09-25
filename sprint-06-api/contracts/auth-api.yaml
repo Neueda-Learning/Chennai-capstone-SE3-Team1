@@ -321,7 +321,7 @@ components:
     UserResponse:
       type: object
       additionalProperties: false
-      required: [id, username, email, accountId, roles]
+      required: [id, username, email, phone, accountId, roles]
       properties:
         id:
           type: string
@@ -335,6 +335,10 @@ components:
           type: string
           format: email
           example: priya.menon@example.com
+        phone:
+          type: [string, 'null']
+          description: Set only via the Trade API's profile-update route once a bank account is linked. `null` until then - never collected at registration.
+          example: null
         accountId:
           type: [integer, 'null']
           format: int64

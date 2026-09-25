@@ -174,8 +174,8 @@ public class OrderService {
     }
 
     private static Client toClient(AccountRow row) {
-        return new Client(row.getClientId(), row.getName(), row.getEmail(),
-                row.getPhone(), row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
+        return new Client(row.getClientId(), row.getName(),
+                row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
     }
 
     private static OrderInsert toInsert(Order order, String orderUuid) {

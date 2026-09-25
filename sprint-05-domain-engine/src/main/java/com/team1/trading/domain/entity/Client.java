@@ -11,19 +11,15 @@ public class Client {
 
     private Long clientId;
     private String name;
-    private String email;
-    private String phone;
     private LocalDateTime createdOn;
     private String accountState;
     private BigDecimal walletBalance;
     private Integer version;
     private LocalDateTime updatedOn;
 
-    public Client(Long clientId, String name, String email, String phone) {
+    public Client(Long clientId, String name) {
         this.clientId = clientId;
         this.name = name;
-        this.email = email;
-        this.phone = phone;
         this.createdOn = LocalDateTime.now();
         this.accountState = "ACTIVE";
         this.walletBalance = BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY);
@@ -31,12 +27,10 @@ public class Client {
         this.updatedOn = this.createdOn;
     }
 
-    public Client(Long clientId, String name, String email, String phone,
+    public Client(Long clientId, String name,
                   LocalDateTime createdOn, String accountState, BigDecimal walletBalance) {
         this.clientId = clientId;
         this.name = name;
-        this.email = email;
-        this.phone = phone;
         this.createdOn = createdOn;
         this.accountState = accountState;
         this.walletBalance = walletBalance;
@@ -44,10 +38,10 @@ public class Client {
         this.updatedOn = createdOn;
     }
 
-    public Client(Long clientId, String name, String email, String phone,
+    public Client(Long clientId, String name,
                   LocalDateTime createdOn, String accountState, BigDecimal walletBalance,
                   Integer version, LocalDateTime updatedOn) {
-        this(clientId, name, email, phone, createdOn, accountState, walletBalance);
+        this(clientId, name, createdOn, accountState, walletBalance);
         this.version = Objects.requireNonNull(version, "version must not be null");
         this.updatedOn = Objects.requireNonNull(updatedOn, "updatedOn must not be null");
     }
@@ -58,14 +52,6 @@ public class Client {
 
     public String getName() {
         return name;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPhone() {
-        return phone;
     }
 
     public LocalDateTime getCreatedOn() {
@@ -88,10 +74,8 @@ public class Client {
         return updatedOn;
     }
 
-    public void updateProfile(String name, String email, String phone) {
+    public void updateProfile(String name) {
         this.name = name;
-        this.email = email;
-        this.phone = phone;
         touch();
     }
 

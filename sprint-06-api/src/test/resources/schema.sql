@@ -21,8 +21,6 @@ DROP TABLE IF EXISTS holdings;
 CREATE TABLE clients (
     client_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(150)    NOT NULL,
-    email           VARCHAR(150)    NOT NULL UNIQUE,
-    phone           VARCHAR(20),
     created_on      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     account_state   VARCHAR(10)     NOT NULL DEFAULT 'ACTIVE',
     wallet_balance  DECIMAL(18,2)   NOT NULL DEFAULT 0,
@@ -43,6 +41,7 @@ CREATE TABLE users (
     id             UUID          DEFAULT RANDOM_UUID() PRIMARY KEY,
     username       VARCHAR(64)   NOT NULL UNIQUE,
     email          VARCHAR(150)  NOT NULL UNIQUE,
+    phone          VARCHAR(20),
     account_id     BIGINT        UNIQUE,
     roles          VARCHAR(20) ARRAY NOT NULL DEFAULT ARRAY['CUSTOMER'],
     password_hash  VARCHAR(255)  NOT NULL,

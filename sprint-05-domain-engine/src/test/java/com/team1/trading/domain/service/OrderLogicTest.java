@@ -56,8 +56,7 @@ class OrderLogicTest {
     }
 
     private Client account(long accountId, String balance, String state) {
-        Client client = new Client(accountId, "Holder " + accountId,
-                "holder" + accountId + "@example.com", "900000000" + accountId);
+        Client client = new Client(accountId, "Holder " + accountId);
         client.credit(new BigDecimal(balance));
         if ("SUSPENDED".equals(state)) {
             client.suspend();

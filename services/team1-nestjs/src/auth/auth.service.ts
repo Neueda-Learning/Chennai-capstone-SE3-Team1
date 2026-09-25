@@ -251,6 +251,7 @@ export class AuthService {
       id: user.id,
       username: user.username,
       email: user.email,
+      phone: user.phone,
       accountId: user.accountId,
       roles: user.roles,
       createdOn: user.createdOn,

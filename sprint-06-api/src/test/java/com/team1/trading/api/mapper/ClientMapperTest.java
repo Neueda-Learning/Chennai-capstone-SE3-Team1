@@ -27,7 +27,6 @@ class ClientMapperTest {
 
         assertThat(client.getClientId()).isEqualTo(1L);
         assertThat(client.getName()).isEqualTo("Aarav Mehta");
-        assertThat(client.getEmail()).isEqualTo("aarav.mehta@example.com");
         assertThat(client.getAccountState()).isEqualTo("ACTIVE");
     }
 
@@ -44,12 +43,12 @@ class ClientMapperTest {
     @Test
     @DisplayName("save() writes the generated client_id back onto the entity")
     void save_setsTheGeneratedId() {
-        Client client = new Client(null, "Priya Menon", "priya.menon@example.com", "+919812345099");
+        Client client = new Client(null, "Priya Menon");
 
         clientMapper.save(client);
 
         assertThat(client.getClientId()).isNotNull();
         assertThat(clientMapper.findById(client.getClientId()))
-                .hasValueSatisfying(stored -> assertThat(stored.getEmail()).isEqualTo("priya.menon@example.com"));
+                .hasValueSatisfying(stored -> assertThat(stored.getName()).isEqualTo("Priya Menon"));
     }
 }
