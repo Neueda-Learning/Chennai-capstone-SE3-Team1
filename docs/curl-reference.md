@@ -99,6 +99,21 @@ curl -s -X POST http://localhost:3000/auth/refresh -H "Content-Type: application
 curl.exe --% -s -X POST http://localhost:3000/auth/refresh -H "Content-Type: application/json" -d "{\"refreshToken\":\"<REFRESH_TOKEN>\"}"
 ```
 
+### Logout
+Revokes only the presented refresh token; other sessions the user is logged into elsewhere
+keep working. Needs both the access token (`Authorization`) and that session's refresh token
+(body) — a mismatched pair is `AUTH-401`, same as an unknown token.
+
+**curl (Postman / Bruno / bash)**
+```
+curl -s -X POST http://localhost:3000/auth/logout -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d '{"refreshToken":"<REFRESH_TOKEN>"}'
+```
+
+**PowerShell (curl.exe)**
+```
+curl.exe --% -s -X POST http://localhost:3000/auth/logout -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"refreshToken\":\"<REFRESH_TOKEN>\"}"
+```
+
 ### Current user
 *(no body)*
 ```

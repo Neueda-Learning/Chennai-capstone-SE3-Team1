@@ -14,7 +14,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Auth service')
     .setDescription(
-      'Registration, login, token refresh and current-user lookup. ' +
+      'Registration, login, token refresh, logout and current-user lookup. ' +
         'Serves contracts/auth-api.yaml.',
     )
     .setVersion('1.0.0')

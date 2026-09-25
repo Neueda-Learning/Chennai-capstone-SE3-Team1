@@ -495,6 +495,72 @@ describe('AuthService', () => {
     });
   });
 
+  describe('logout', () => {
+    const identity = {
+      sub: user.id,
+      accountId: 1,
+      roles: [Role.CUSTOMER],
+      iat: 1790000000,
+      exp: 1790000900,
+      iss: 'auth-service',
+    };
+    const owned = {
+      id: 'rt-1',
+      userId: user.id,
+      tokenHash: 'a'.repeat(64),
+      expiresAt: new Date('2026-10-12T08:00:00Z'),
+      revokedAt: null,
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+    };
+
+    it("revokes only the caller's presented refresh token", async () => {
+      tokens.hashRefreshToken.mockReturnValue('a'.repeat(64));
+      refreshTokens.findByHash.mockResolvedValue(owned);
+      refreshTokens.revoke.mockResolvedValue(undefined);
+
+      await service.logout(identity, { refreshToken: 'presented-token' });
+
+      expect(refreshTokens.revoke).toHaveBeenCalledWith('rt-1');
+      expect(refreshTokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown refresh token', async () => {
+      tokens.hashRefreshToken.mockReturnValue('a'.repeat(64));
+      refreshTokens.findByHash.mockResolvedValue(null);
+
+      await expect(
+        service.logout(identity, { refreshToken: 'unknown-token' }),
+      ).rejects.toBeInstanceOf(AuthServiceException);
+      expect(refreshTokens.revoke).not.toHaveBeenCalled();
+    });
+
+    it("rejects a refresh token that belongs to someone else's session", async () => {
+      tokens.hashRefreshToken.mockReturnValue('a'.repeat(64));
+      refreshTokens.findByHash.mockResolvedValue({
+        ...owned,
+        userId: 'someone-else',
+      });
+
+      await expect(
+        service.logout(identity, { refreshToken: 'not-mine' }),
+      ).rejects.toBeInstanceOf(AuthServiceException);
+      expect(refreshTokens.revoke).not.toHaveBeenCalled();
+    });
+
+    it('logging out twice with the same token is a harmless no-op the second time', async () => {
+      tokens.hashRefreshToken.mockReturnValue('a'.repeat(64));
+      refreshTokens.findByHash.mockResolvedValue({
+        ...owned,
+        revokedAt: new Date('2026-10-06T08:00:00Z'),
+      });
+      refreshTokens.revoke.mockResolvedValue(undefined);
+
+      await service.logout(identity, { refreshToken: 'already-revoked' });
+
+      expect(refreshTokens.revoke).toHaveBeenCalledWith('rt-1');
+    });
+  });
+
   describe('me', () => {
     it('returns the user identified by the verified token', async () => {
       users.findById.mockResolvedValue(user);

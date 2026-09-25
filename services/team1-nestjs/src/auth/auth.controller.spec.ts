@@ -16,6 +16,7 @@ describe('AuthController', () => {
     register: jest.Mock;
     login: jest.Mock;
     refresh: jest.Mock;
+    logout: jest.Mock;
     me: jest.Mock;
   };
 
@@ -24,6 +25,7 @@ describe('AuthController', () => {
       register: jest.fn(),
       login: jest.fn(),
       refresh: jest.fn(),
+      logout: jest.fn(),
       me: jest.fn(),
     };
 
@@ -91,6 +93,24 @@ describe('AuthController', () => {
 
     await expect(controller.refresh(body)).resolves.toBe(expected);
     expect(authService.refresh).toHaveBeenCalledWith(body);
+  });
+
+  it('delegates logout with the verified token identity and body', async () => {
+    const identity: AccessTokenClaims = {
+      sub: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
+      accountId: 1,
+      roles: [Role.CUSTOMER],
+      iat: 1790000000,
+      exp: 1790000900,
+      iss: 'auth-service',
+    };
+    const body = new RefreshRequestDto();
+    body.refreshToken = 'some-refresh-token';
+    authService.logout.mockResolvedValue(undefined);
+
+    await controller.logout({ user: identity }, body);
+
+    expect(authService.logout).toHaveBeenCalledWith(identity, body);
   });
 
   it('delegates me with the verified token identity', async () => {
