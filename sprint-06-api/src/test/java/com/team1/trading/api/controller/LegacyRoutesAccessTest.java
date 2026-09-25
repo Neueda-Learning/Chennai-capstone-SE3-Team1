@@ -247,10 +247,11 @@ class LegacyRoutesAccessTest {
                                     """))
                     .andExpect(status().isOk());
 
-            assertThat(jdbc.queryForObject("SELECT email FROM clients WHERE client_id = 6", String.class))
-                    .isEqualTo("sanya.k@example.com");
+            // email/phone live only on users since migration 021 - clients carries neither.
             assertThat(jdbc.queryForObject("SELECT email FROM users WHERE account_id = 6", String.class))
                     .isEqualTo("sanya.k@example.com");
+            assertThat(jdbc.queryForObject("SELECT phone FROM users WHERE account_id = 6", String.class))
+                    .isEqualTo("+919812345006");
         }
 
         @Test
@@ -266,16 +267,6 @@ class LegacyRoutesAccessTest {
 
             assertThat(jdbc.queryForObject("SELECT email FROM users WHERE account_id = 2", String.class))
                     .isEqualTo("diya.sharma@example.com");
-        }
-
-        @Test
-        void a_customer_cannot_create_clients() throws Exception {
-            mockMvc.perform(post("/api/clients").header("Authorization", customer(1))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"name":"New","email":"new@example.com","phone":"+919800000001"}
-                                    """))
-                    .andExpect(status().isForbidden());
         }
     }
 }

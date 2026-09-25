@@ -65,8 +65,6 @@ class AccountServiceTest {
         row.setClientId(ACCOUNT_ID);
         row.setAccountNumber("ACC-000001");
         row.setName("Priya Menon");
-        row.setEmail("priya@example.com");
-        row.setPhone("+91 90000 00000");
         row.setCreatedOn(LocalDateTime.of(2026, 1, 1, 8, 0));
         row.setAccountState("ACTIVE");
         row.setWalletBalance(new BigDecimal("24500.75"));

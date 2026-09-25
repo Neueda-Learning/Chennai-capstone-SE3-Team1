@@ -34,7 +34,7 @@ class ClientServiceTest {
     private ClientService clientService;
 
     @Test
-    void a_profile_update_writes_the_same_normalised_email_to_the_client_and_its_user() {
+    void a_profile_update_writes_the_name_to_clients_and_the_normalised_contact_to_its_user() {
         given(clientMapper.updateProfile(any())).willReturn(1);
 
         boolean updated = clientService.updateClientProfile(3L, "Rohan Iyer", "  Rohan.Iyer@Example.COM ", "+919812345003");
@@ -42,8 +42,8 @@ class ClientServiceTest {
         assertThat(updated).isTrue();
         ArgumentCaptor<Client> client = ArgumentCaptor.forClass(Client.class);
         verify(clientMapper).updateProfile(client.capture());
-        assertThat(client.getValue().getEmail()).isEqualTo("rohan.iyer@example.com");
-        verify(userMapper).updateEmailForAccount(3L, "rohan.iyer@example.com");
+        assertThat(client.getValue().getName()).isEqualTo("Rohan Iyer");
+        verify(userMapper).updateContact(3L, "rohan.iyer@example.com", "+919812345003");
     }
 
     @Test
@@ -51,23 +51,14 @@ class ClientServiceTest {
         given(clientMapper.updateProfile(any())).willReturn(0);
 
         assertThat(clientService.updateClientProfile(99L, "X", "x@example.com", "1")).isFalse();
-        verify(userMapper, never()).updateEmailForAccount(anyLong(), anyString());
-    }
-
-    @Test
-    void an_email_another_client_holds_is_acc_409() {
-        willThrow(new DuplicateKeyException("clients_email_key")).given(clientMapper).updateProfile(any());
-
-        assertThatThrownBy(() -> clientService.updateClientProfile(3L, "X", "aarav.mehta@example.com", "1"))
-                .isInstanceOf(EmailInUseException.class)
-                .hasFieldOrPropertyWithValue("code", "ACC-409")
-                .hasMessage("Email already in use");
+        verify(userMapper, never()).updateContact(anyLong(), anyString(), anyString());
     }
 
     @Test
     void an_email_another_user_holds_is_acc_409() {
         given(clientMapper.updateProfile(any())).willReturn(1);
-        willThrow(new DuplicateKeyException("uq_users_email")).given(userMapper).updateEmailForAccount(anyLong(), anyString());
+        willThrow(new DuplicateKeyException("uq_users_email"))
+                .given(userMapper).updateContact(anyLong(), anyString(), anyString());
 
         assertThatThrownBy(() -> clientService.updateClientProfile(3L, "X", "someone@example.com", "1"))
                 .isInstanceOf(EmailInUseException.class);

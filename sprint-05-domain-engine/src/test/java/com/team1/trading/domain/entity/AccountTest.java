@@ -19,7 +19,7 @@ class AccountTest {
 
     @BeforeEach
     void setUp() {
-        account = new Client(1L, "Ada Lovelace", "ada@example.com", "9000000001");
+        account = new Client(1L, "Ada Lovelace");
     }
 
     @Nested
@@ -228,7 +228,7 @@ class AccountTest {
         @Test
         @DisplayName("Nothing is affordable on an empty account except zero")
         void canAfford_falseOnEmptyAccount() {
-            Client empty = new Client(2L, "Grace Hopper", "grace@example.com", "9000000002");
+            Client empty = new Client(2L, "Grace Hopper");
 
             assertFalse(empty.canAfford(new BigDecimal("0.01")));
         }
@@ -292,8 +292,8 @@ class AccountTest {
         void reconstructedAccount_keepsItsValues() {
             LocalDateTime createdOn = LocalDateTime.now().minusDays(3);
 
-            Client stored = new Client(7L, "Alan Turing", "alan@example.com",
-                    "9000000007", createdOn, "SUSPENDED", new BigDecimal("42.50"));
+            Client stored = new Client(7L, "Alan Turing",
+                    createdOn, "SUSPENDED", new BigDecimal("42.50"));
 
             assertEquals(7L, stored.getClientId());
             assertEquals("SUSPENDED", stored.getAccountState());
@@ -301,15 +301,13 @@ class AccountTest {
         }
 
         @Test
-        @DisplayName("updateProfile() changes the contact details and nothing else")
-        void updateProfile_changesContactDetailsOnly() {
+        @DisplayName("updateProfile() changes the name and nothing else")
+        void updateProfile_changesNameOnly() {
             account.credit(new BigDecimal("10.00"));
 
-            account.updateProfile("Ada King", "ada.king@example.com", "9000000009");
+            account.updateProfile("Ada King");
 
             assertEquals("Ada King", account.getName());
-            assertEquals("ada.king@example.com", account.getEmail());
-            assertEquals("9000000009", account.getPhone());
             assertEquals(0, new BigDecimal("10.00").compareTo(account.getWalletBalance()));
         }
     }

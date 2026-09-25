@@ -112,11 +112,9 @@ class BankAccountLinkServiceTest {
         verify(bankAccountMapper, never()).save(any());
 
         // bank_account carries no identity of its own (migrations 019, 020): the client is
-        // named from the claiming user's username, phone starts null, and the client's email is
-        // the user's (unique, their login's), not the bank's.
+        // named from the claiming user's username. Email/phone live only on users (migration
+        // 021), so clients carries neither - nothing to assert here about the user's email.
         assertThat(client.getValue().getName()).isEqualTo(USERNAME);
-        assertThat(client.getValue().getPhone()).isNull();
-        assertThat(client.getValue().getEmail()).isEqualTo(EMAIL);
         assertThat(client.getValue().getAccountState()).isEqualTo("ACTIVE");
         assertThat(client.getValue().getWalletBalance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
@@ -154,17 +152,6 @@ class BankAccountLinkServiceTest {
         verify(bankAccountMapper, never()).findByAccountNumberForUpdate(anyString());
         verify(clientMapper, never()).save(any());
         verify(userMapper, never()).linkAccount(anyString(), anyLong());
-    }
-
-    @Test
-    void an_email_another_client_holds_is_acc_409() {
-        anUnlinkedUserAndAnUnclaimedAccount();
-        willThrow(new DuplicateKeyException("clients_email_key")).given(clientMapper).save(any());
-
-        assertThatThrownBy(() -> service.link(USER_ID, request()))
-                .isInstanceOf(BankAccountLinkConflictException.class)
-                .hasFieldOrPropertyWithValue("reason", Reason.ALREADY_ON_FILE);
-        verify(bankAccountMapper, never()).claim(anyString(), anyLong());
     }
 
     @Test

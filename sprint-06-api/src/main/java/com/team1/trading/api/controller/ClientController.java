@@ -3,14 +3,13 @@ package com.team1.trading.api.controller;
 import com.team1.trading.domain.entity.Client;
 import com.team1.trading.api.dto.CreateClientRequest;
 import com.team1.trading.api.dto.ClientResponse;
+import com.team1.trading.api.mapper.UserMapper;
 import com.team1.trading.api.security.AccessGuard;
 import com.team1.trading.api.service.ClientService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,8 +20,9 @@ import java.util.Optional;
 
 /**
  * Pre-v1 client routes. Every one needs a verified token ({@code JwtVerificationFilter}); a
- * customer reaches only their own client, and creating clients, listing them all and changing
- * an account's state are for admins.
+ * customer reaches only their own client, and listing them all and changing an account's state
+ * are for admins. A client is created only by linking a bank account
+ * ({@code BankAccountLinkService}) - there is no create route here.
  */
 @RestController
 @RequestMapping("/api/clients")
@@ -34,19 +34,6 @@ public class ClientController {
     public ClientController(ClientService clientService, AccessGuard accessGuard) {
         this.clientService = clientService;
         this.accessGuard = accessGuard;
-    }
-
-    /** Admin only: a customer's client is created by linking a bank account. */
-    @PostMapping
-    public ResponseEntity<ClientResponse> addClient(@Valid @RequestBody CreateClientRequest request) {
-        accessGuard.requireAdmin();
-        Client client = clientService.createClient(
-                request.getName(),
-                request.getEmail(),
-                request.getPhone()
-        );
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(mapToResponse(client));
     }
 
     @GetMapping("/{clientId}")
@@ -73,6 +60,7 @@ public class ClientController {
                 .map(found -> ResponseEntity.ok(mapToResponse(found)))
                 .orElse(ResponseEntity.notFound().build());
     }
+
 
     @PutMapping("/{clientId}/profile")
     public ResponseEntity<Void> updateProfile(@PathVariable Long clientId,
@@ -109,12 +97,14 @@ public class ClientController {
         return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
+    /** email/phone live only on auth_db.users (migration 021); fetched here, not on Client. */
     private ClientResponse mapToResponse(Client client) {
+        Optional<UserMapper.ContactRow> contact = clientService.getContactByClientId(client.getClientId());
         return new ClientResponse(
                 client.getClientId(),
                 client.getName(),
-                client.getEmail(),
-                client.getPhone(),
+                contact.map(UserMapper.ContactRow::getEmail).orElse(null),
+                contact.map(UserMapper.ContactRow::getPhone).orElse(null),
                 client.getCreatedOn(),
                 client.getAccountState(),
                 client.getWalletBalance()

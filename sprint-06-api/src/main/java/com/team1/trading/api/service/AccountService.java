@@ -114,8 +114,8 @@ public class AccountService {
     }
 
     private static Client toClient(AccountRow row) {
-        return new Client(row.getClientId(), row.getName(), row.getEmail(),
-                row.getPhone(), row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
+        return new Client(row.getClientId(), row.getName(),
+                row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
     }
 
     private static OrderHistoryEntry toHistoryEntry(OrderRow row) {

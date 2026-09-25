@@ -970,13 +970,12 @@ def d14_every_client_has_a_bank_account(v):
 
 def d15_every_client_has_credentials(v):
     missing = v.rows(
-        "SELECT c.client_id, c.email FROM clients c "
+        "SELECT c.client_id FROM clients c "
         "WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.account_id = c.client_id);"
     )
     require(
         not missing,
-        "clients with no users row: "
-        + ", ".join(r[0] + " (" + r[1] + ")" for r in missing),
+        "clients with no users row: " + ", ".join(r[0] for r in missing),
     )
 
 

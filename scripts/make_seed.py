@@ -45,20 +45,30 @@ BANK_ACCOUNTS = [
 
 
 CLIENTS = [
-    (1, "Aarav Mehta",   "aarav.mehta@example.com",   "+919812345001", "ACTIVE",    "125000.00"),
-    (2, "Diya Sharma",   "diya.sharma@example.com",   "+919812345002", "ACTIVE",     "48250.50"),
-    (3, "Rohan Iyer",    "rohan.iyer@example.com",    "+919812345003", "ACTIVE",    "310400.75"),
-    (4, "Meera Nair",    "meera.nair@example.com",    "+919812345004", "SUSPENDED",  "15000.00"),
-    (5, "Vikram Rao",    "vikram.rao@example.com",    "+919812345005", "ACTIVE",     "92750.25"),
-    (6, "Sanya Kapoor",  "sanya.kapoor@example.com",  "+919812345006", "CLOSED",         "0.00"),
+    (1, "Aarav Mehta",   "ACTIVE",    "125000.00"),
+    (2, "Diya Sharma",   "ACTIVE",     "48250.50"),
+    (3, "Rohan Iyer",    "ACTIVE",    "310400.75"),
+    (4, "Meera Nair",    "SUSPENDED",  "15000.00"),
+    (5, "Vikram Rao",    "ACTIVE",     "92750.25"),
+    (6, "Sanya Kapoor",  "CLOSED",         "0.00"),
 ]
 
 
 _PLACEHOLDER_HASH = "$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
+
+def _local_part(name):
+    return name.lower().replace(" ", ".")
+
+
 # Every seeded client already has a linked bank account, so each seeded user carries its
-# account_id. The username is the email's local part, which fits users' username rule.
-USERS = [(client[2].split("@")[0], client[2], client[0], _PLACEHOLDER_HASH) for client in CLIENTS]
+# account_id. Username/email are generated from the client's name (firstname.lastname), which
+# fits users' username rule; email/phone live only on users now (migration 021) - clients
+# carries neither.
+USERS = [
+    (_local_part(client[1]), _local_part(client[1]) + "@example.com", client[0], _PLACEHOLDER_HASH)
+    for client in CLIENTS
+]
 
 
 INSTRUMENTS = [
@@ -207,7 +217,7 @@ def build_bank_account():
 
 
 def build_clients():
-    header = ["client_id", "name", "email", "phone", "account_state", "wallet_balance"]
+    header = ["client_id", "name", "account_state", "wallet_balance"]
     return header, [list(r) for r in CLIENTS]
 
 

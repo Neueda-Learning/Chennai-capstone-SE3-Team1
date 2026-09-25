@@ -14,6 +14,14 @@ export class UserResponseDto {
   @ApiProperty()
   email: string;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Set only via the Trade API profile-update route once a bank account is linked. Null until then.',
+  })
+  phone: string | null;
+
   @ApiProperty({
     type: Number,
     nullable: true,

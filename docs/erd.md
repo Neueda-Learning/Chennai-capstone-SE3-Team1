@@ -24,6 +24,10 @@ the credential store, structurally separated from the trading tables. Nothing
 that reads or writes them needs to say so explicitly: the database's default
 `search_path` includes both schemas, so `FROM users` still resolves.
 
+`clients` carries no email or phone of its own: migration 021 moved both to
+`auth_db.users`, the one place either is stored - `clients.name` is the only
+contact-shaped column left on the trading side.
+
 ## Entity relationship diagram
 
 ```mermaid
@@ -40,8 +44,6 @@ erDiagram
     CLIENTS {
         bigint    client_id       PK
         varchar   name
-        varchar   email           UK
-        varchar   phone
         timestamp created_on
         varchar   account_state
         decimal   wallet_balance
@@ -59,6 +61,7 @@ erDiagram
         uuid      id              PK
         varchar   username        UK
         varchar   email           UK
+        varchar   phone           "NULL until set via the Trade API's profile-update route"
         bigint    account_id      FK,UK "NULL until a bank account is linked"
         text      roles
         varchar   password_hash
@@ -187,10 +190,12 @@ references nothing in `bank_account`.
 
 Since migration 017 `client_id` may also be NULL: bank accounts exist before anyone
 owns them, and the seed loads six claimed and six unclaimed. Onboarding claims one
-by account number: it creates the client from the claiming user's username and
-email (migrations 019 and 020 dropped `bank_account.phone`/`email`/`name`, so the
-bank account carries no identity of its own beyond `client_id`), then sets this
-row's `client_id`. Unclaimed rows simply stay unclaimed.
+by account number: it creates the client from the claiming user's username
+(migrations 019 and 020 dropped `bank_account.phone`/`email`/`name`, so the bank
+account carries no identity of its own beyond `client_id`), then sets this row's
+`client_id`. Unclaimed rows simply stay unclaimed. `clients` itself carries no email
+or phone (migration 021 moved both to `auth_db.users` - see above); the Trade API
+reads and writes either only by reaching across to `users`.
 
 ## Instruments are keyed by their symbol
 

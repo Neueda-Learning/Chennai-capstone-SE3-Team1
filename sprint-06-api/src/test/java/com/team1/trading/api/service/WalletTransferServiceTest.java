@@ -55,7 +55,6 @@ class WalletTransferServiceTest {
         row.setClientId(ACCOUNT_ID);
         row.setAccountNumber(accountNumber);
         row.setName("Priya Menon");
-        row.setEmail("priya.menon@example.com");
         row.setCreatedOn(LocalDateTime.of(2026, 9, 1, 9, 0));
         row.setAccountState(state);
         row.setWalletBalance(new BigDecimal("100.00"));

@@ -22,9 +22,10 @@
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
          and dist\ when they are there.
       5. Starts the auth service (:3000), the API (:8081) and the executor (:8083), waits for
-         health on all three. The auth service gets its database settings from the TrustMe
-         vault, the same place apply_db.py reads them, and signs tokens with -JwtSecret, which
-         the API verifies with.
+         health on all three. All three read their database settings from the TrustMe vault,
+         the same place apply_db.py reads them; the auth service signs tokens with the vault's
+         JWT_SECRET and the API/executor verify with the same vault entry, so the two are
+         always in sync - nothing here overrides it.
       6. Mints a 1-hour JWT for account 1 and prints ready-to-paste commands, including the
          full onboarding flow against the auth service: register, log in, link a bank account,
          refresh, fund the wallet.
@@ -33,7 +34,6 @@
          down.
 
 .PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
-.PARAMETER JwtSecret         HS256 secret the auth service signs tokens with and the API verifies them with. At least 32 characters (the auth service refuses a shorter one). Default is a dev value.
 .PARAMETER KafkaHosted       Connect to a Kafka broker running elsewhere instead of starting one locally. Prompts for -KafkaHost if it isn't passed. No broker is started or stopped on this machine in this mode - only the CLI tools run here, to create topics and let you inspect it.
 .PARAMETER KafkaHost         Address of the remote broker, used only with -KafkaHosted. Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
 .PARAMETER KafkaHome         Where Kafka lives / gets installed - the broker files in local mode, just the CLI tools with -KafkaHosted. Default C:\kafka.
@@ -57,7 +57,6 @@
 [CmdletBinding()]
 param(
     [string]$TrustMePassword,
-    [string]$JwtSecret = "local-dev-secret-change-me-0123456789abcdef",
     [switch]$KafkaHosted,
     [string]$KafkaHost,
     [string]$KafkaHome = "C:\kafka",
@@ -170,9 +169,6 @@ if ($LASTEXITCODE -ne 0) { Fail "python module trustme_secrets missing (pip inst
 if (-not (Test-Path $KeyFile)) { Fail "TrustMe key file missing: $KeyFile" }
 if (-not (Test-Path (Join-Path $AuthDir "package.json"))) { Fail "auth service missing: $AuthDir" }
 if (-not (Test-Port 5432)) { Fail "Postgres is not listening on 5432 (start the postgresql service)" }
-# The auth service validates its config at startup and refuses a JWT_SECRET under 32 characters;
-# failing here says why, instead of a health check that just never goes green.
-if ($JwtSecret.Length -lt 32) { Fail "-JwtSecret must be at least 32 characters (the auth service refuses a shorter one)" }
 
 if (-not $TrustMePassword) {
     $sec = Read-Host "TrustMe key file password" -AsSecureString
@@ -194,6 +190,16 @@ $dbLines = & python @pyTrust -c "import sys; sys.path.insert(0, 'scripts'); from
 if ($LASTEXITCODE -ne 0 -or @($dbLines).Count -lt 5) { Fail "could not read the database settings from the TrustMe vault (wrong password?)" }
 $Db = @{ host = $dbLines[0]; port = $dbLines[1]; name = $dbLines[2]; user = $dbLines[3]; password = $dbLines[4] }
 Write-Host "    database settings: $($Db.user)@$($Db.host):$($Db.port)/$($Db.name) (from the vault)"
+
+# The auth service (configuration.ts) and the API/executor (application.properties/yml's
+# ${trustme.secret.JWT_SECRET}) each fetch this independently from the vault - nothing in this
+# script sets JWT_SECRET as an env var to override either of them, or the two would only agree
+# by coincidence. Read here purely to mint the cheat-sheet token below with the same value.
+$JwtSecret = & python @pyTrust -c "import trustme_secrets as trustme; print(trustme.get('JWT_SECRET'))" 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $JwtSecret) { Fail "could not read JWT_SECRET from the TrustMe vault" }
+# The auth service validates its config at startup and refuses a JWT_SECRET under 32 characters;
+# failing here says why, instead of a health check that just never goes green.
+if ($JwtSecret.Length -lt 32) { Fail "the vault's JWT_SECRET must be at least 32 characters (the auth service refuses a shorter one)" }
 
 # ------------------------------------------------------------------ 2. kafka
 if ($KafkaHosted) { Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}:${KafkaPort}" }
@@ -325,15 +331,18 @@ foreach ($p in $ApiPort, $ExecPort, $AuthPort) { if (Test-Port $p) { Fail "port 
 
 $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile")
 
-# The API and the auth service both read JWT_SECRET (the auth service signs tokens with it;
-# the API verifies them with it, overriding the TrustMe vault's jwt.secret so the two always
-# agree). KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API
-# or the executor start: both run a Kafka producer (trade-api publishes ORDER_PLACED, the
-# executor publishes/consumes everything else), and Spring only reads env vars present at
-# JVM startup - setting it after the API was already launched (an earlier version of this
-# script did exactly that) meant the API silently fell back to its localhost:9092 default,
-# which happened to work only because Kafka used to run on this same machine.
-$env:JWT_SECRET = $JwtSecret
+# No JWT_SECRET env var is set here on purpose: the auth service (configuration.ts) and the
+# API/executor (${trustme.secret.JWT_SECRET}) each read it straight from the vault, and setting
+# it as an env var for only the JVM side would override just that side's lookup - the two would
+# then agree only if this value happened to match the vault's, which it wouldn't after a vault
+# rotation. See $JwtSecret above, read from the same vault purely for the cheat-sheet token.
+#
+# KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API or the executor start: both run a
+# Kafka producer (trade-api publishes ORDER_PLACED, the executor publishes/consumes everything
+# else), and Spring only reads env vars present at JVM startup - setting it after the API was
+# already launched (an earlier version of this script did exactly that) meant the API silently
+# fell back to its localhost:9092 default, which happened to work only because Kafka used to
+# run on this same machine.
 $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 
 # The auth service's settings go into this process's environment only for as long as it takes

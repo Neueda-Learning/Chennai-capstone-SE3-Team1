@@ -7,6 +7,8 @@ export interface UserRecord {
   id: string;
   username: string;
   email: string;
+  /** Set only via the Trade API's profile-update route (ClientService); null until then. */
+  phone: string | null;
   /** clients.client_id once a bank account is linked; null until then. */
   accountId: number | null;
   roles: Role[];
@@ -31,13 +33,14 @@ export class DuplicateUsernameError extends Error {
   }
 }
 
-const USER_COLUMNS = `id, username, email, account_id, roles, password_hash, params_version, version, created_on`;
+const USER_COLUMNS = `id, username, email, phone, account_id, roles, password_hash, params_version, version, created_on`;
 
 function mapRow(row: any): UserRecord {
   return {
     id: row.id,
     username: row.username,
     email: row.email,
+    phone: row.phone,
     accountId: row.account_id === null ? null : Number(row.account_id),
     roles: row.roles,
     passwordHash: row.password_hash,

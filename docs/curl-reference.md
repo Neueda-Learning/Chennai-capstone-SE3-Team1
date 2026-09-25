@@ -63,7 +63,7 @@ curl.exe --% -s -X POST http://localhost:3000/auth/register -H "Content-Type: ap
 
 Response:
 ```json
-{"id":"...","username":"priya.menon","email":"priya.menon@example.com","accountId":null,"roles":["CUSTOMER"],"createdOn":"..."}
+{"id":"...","username":"priya.menon","email":"priya.menon@example.com","phone":null,"accountId":null,"roles":["CUSTOMER"],"createdOn":"..."}
 ```
 
 ### Login
@@ -189,28 +189,19 @@ curl.exe --% -s -X POST http://localhost:8081/api/v1/accounts/7/transfers -H "Au
 
 ## Clients (`/api/clients` — pre-v1, mostly admin)
 A `CUSTOMER` token reaches only the client matching its own `accountId`; everything else
-needs `ADMIN` — see **Minting an admin token** below.
+needs `ADMIN` — see **Minting an admin token** below. There is no create route — a client is
+created only by linking a bank account (`POST /api/v1/bank-accounts`, see **Onboarding** above).
 
-**Create (admin)**
-
-curl (Postman / Bruno / bash):
-```
-curl -s -X POST http://localhost:8081/api/clients -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"name":"Priya Menon","email":"priya.menon@example.com","phone":"9876543210"}'
-```
-
-PowerShell (curl.exe):
-```
-curl.exe --% -s -X POST http://localhost:8081/api/clients -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"name\":\"Priya Menon\",\"email\":\"priya.menon@example.com\",\"phone\":\"9876543210\"}"
-```
-
-**Reads (owner or admin)** *(no body)*
+**Reads (owner or admin)** *(no body)* — `email`/`phone` come from `auth_db.users`, not
+`clients`, which carries neither since migration 021.
 ```
 curl -s http://localhost:8081/api/clients/1 -H "Authorization: Bearer <ACCESS_TOKEN>"
 curl -s http://localhost:8081/api/clients -H "Authorization: Bearer <ADMIN_TOKEN>"
 curl -s http://localhost:8081/api/clients/account/IN45ICIC0000008901234 -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
-**Update profile (owner or admin)**
+**Update profile (owner or admin)** — `name` writes to `clients`; `email`/`phone` write to
+`auth_db.users` instead (the one place either is stored, since migration 021).
 
 curl (Postman / Bruno / bash):
 ```

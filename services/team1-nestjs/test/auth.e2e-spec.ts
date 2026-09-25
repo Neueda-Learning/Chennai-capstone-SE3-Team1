@@ -19,6 +19,7 @@ interface FakeUser {
   id: string;
   username: string;
   email: string;
+  phone: string | null;
   accountId: number | null;
   roles: Role[];
   passwordHash: string;
@@ -65,6 +66,9 @@ class FakeUserRepo {
       id: randomUUID(),
       username: input.username,
       email: input.email,
+      // Registration never collects a phone number either - set later via the Trade API's
+      // profile-update route, same as accountId below.
+      phone: null,
       // Registration never links a trading account; the Trade REST API does that.
       accountId: null,
       roles: input.roles,
