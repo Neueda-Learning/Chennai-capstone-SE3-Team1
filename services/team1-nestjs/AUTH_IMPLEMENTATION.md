@@ -2,10 +2,10 @@
 
 ## Overview
 
-The Sprint 8 auth service implementation: registration, login, token refresh and
-current-user lookup, on the paths, verbs, status codes and bodies fixed by
-`contracts/auth-api.yaml`. This supersedes the email-keyed `credential.service`
-(Sprint 3 heritage), which is removed.
+The Sprint 8 auth service implementation: registration, login, token refresh,
+logout and current-user lookup, on the paths, verbs, status codes and bodies
+fixed by `contracts/auth-api.yaml`. This supersedes the email-keyed
+`credential.service` (Sprint 3 heritage), which is removed.
 
 ## Contract compliance
 
@@ -14,6 +14,7 @@ current-user lookup, on the paths, verbs, status codes and bodies fixed by
 | `POST` | `/auth/register` | no | 201 `UserResponse` | `AUTH-409`, `VAL-422` |
 | `POST` | `/auth/login` | no | 200 `TokenResponse` | `AUTH-401`, `VAL-422` |
 | `POST` | `/auth/refresh` | no | 200 `TokenResponse` | `AUTH-401`, `VAL-422` |
+| `POST` | `/auth/logout` | bearer | 200, no body | `AUTH-401`, `VAL-422` |
 | `GET` | `/auth/me` | bearer | 200 `UserResponse` | `AUTH-401` |
 
 Every failure returns the platform envelope,
@@ -76,6 +77,25 @@ Every `POST /auth/refresh`:
 
 An access token is not revocable, which is why it lives for 15 minutes.
 
+## Logout
+
+`POST /auth/logout` is protected: the access token (`JwtAuthGuard`) identifies
+the caller, and the body's refresh token must be theirs. It calls the same
+`RefreshTokenRepository.revoke(id)` that refresh rotation already uses -
+revoking only that one row, so other sessions the user is logged into
+elsewhere keep working. An unknown token and one that belongs to a different
+user both answer `AUTH-401`, the same body either way, so a caller cannot use
+this route to probe whose session a given token belongs to. `revoke()` only
+touches a row still `revoked_at IS NULL`, so calling it twice with the same
+token is a no-op the second time, not an error. Unlike refresh, presenting an
+already-revoked token here is not treated as theft - it is exactly what a
+double-submitted logout looks like.
+
+The access token itself stays valid until it expires (up to 15 minutes) -
+only the refresh token is revoked - so a caller cannot mint a new pair after
+logging out, but a request already in flight with the old access token is
+not retroactively rejected.
+
 ## One answer for every failure
 
 An unknown username and a wrong password return the same status, the same body
@@ -86,16 +106,16 @@ still returns the uniform `AUTH-401`, not a distinct `429`.
 
 ## Guard
 
-`JwtAuthGuard` protects `/auth/me`. It requires a `Bearer` scheme, delegates to
-`TokenService.verifyAccessToken` (signature, expiry, issuer, claim types) and
-attaches the verified claims to `req.user`. Missing, malformed, expired and
-wrongly-signed tokens all produce `AUTH-401`.
+`JwtAuthGuard` protects `/auth/me` and `/auth/logout`. It requires a `Bearer`
+scheme, delegates to `TokenService.verifyAccessToken` (signature, expiry,
+issuer, claim types) and attaches the verified claims to `req.user`. Missing,
+malformed, expired and wrongly-signed tokens all produce `AUTH-401`.
 
 ## OpenAPI
 
 The running service serves its own generated document: UI at `/docs` and JSON
 at `/docs/json`. It is generated from the controller and DTO decorators, and
-describes all four routes.
+describes all five routes.
 
 ## Configuration
 
@@ -112,13 +132,14 @@ development value in `.env.example`.
 
 ## Tests
 
-- Unit: 15 suites / 96 tests (`src/**/*.spec.ts`, co-located). Covers the exact
+- Unit: 15 suites / 106 tests (`src/**/*.spec.ts`, co-located). Covers the exact
   claim set, expired + wrong-signature guard paths, identical 401 bodies for
   unknown user vs wrong password, registration never minting tokens, refresh
-  rotation + replay theft, DTO `additionalProperties: false`.
-- Integration: 18 tests (`test/auth.e2e-spec.ts`, via `npm run test:e2e`)
+  rotation + replay theft, logout scoping to the caller's own token, DTO
+  `additionalProperties: false`.
+- Integration: 24 tests (`test/auth.e2e-spec.ts`, via `npm run test:e2e`)
   against the running Nest app with in-memory repository fakes, including
-  OpenAPI at `/docs` and `/docs/json`.
+  logout revoking a session and OpenAPI at `/docs` and `/docs/json`.
 
 ```bash
 npm ci

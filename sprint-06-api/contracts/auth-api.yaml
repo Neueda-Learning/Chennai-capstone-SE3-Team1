@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: Auth service
   version: 1.0.0
-  summary: Registration, login, token refresh and current-user lookup for the Enterprise Trading Platform.
+  summary: Registration, login, token refresh, logout and current-user lookup for the Enterprise Trading Platform.
   description: |
     Binding contract for the NestJS auth service built in Sprint 8. The Trade REST API and Angular
     UI must depend on this contract rather than on implementation details.
@@ -54,6 +54,8 @@ info:
       for a wrong password. A different response for each is a user enumeration vulnerability.
     - Rotate the refresh token on every refresh, and invalidate the one that was presented. A
       refresh token that is presented twice indicates theft: revoke the whole chain.
+    - Let a caller revoke their own current session with `POST /auth/logout` without forcing every
+      other session they're logged into elsewhere to re-authenticate too.
     - Validate the signature, the expiry and the issuer on every protected request. Never trust a
       decoded payload that has not had its signature checked.
     - Do not put anything in a JWT that you would not publish. The payload is base64, not encrypted.
@@ -172,6 +174,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '422':
+          $ref: '#/components/responses/InvalidInput'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Revoke the caller's current refresh token
+      description: |
+        Revokes only the presented refresh token; other sessions the user is logged into
+        elsewhere are unaffected. Protected: the access token in `Authorization` identifies the
+        caller, and the presented refresh token must be theirs - one that is unknown or belongs
+        to someone else returns the same `AUTH-401` either way. Logging out twice with the same
+        token is a no-op the second time, not an error.
+
+        The access token itself is not revocable and keeps working until it expires (up to 15
+        minutes); only the refresh token is revoked, so no new access token can be minted once
+        it does.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Logged out.
         '401':
           $ref: '#/components/responses/Unauthorised'
         '422':

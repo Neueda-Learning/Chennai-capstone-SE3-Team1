@@ -79,6 +79,24 @@ export class AuthController {
     return this.authService.refresh(body);
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Revoke the caller's current refresh token" })
+  @ApiResponse({ status: 200, description: 'Logged out' })
+  @ApiResponse({ status: 401, description: 'Authentication failed' })
+  @ApiResponse({
+    status: 422,
+    description: 'The request failed field validation',
+  })
+  async logout(
+    @Request() request: { user: AccessTokenClaims },
+    @Body() body: RefreshRequestDto,
+  ): Promise<void> {
+    await this.authService.logout(request.user, body);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

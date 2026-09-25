@@ -176,6 +176,30 @@ export class AuthService {
     return this.toTokenResponse(pair);
   }
 
+  /**
+   * Revokes only the presented refresh token, so other sessions the user is logged into
+   * elsewhere stay signed in. The access token (via JwtAuthGuard) proves who is calling;
+   * the refresh token must be theirs, or this looks the same as an unknown token - AUTH-401
+   * either way, so a caller can't probe whose session a given token belongs to.
+   */
+  async logout(
+    identity: AccessTokenClaims,
+    request: RefreshRequestDto,
+  ): Promise<void> {
+    const tokenHash = this.tokens.hashRefreshToken(request.refreshToken);
+    const record = await this.refreshTokens.findByHash(tokenHash);
+
+    if (!record || record.userId !== identity.sub) {
+      throw AuthServiceException.unauthorised();
+    }
+
+    // revoke() only touches a row still revoked_at IS NULL, so logging out twice with the
+    // same token is a harmless no-op the second time, not an error.
+    await this.refreshTokens.revoke(record.id);
+
+    this.logger.log('logout', 'logout', { userId: identity.sub });
+  }
+
   async me(identity: AccessTokenClaims): Promise<UserResponseDto> {
     const user = await this.users.findById(identity.sub);
     if (!user) {

@@ -153,7 +153,7 @@ describe('Auth service (e2e)', () => {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Auth service')
       .setDescription(
-        'Registration, login, token refresh and current-user lookup.',
+        'Registration, login, token refresh, logout and current-user lookup.',
       )
       .setVersion('1.0.0')
       .addBearerAuth()
@@ -501,6 +501,108 @@ describe('Auth service (e2e)', () => {
     });
   });
 
+  describe('logout', () => {
+    it("revokes the session's refresh token, leaving the access token usable until it expires but the refresh token dead", async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+      const login = await request(server)
+        .post('/auth/login')
+        .send({
+          username: 'priya.menon',
+          password: registerBody.password,
+        })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${login.body.accessToken}`)
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(200);
+
+      const res = await request(server)
+        .post('/auth/refresh')
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(401);
+      expect(res.body).toEqual({
+        errorCode: 'AUTH-401',
+        message: 'Unauthorised',
+      });
+    });
+
+    it('rejects a missing Authorization header with AUTH-401', async () => {
+      await request(server)
+        .post('/auth/logout')
+        .send({ refreshToken: 'whatever' })
+        .expect(401);
+    });
+
+    it("rejects another user's refresh token with AUTH-401", async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+      const login = await request(server)
+        .post('/auth/login')
+        .send({
+          username: 'priya.menon',
+          password: registerBody.password,
+        })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/register')
+        .send({ ...registerBody, username: 'rahul.verma', email: 'rahul.verma@example.com' })
+        .expect(201);
+      const otherLogin = await request(server)
+        .post('/auth/login')
+        .send({
+          username: 'rahul.verma',
+          password: registerBody.password,
+        })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${otherLogin.body.accessToken}`)
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(401);
+
+      // Untouched: the original session's refresh token still works.
+      await request(server)
+        .post('/auth/refresh')
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(200);
+    });
+
+    it('is a harmless no-op logging out twice with the same token', async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+      const login = await request(server)
+        .post('/auth/login')
+        .send({
+          username: 'priya.menon',
+          password: registerBody.password,
+        })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${login.body.accessToken}`)
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${login.body.accessToken}`)
+        .send({ refreshToken: login.body.refreshToken })
+        .expect(200);
+    });
+  });
+
   describe('openapi', () => {
     it('serves the OpenAPI JSON at /docs/json', async () => {
       const res = await request(server).get('/docs/json').expect(200);
@@ -508,6 +610,7 @@ describe('Auth service (e2e)', () => {
       expect(res.body.paths['/auth/register']).toBeDefined();
       expect(res.body.paths['/auth/login']).toBeDefined();
       expect(res.body.paths['/auth/refresh']).toBeDefined();
+      expect(res.body.paths['/auth/logout']).toBeDefined();
       expect(res.body.paths['/auth/me']).toBeDefined();
     });
 
