@@ -11,19 +11,19 @@ async function bootstrap() {
 
   app.enableCors();
 
-  // const swaggerConfig = new DocumentBuilder()
-  //   .setTitle('Auth service')
-  //   .setDescription(
-  //     'Registration, login, token refresh, logout and current-user lookup. ' +
-  //       'Serves contracts/auth-api.yaml.',
-  //   )
-  //   .setVersion('1.0.0')
-  //   .addBearerAuth()
-  //   .build();
-  // const document = SwaggerModule.createDocument(app, swaggerConfig);
-  // SwaggerModule.setup('docs', app, document, {
-  //   jsonDocumentUrl: 'docs/json',
-  // });
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Auth service')
+    .setDescription(
+      'Registration, login, token refresh, logout and current-user lookup. ' +
+        'Serves contracts/auth-api.yaml.',
+    )
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, {
+    jsonDocumentUrl: 'docs/json',
+  });
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
