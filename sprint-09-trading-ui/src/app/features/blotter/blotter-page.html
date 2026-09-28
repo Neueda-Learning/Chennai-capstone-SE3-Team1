@@ -1,0 +1,79 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Blotter</h1>
+    <p class="page-subtitle">Order and trade history.</p>
+  </div>
+</div>
+
+<div class="table-card-custom">
+  <div class="table-header-control">
+    <div class="table-search-box">
+      <i class="bi bi-search table-search-icon"></i>
+      <input type="text" class="table-search-input" placeholder="Search orders or symbols...">
+    </div>
+    <div class="table-filter-group">
+      <div class="dropdown">
+        <button class="btn-table-action dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-funnel"></i> Status Filter
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="javascript:void(0)">All Statuses</a></li>
+          <li><a class="dropdown-item" href="javascript:void(0)">Filled</a></li>
+          <li><a class="dropdown-item" href="javascript:void(0)">Working</a></li>
+          <li><a class="dropdown-item" href="javascript:void(0)">Rejected</a></li>
+        </ul>
+      </div>
+      <button class="btn-table-action" type="button">
+        <i class="bi bi-file-earmark-arrow-down"></i> Export
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table-custom">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Symbol</th>
+          <th>Side</th>
+          <th>Quantity</th>
+          <th>Price</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows; track row.orderId) {
+          <tr>
+            <td class="table-order-id">#{{ row.orderId }}</td>
+            <td class="table-product-name">{{ row.symbol }}</td>
+            <td>
+              <span class="badge-table" [class.success]="row.side === 'BUY'" [class.failed]="row.side === 'SELL'">
+                {{ row.side }}
+              </span>
+            </td>
+            <td>{{ row.quantity }}</td>
+            <td class="table-amount">{{ row.price }}</td>
+            <td>{{ row.date }}</td>
+            <td>
+              <span
+                class="badge-table"
+                [class.success]="row.status === 'FILLED'"
+                [class.pending]="row.status === 'WORKING'"
+                [class.failed]="row.status === 'REJECTED'"
+              >
+                {{ row.status | titlecase }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex justify-content-center gap-1">
+                <a href="javascript:void(0)" class="table-btn-action" title="View details"><i class="bi bi-eye"></i></a>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

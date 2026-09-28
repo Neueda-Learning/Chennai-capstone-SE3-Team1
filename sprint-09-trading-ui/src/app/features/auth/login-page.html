@@ -1,0 +1,67 @@
+<div class="login-wrapper">
+  <div class="login-bg-shape login-bg-shape-1"></div>
+  <div class="login-bg-shape login-bg-shape-2"></div>
+
+  <div class="login-card">
+    <span class="login-brand">
+      <i class="bi bi-graph-up-arrow"></i>
+      <span>Trading UI</span>
+    </span>
+
+    <p class="login-subtitle">Sign in to place orders and view your portfolio</p>
+
+    <form
+      class="needs-validation"
+      [class.was-validated]="submitted()"
+      novalidate
+      (submit)="onSubmit($event)"
+    >
+      <div class="login-form-group">
+        <label for="username" class="login-form-label">Username</label>
+        <div class="login-input-group">
+          <i class="bi bi-person input-icon"></i>
+          <input type="text" id="username" class="login-input" placeholder="jane.doe" required>
+        </div>
+      </div>
+
+      <div class="login-form-group">
+        <label for="password" class="login-form-label">Password</label>
+        <div class="login-input-group">
+          <i class="bi bi-shield-lock input-icon"></i>
+          <input
+            [type]="passwordVisible() ? 'text' : 'password'"
+            id="password"
+            class="login-input login-input-password"
+            placeholder="••••••••"
+            required
+          >
+          <button
+            type="button"
+            class="password-toggle-btn"
+            [attr.aria-label]="passwordVisible() ? 'Hide password' : 'Show password'"
+            (click)="togglePasswordVisibility()"
+          >
+            <i class="bi" [class.bi-eye]="!passwordVisible()" [class.bi-eye-slash]="passwordVisible()"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="login-options">
+        <label class="custom-control-label">
+          <input type="checkbox" class="custom-checkbox-input">
+          <span>Remember Me</span>
+        </label>
+        <a href="javascript:void(0)" class="forgot-password-link">Forgot Password?</a>
+      </div>
+
+      <button type="submit" class="btn-login">
+        <span>Sign In</span>
+        <i class="bi bi-arrow-right"></i>
+      </button>
+    </form>
+
+    <p class="login-footer-text">
+      Don't have an account? <a href="javascript:void(0)">Register Now</a>
+    </p>
+  </div>
+</div>

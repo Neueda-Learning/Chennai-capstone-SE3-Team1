@@ -1,0 +1,166 @@
+<div class="sidebar-wrapper" [class.show]="mobileNavOpen()">
+  <a routerLink="/dashboard" class="sidebar-brand">
+    <i class="bi bi-graph-up-arrow"></i>
+    <span>Trading UI</span>
+  </a>
+
+  <div class="flex-grow-1 overflow-y-auto">
+    <div class="sidebar-menu-section">
+      <div class="sidebar-menu-title">Trading</div>
+      <ul class="sidebar-menu-list">
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/dashboard"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Dashboard"
+          >
+            <i class="bi bi-grid-fill"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/orders"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Order ticket"
+          >
+            <i class="bi bi-receipt"></i>
+            <span>Order Ticket</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/blotter"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Blotter"
+          >
+            <i class="bi bi-table"></i>
+            <span>Blotter</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sidebar-profile">
+    <img src="/images/avatar.png" alt="Signed-in trader" class="sidebar-profile-img" />
+    <div class="sidebar-profile-info">
+      <div class="sidebar-profile-name">Demo Trader</div>
+      <div class="sidebar-profile-email">trader&#64;example.com</div>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" [class.show]="mobileNavOpen()" (click)="closeMobileNav()"></div>
+
+<div class="main-wrapper">
+  <header class="navbar-custom">
+    <div class="navbar-left">
+      <button
+        class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
+        type="button"
+        aria-label="Minimize sidebar"
+        (click)="toggleSidebarMinimized()"
+      >
+        <i class="bi" [class.bi-chevron-bar-left]="!sidebarMinimized()" [class.bi-chevron-bar-right]="sidebarMinimized()"></i>
+      </button>
+      <button class="sidebar-toggle-btn me-2" type="button" aria-label="Toggle navigation" (click)="toggleMobileNav()">
+        <i class="bi bi-list"></i>
+      </button>
+    </div>
+
+    <div class="navbar-search-wrapper">
+      <input type="text" class="navbar-search-input" placeholder="Search symbols, orders...">
+      <button class="navbar-search-btn" type="button" aria-label="Search">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+
+    <div class="navbar-actions">
+      <button class="navbar-action-btn me-1" type="button" aria-label="Toggle fullscreen" (click)="toggleFullscreen()">
+        <i class="bi" [class.bi-arrows-fullscreen]="!isFullscreen()" [class.bi-fullscreen-exit]="isFullscreen()"></i>
+      </button>
+
+      <div class="dropdown">
+        <button
+          class="navbar-action-btn dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          data-bs-auto-close="outside"
+          aria-expanded="false"
+        >
+          <i class="bi bi-bell"></i>
+          <span class="navbar-action-badge"></span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-notification p-0">
+          <div class="notification-header">
+            <h6 class="notification-title">Notifications</h6>
+            <button class="btn-clear-all" type="button">Mark all read</button>
+          </div>
+          <div class="notification-list">
+            <a href="javascript:void(0)" class="notification-item">
+              <div class="notification-icon bg-success text-white">
+                <i class="bi bi-check2-circle"></i>
+              </div>
+              <div class="notification-content">
+                <p class="notification-text">Order filled: <strong>BUY 10 RELIANCE @ 1300.00</strong></p>
+                <span class="notification-time">2 mins ago</span>
+              </div>
+              <span class="notification-unread-dot"></span>
+            </a>
+            <a href="javascript:void(0)" class="notification-item">
+              <div class="notification-icon bg-primary text-white">
+                <i class="bi bi-arrow-left-right"></i>
+              </div>
+              <div class="notification-content">
+                <p class="notification-text">Wallet funded: <strong>+10,000.00</strong></p>
+                <span class="notification-time">1 hour ago</span>
+              </div>
+              <span class="notification-unread-dot"></span>
+            </a>
+            <a href="javascript:void(0)" class="notification-item">
+              <div class="notification-icon bg-warning text-dark">
+                <i class="bi bi-hourglass-split"></i>
+              </div>
+              <div class="notification-content">
+                <p class="notification-text">Order pending: <strong>SELL 5 INFY</strong></p>
+                <span class="notification-time">3 hours ago</span>
+              </div>
+            </a>
+          </div>
+          <a href="javascript:void(0)" class="notification-footer">View all notifications</a>
+        </div>
+      </div>
+
+      <div class="dropdown ms-2">
+        <button class="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <img src="/images/avatar.png" alt="Profile" class="navbar-profile-img">
+          <span class="navbar-profile-name d-none d-md-inline">Demo Trader</span>
+          <i class="bi bi-chevron-down navbar-profile-caret"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-profile">
+          <li class="dropdown-header">Welcome!</li>
+          <li><a class="dropdown-item" href="javascript:void(0)"><i class="bi bi-person"></i> My Account</a></li>
+          <li><a class="dropdown-item" href="javascript:void(0)"><i class="bi bi-gear"></i> Settings</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item text-danger" routerLink="/login"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <router-outlet />
+
+  <footer class="footer-custom">
+    <div class="footer-left">
+      <span class="footer-logo">
+        <i class="bi bi-graph-up-arrow"></i> Trading UI
+      </span>
+      <span class="footer-separator">|</span>
+      <span class="footer-copy">Sprint 9 &mdash; UI shell only, no live data</span>
+    </div>
+  </footer>
+</div>

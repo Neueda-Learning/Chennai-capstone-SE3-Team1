@@ -1,0 +1,245 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Your portfolio at a glance.</p>
+  </div>
+  <span class="btn-date-picker">
+    <i class="bi bi-calendar4-event"></i>
+    <span>Last 30 days</span>
+  </span>
+</div>
+
+<div class="row g-4">
+  <div class="col-12">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card alert-green-card">
+          <div class="position-relative z-index-2">
+            <span class="alert-green-badge">Live</span>
+            <div class="alert-green-date">Today</div>
+            <div class="alert-green-text">Portfolio value up 3.2% this week</div>
+          </div>
+          <a href="javascript:void(0)" class="alert-green-link z-index-2">
+            <span>View positions</span>
+            <i class="bi bi-arrow-right"></i>
+          </a>
+          <svg class="alert-green-bg-shape" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(50,50)">
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(60)" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(120)" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-stat d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header">
+              <span class="stat-label">Portfolio Value</span>
+            </div>
+            <div class="stat-value">₹5,40,000</div>
+            <div class="trend-badge trend-up">
+              <i class="bi bi-arrow-up-right"></i>
+              <span>+35% from last month</span>
+            </div>
+          </div>
+          <div class="sparkline-container sparkline-card-footer">
+            <div #portfolioSpark></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-stat d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header">
+              <span class="stat-label">Today's P&amp;L</span>
+            </div>
+            <div class="stat-value">-₹8,200</div>
+            <div class="trend-badge trend-down">
+              <i class="bi bi-arrow-down-left"></i>
+              <span>-24% from yesterday</span>
+            </div>
+          </div>
+          <div class="sparkline-container sparkline-card-footer">
+            <div #pnlSpark></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-9 col-lg-8">
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="card mb-0">
+          <div class="card-header mb-2">
+            <h2 class="card-title">Order Flow</h2>
+            <div class="d-flex gap-3 align-items-center">
+              <div class="chart-legend-item">
+                <span class="legend-dot bg-forest-medium"></span>
+                <span class="chart-legend-label">Buys</span>
+              </div>
+              <div class="chart-legend-item">
+                <span class="legend-dot bg-lime-accent"></span>
+                <span class="chart-legend-label">Sells</span>
+              </div>
+            </div>
+          </div>
+          <div #orderFlowChart></div>
+        </div>
+      </div>
+
+      <div class="col-md-7 d-flex flex-column">
+        <div class="card h-100 flex-grow-1">
+          <div class="card-header">
+            <h2 class="card-title">Recent Orders</h2>
+          </div>
+
+          <div class="transaction-list">
+            <div class="transaction-item">
+              <div class="transaction-icon bg-forest-light text-lime">
+                <i class="bi bi-arrow-up-circle"></i>
+              </div>
+              <div class="transaction-info">
+                <div class="transaction-name">BUY 10 RELIANCE</div>
+                <div class="transaction-date">Feb 14, 2026 • 12:40 PM</div>
+              </div>
+              <div class="transaction-amount text-main">₹13,000.00</div>
+            </div>
+
+            <div class="transaction-item">
+              <div class="transaction-icon bg-forest-light text-lime">
+                <i class="bi bi-arrow-down-circle"></i>
+              </div>
+              <div class="transaction-info">
+                <div class="transaction-name">SELL 5 INFY</div>
+                <div class="transaction-date">Feb 13, 2026 • 08:15 AM</div>
+              </div>
+              <div class="transaction-amount text-success">+₹7,250.00</div>
+            </div>
+
+            <div class="transaction-item">
+              <div class="transaction-icon bg-forest-light text-lime">
+                <i class="bi bi-arrow-up-circle"></i>
+              </div>
+              <div class="transaction-info">
+                <div class="transaction-name">BUY 20 TATASTEEL</div>
+                <div class="transaction-date">Feb 11, 2026 • 04:30 PM</div>
+              </div>
+              <div class="transaction-amount text-main">₹3,400.00</div>
+            </div>
+
+            <div class="transaction-item">
+              <div class="transaction-icon bg-forest-light text-lime">
+                <i class="bi bi-arrow-down-circle"></i>
+              </div>
+              <div class="transaction-info">
+                <div class="transaction-name">SELL 2 TCS</div>
+                <div class="transaction-date">Feb 09, 2026 • 09:20 AM</div>
+              </div>
+              <div class="transaction-amount text-success">+₹6,800.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-5 d-flex flex-column">
+        <div class="card h-100 flex-grow-1">
+          <div class="card-header">
+            <h2 class="card-title">Order Summary</h2>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Filled</span>
+              <span class="progress-value">233</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Filled orders" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent w-65"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Working</span>
+              <span class="progress-value">23</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Working orders" aria-valuenow="20" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent opacity-50 w-50"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Partially Filled</span>
+              <span class="progress-value">482</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Partially filled orders" aria-valuenow="85" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent w-85"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Rejected</span>
+              <span class="progress-value">8</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Rejected orders" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-brand-orange w-38"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Pending</span>
+              <span class="progress-value">1,420</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Pending orders" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent w-75"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Cancelled</span>
+              <span class="progress-value">64</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Cancelled orders" aria-valuenow="45" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent opacity-50 w-45"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-lg-4">
+    <div class="right-panel-wrapper d-flex flex-column gap-4 h-100">
+      <div class="card flex-grow-1 d-flex flex-column justify-content-between mb-0">
+        <div class="card-header mb-1">
+          <h2 class="card-title">Portfolio Allocation</h2>
+        </div>
+
+        <div #allocationChart></div>
+
+        <div class="chart-legends-container">
+          <div class="chart-legend-item">
+            <span class="legend-dot bg-lime-accent"></span>
+            <span class="text-muted-green">Equity</span>
+          </div>
+          <div class="chart-legend-item">
+            <span class="legend-dot bg-forest-medium"></span>
+            <span class="text-muted-green">Cash</span>
+          </div>
+          <div class="chart-legend-item">
+            <span class="legend-dot bg-brand-orange"></span>
+            <span class="text-muted-green">Crypto</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
