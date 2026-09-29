@@ -7,6 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "postinstall": "npm run generate:clients",
     "generate:clients": "npm run generate:auth-client && npm run generate:trade-client",
     "generate:auth-client": "openapi-generator-cli generate -c openapi-generator/auth-client.config.json",
     "generate:trade-client": "openapi-generator-cli generate -c openapi-generator/trade-client.config.json"
