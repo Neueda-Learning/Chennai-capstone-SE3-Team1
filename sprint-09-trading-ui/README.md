@@ -15,17 +15,23 @@ ticket and blotter, talking to the Trade API and the auth service defined in
 - Supported Node: `^20.19.0 || ^22.12.0 || >=24.0.0`, matching Angular 21's
   own peer requirement (recorded in `package.json#engines`). Developed and
   verified against Node 24.10.0.
+- Requires a Java runtime on `PATH` (Temurin 25 verified). `npm install`/
+  `npm ci` runs `postinstall` → `generate:clients`, which regenerates the
+  typed API clients from `sprint-06-api/contracts/` via OpenAPI Generator, a
+  JVM tool. No Java means the install fails outright — see
+  `src/app/generated/README.md`.
 
 ```bash
-npm ci              # install from the committed package-lock.json
+npm ci              # install; also regenerates src/app/generated/ (needs Java)
 npm run build        # production build, output in dist/trading-ui
 npm test             # Vitest, headless, single run in CI: npm test -- --watch=false
 npm start            # dev server at localhost:4200
 ```
 
 All three of `npm ci`, `npm run build` and `npm test` are verified to pass
-from a clean `node_modules`/`dist` on the committed lock file — that's the
-acceptance bar for this story, not just "works on my machine".
+from a clean `node_modules`/`dist` on the committed lock file, given Java on
+`PATH` — that's the acceptance bar for this story, not just "works on my
+machine".
 
 ## Feature tree
 
