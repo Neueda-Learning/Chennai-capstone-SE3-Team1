@@ -1,12 +1,18 @@
 import { Routes } from '@angular/router';
 
+import { authGuard, authGuardChild } from './core/auth/auth.guard';
+
 export const routes: Routes = [
   {
+    // Deliberately unguarded: this is the one route a signed-out visitor is
+    // allowed to reach, because it is the one that lets them fix that.
     path: 'login',
     loadComponent: () => import('./features/auth/login-page').then((m) => m.LoginPage)
   },
   {
     path: '',
+    canActivate: [authGuard],
+    canActivateChild: [authGuardChild],
     loadComponent: () => import('./core/layout/shell').then((m) => m.Shell),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -25,5 +31,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/blotter/blotter-page').then((m) => m.BlotterPage)
       }
     ]
+  },
+  {
+    // An unknown URL would otherwise leave the outlet empty — a blank page with
+    // no explanation, which is the outcome the ticket warns about. Hand it to
+    // the guarded root, so it either lands on the dashboard or gets bounced to
+    // sign-in with somewhere to come back to.
+    path: '**',
+    redirectTo: ''
   }
 ];
