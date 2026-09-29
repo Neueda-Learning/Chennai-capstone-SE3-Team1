@@ -1,6 +1,9 @@
 import { DOCUMENT } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+
+import { SessionStore } from '../auth/session.store';
+import { AuthService } from '../../generated/auth-client';
 
 @Component({
   selector: 'tui-shell',
@@ -10,6 +13,9 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 })
 export class Shell {
   private readonly document = inject(DOCUMENT);
+  private readonly session = inject(SessionStore);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly mobileNavOpen = signal(false);
   protected readonly sidebarMinimized = signal(false);
@@ -41,5 +47,22 @@ export class Shell {
         .then(() => this.isFullscreen.set(false))
         .catch(() => this.isFullscreen.set(true));
     }
+  }
+
+  protected onSignOut(): void {
+    const refreshToken = this.session.refreshToken();
+    this.session.signOut();
+
+    if (refreshToken) {
+      // Best effort: revoking the refresh token stops a lost tab from minting
+      // a new access token. Until the auth interceptor story lands, this call
+      // goes out anonymous and the service refuses it with AUTH-401 - and that
+      // refusal is fine, because the local sign-out has already happened.
+      this.auth.logout({ refreshRequest: { refreshToken } }).subscribe({
+        error: () => undefined
+      });
+    }
+
+    void this.router.navigate(['/login']);
   }
 }
