@@ -6,7 +6,10 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "generate:clients": "npm run generate:auth-client && npm run generate:trade-client",
+    "generate:auth-client": "openapi-generator-cli generate -c openapi-generator/auth-client.config.json",
+    "generate:trade-client": "openapi-generator-cli generate -c openapi-generator/trade-client.config.json"
   },
   "private": true,
   "packageManager": "npm@11.6.1",
@@ -31,6 +34,7 @@
     "@angular/build": "^21.2.24",
     "@angular/cli": "^21.2.24",
     "@angular/compiler-cli": "^21.2.0",
+    "@openapitools/openapi-generator-cli": "2.41.0",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",

@@ -39,9 +39,17 @@ a component file.
 | Blotter | `features/blotter/blotter-page.ts` | `const MOCK_ROWS` — five hardcoded rows. |
 | Shell | `core/layout/shell.ts` / `.html` | "Demo Trader" name/avatar/email is static markup, not a session. Notification dropdown items are static. |
 
-There is no service layer (`core/services/` or similar doesn't exist yet), no
-`HttpClient` provider in `app.config.ts`, and no typed client generated from
-`contracts/`.
+There is no service layer (`core/services/` or similar doesn't exist yet). No
+page calls a backend — the typed clients exist and are provided, but nothing
+consumes them yet.
+
+`HttpClient` is provided (`provideHttpClient()` in `app.config.ts`), and
+typed clients generated from both contracts live under `src/app/generated/`
+(`auth-client/`, `trade-client/` — see the README in that folder for the
+regen command and the rules for that tree). Both are wired into
+`app.config.ts` via `provideApi({ basePath: ... })` from each client's
+`provide-api.ts`, aliased on import (`provideAuthApi` / `provideTradeApi`)
+since both clients export a same-named `provideApi`/`Configuration`.
 
 ## Preserving the theme when you wire things up
 
@@ -81,16 +89,20 @@ There is no service layer (`core/services/` or similar doesn't exist yet), no
 
 ## Wiring up real functionality — where things should go
 
-- Add an `core/services/` (or similar) folder for `HttpClient`-based services
-  once real API calls start. None exists yet — don't guess an API shape
-  that isn't in `contracts/`.
-- Add `provideHttpClient()` to `app.config.ts` when the first service needs it.
+- Add a `core/services/` (or similar) folder for services that call the
+  generated clients (`AuthService`, `AccountsService`, `OrdersService`, ...
+  from `src/app/generated/{auth,trade}-client`) once real API calls start.
+  Inject the generated service directly; only add a wrapper around it if its
+  generated shape is genuinely awkward to consume — don't wrap by default.
 - An auth/session store (likely a signal-based service holding the current
   user + token) doesn't exist yet. The `Shell`'s hardcoded "Demo Trader"
   block and the profile dropdown's "Logout" link (`routerLink="/login"`)
   are the two spots that will need to read real session state.
-- Match request/response shapes to `contracts/auth-api.yaml` and
-  `contracts/trade-api.yaml` at the repo root — don't invent field names.
+- Request/response shapes now come from the generated model types in
+  `src/app/generated/{auth,trade}-client/model/` — use those types, don't
+  hand-declare interfaces that duplicate them. If a contract changes, rerun
+  `npm run generate:clients`; anything that used a renamed field stops
+  compiling, which is the point.
 
 ## Commands
 

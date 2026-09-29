@@ -65,8 +65,13 @@ state, the HTTP interceptor that attaches the bearer token, error handling)
 and `shared/` (reusable presentational components/pipes used by more than one
 feature). Both belong in this tree once a story actually needs them; an empty
 folder tracked in git for a directory that doesn't exist yet would just be
-noise. The typed API client generated from `contracts/` and the Playwright
-e2e suite are likewise separate, later stories.
+noise. The Playwright e2e suite is likewise a separate, later story.
+
+The typed API clients generated from `sprint-06-api/contracts/` now exist
+under `src/app/generated/` (see the README there) and are wired into
+`app.config.ts` via `provideHttpClient()` and each client's `provideApi()`.
+No feature page calls them yet — that's still later stories; this one only
+stands the generated clients up and makes them injectable.
 
 ## Conventions
 

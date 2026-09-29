@@ -6,6 +6,10 @@
 /out-tsc
 /bazel-out
 
+# NOT ignored, on purpose: src/app/generated/ (the OpenAPI-generated auth and
+# trade API clients) is committed. It's generator output, not build output —
+# see src/app/generated/README.md before adding it here.
+
 # Node
 /node_modules
 npm-debug.log
