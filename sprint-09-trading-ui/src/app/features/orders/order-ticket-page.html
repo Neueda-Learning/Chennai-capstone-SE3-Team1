@@ -12,7 +12,7 @@
         <h2 class="card-title">New Order</h2>
       </div>
 
-      <form (submit)="onSubmit($event)">
+      <form [formGroup]="form" (submit)="onSubmit($event)" novalidate>
         <div class="mb-3 d-flex gap-2">
           <button
             type="button"
@@ -36,12 +36,18 @@
 
         <div class="mb-3">
           <label for="symbol" class="form-label-custom">Symbol</label>
-          <select id="symbol" class="form-select-custom">
-            <option>RELIANCE</option>
-            <option>INFY</option>
-            <option>TCS</option>
-            <option>TATASTEEL</option>
-          </select>
+          <input
+            type="text"
+            id="symbol"
+            class="form-control-custom"
+            formControlName="symbol"
+            placeholder="RELIANCE"
+            autocomplete="off"
+            [class.is-invalid-custom]="fieldInvalid('symbol')"
+          />
+          @if (messageFor('symbol'); as symbolMessage) {
+            <span class="form-feedback-custom invalid-custom">{{ symbolMessage }}</span>
+          }
         </div>
 
         <div class="mb-3">
@@ -54,7 +60,7 @@
                 class="form-check-input-custom"
                 [checked]="orderType() === 'MARKET'"
                 (change)="selectOrderType('MARKET')"
-              >
+              />
               <span>Market</span>
             </label>
             <label class="form-check-custom mb-0">
@@ -64,7 +70,7 @@
                 class="form-check-input-custom"
                 [checked]="orderType() === 'LIMIT'"
                 (change)="selectOrderType('LIMIT')"
-              >
+              />
               <span>Limit</span>
             </label>
           </div>
@@ -73,7 +79,19 @@
         <div class="row">
           <div class="col-6 mb-3">
             <label for="quantity" class="form-label-custom">Quantity</label>
-            <input type="number" id="quantity" class="form-control-custom" placeholder="10" min="1">
+            <input
+              type="number"
+              id="quantity"
+              class="form-control-custom"
+              formControlName="quantity"
+              placeholder="10"
+              min="1"
+              step="1"
+              [class.is-invalid-custom]="fieldInvalid('quantity')"
+            />
+            @if (messageFor('quantity'); as quantityMessage) {
+              <span class="form-feedback-custom invalid-custom">{{ quantityMessage }}</span>
+            }
           </div>
           <div class="col-6 mb-3">
             <label for="price" class="form-label-custom">Price</label>
@@ -81,17 +99,64 @@
               type="number"
               id="price"
               class="form-control-custom"
-              placeholder="Market price"
-              [disabled]="orderType() === 'MARKET'"
-            >
+              formControlName="price"
+              placeholder="1450.00"
+              step="0.01"
+              [class.is-invalid-custom]="fieldInvalid('price')"
+            />
+            @if (messageFor('price'); as priceMessage) {
+              <span class="form-feedback-custom invalid-custom">{{ priceMessage }}</span>
+            }
           </div>
         </div>
 
-        <button type="submit" class="btn-custom btn-custom-primary btn-custom-lg w-100">
-          Review Order
+        <button
+          type="submit"
+          class="btn-custom btn-custom-primary btn-custom-lg w-100"
+          [disabled]="submitting()"
+        >
+          @if (submitting()) {
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Placing order…
+          } @else {
+            Place Order
+          }
         </button>
       </form>
     </div>
+
+    @if (outcome(); as result) {
+      @if (result.kind === 'accepted') {
+        <div class="alert alert-success d-flex align-items-start gap-2" role="status">
+          <i class="bi bi-check-circle-fill"></i>
+          <div>
+            <div class="fw-semibold">
+              Order {{ result.order.orderId }} accepted
+              <span [class]="'badge-table ' + statusTone(result.order.status)">
+                {{ result.order.status }}
+              </span>
+            </div>
+            <div class="small">
+              {{ result.order.side }} {{ result.order.quantity }} {{ result.order.symbol }} at
+              {{ result.order.price }} — {{ result.order.message }}
+            </div>
+            @if (result.order.status === 'NEW') {
+              <div class="small">
+                Working. It will fill or be rejected; the blotter updates as it resolves.
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <div>
+            <div class="fw-semibold">Order not placed</div>
+            <div class="small">{{ result.message }}</div>
+          </div>
+        </div>
+      }
+    }
   </div>
 
   <div class="col-lg-5">
@@ -99,7 +164,15 @@
       <div class="card-header">
         <h2 class="card-title">Wallet</h2>
       </div>
-      <div class="stat-label">Available Balance</div>
+      <div class="stat-label">Trading Account</div>
+      <div class="stat-value" data-testid="account-id">
+        @if (hasAccount()) {
+          {{ accountId() }}
+        } @else {
+          <span class="text-muted">Not linked</span>
+        }
+      </div>
+      <div class="stat-label mt-3">Available Balance</div>
       <div class="stat-value">₹42,500.00</div>
     </div>
   </div>
