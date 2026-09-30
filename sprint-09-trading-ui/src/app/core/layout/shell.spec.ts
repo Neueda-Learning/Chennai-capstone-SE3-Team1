@@ -34,14 +34,14 @@ describe('Shell', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should render the three navigation links', async () => {
+  it('should render the four navigation links', async () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
     const links = Array.from(compiled.querySelectorAll('.sidebar-menu-link')).map((el) =>
       el.textContent?.trim()
     );
-    expect(links).toEqual(['Dashboard', 'Order Ticket', 'Blotter']);
+    expect(links).toEqual(['Dashboard', 'Order Ticket', 'Blotter', 'Bank Account Details']);
   });
 
   it('should open the mobile sidebar on toggle', async () => {

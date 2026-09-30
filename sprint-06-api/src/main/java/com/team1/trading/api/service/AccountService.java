@@ -33,6 +33,9 @@ import java.util.List;
 @Service
 public class AccountService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(AccountService.class);
+
     private final AccountMapper accountMapper;
     private final OrderMapper orderMapper;
     private final PositionMapper positionMapper;
@@ -49,8 +52,20 @@ public class AccountService {
 
     public AccountResponse getAccount(Long accountId, Long tokenAccountId) {
         AccountRow row = resolve(accountId, tokenAccountId);
+
+        log.info("[account] read accountId={} name={} accountNumber={} bankName={} wallet={} state={}",
+                accountId, row.getName(), row.getAccountNumber(), row.getBankName(),
+                row.getWalletBalance(), row.getAccountState());
+        if (row.getBankName() == null) {
+            log.warn("[account] bankName is null for accountId={}. The bank_account LEFT JOIN found "
+                    + "no row, so there is no bank to name. Attach one with: "
+                    + "UPDATE public.bank_account SET client_id = {} WHERE account_number = "
+                    + "'<unclaimed account number>';", accountId, accountId);
+        }
+
         return new AccountResponse(row.getClientId(), row.getAccountNumber(), row.getName(),
-                row.getWalletBalance(), row.getAccountState(), row.getVersion(), row.getUpdatedOn());
+                row.getBankName(), row.getWalletBalance(), row.getAccountState(), row.getVersion(),
+                row.getUpdatedOn());
     }
 
     public BalanceResponse getBalance(Long accountId, Long tokenAccountId) {

@@ -67,7 +67,7 @@ class AccountReadControllerTest {
     void testAllReadEndpointsSuccess() throws Exception {
         // Setup Account Response
         AccountResponse accountResponse = new AccountResponse(
-                ACCOUNT_ID, "ACC-000001", "Aarav Mehta", new BigDecimal("485200.00"),
+                ACCOUNT_ID, "ACC-000001", "Aarav Mehta", "HDFC Bank", new BigDecimal("485200.00"),
                 AccountStatus.ACTIVE.name(), 0, LocalDateTime.now()
         );
         given(accountService.getAccount(eq(ACCOUNT_ID), any())).willReturn(accountResponse);
@@ -76,7 +76,8 @@ class AccountReadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.accountId", is("ACC-000001")))
-                .andExpect(jsonPath("$.holderName", is("Aarav Mehta")));
+                .andExpect(jsonPath("$.holderName", is("Aarav Mehta")))
+                .andExpect(jsonPath("$.bankName", is("HDFC Bank")));
 
         // Setup Balance Response
         BalanceResponse balanceResponse = new BalanceResponse(ACCOUNT_ID, new BigDecimal("485200.00"), "USD", LocalDateTime.now());

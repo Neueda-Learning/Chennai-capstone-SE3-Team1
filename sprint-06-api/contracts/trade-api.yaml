@@ -811,6 +811,14 @@ components:
         holderName:
           type: string
           example: Priya Menon
+        bankName:
+          type: string
+          nullable: true
+          description: |
+            The name of the bank this account is funded from, e.g. `HDFC Bank`. Null until the
+            user links a bank account with `POST /api/v1/bank-accounts`; a user who has not linked
+            one has no bank to name, which is a real state rather than a missing value.
+          example: HDFC Bank
         cashBalance:
           type: number
           format: double

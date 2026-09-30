@@ -259,6 +259,28 @@ curl -s http://localhost:8081/api/bank-accounts/client/1 -H "Authorization: Bear
 curl -s http://localhost:8081/api/bank-accounts -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
+**Response body of the two read routes** — these return the `BankAccount` entity
+unwrapped, so the JSON keys are whatever its getters are called. They are *not*
+guessed from the field names:
+
+```json
+{
+  "claimed": true,
+  "clientId": 1,
+  "accountNumber": "IN45ICIC0000008901234",
+  "balance": 125000.00,
+  "bankName": "ICICI Bank",
+  "ifscCode": "ICIC0000001"
+}
+```
+
+`balance` is the one to watch. The field inside the entity is `accountBalance`,
+but the getter is `getBalance()`, so the wire name is `balance` — and there is no
+`accountBalance` key in the response at all. `claimed` comes from `isClaimed()`,
+which Jackson treats as a boolean property because of the `is` prefix. Note also
+that the v1 contract names the same money `bankBalance` on `TransferResponse`, so
+the two APIs disagree about the name of one number.
+
 **Deposit / withdraw (owner or admin)** — query params, not a body, so these
 work unmodified everywhere:
 ```

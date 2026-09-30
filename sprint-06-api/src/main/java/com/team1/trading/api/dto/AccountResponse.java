@@ -13,6 +13,7 @@ public class AccountResponse {
     private Long id;
     private String accountId;
     private String holderName;
+    private String bankName;
     private BigDecimal cashBalance;
     private String status;
     private Integer version;
@@ -21,11 +22,12 @@ public class AccountResponse {
     public AccountResponse() {
     }
 
-    public AccountResponse(Long id, String accountId, String holderName, BigDecimal cashBalance,
-                           String status, Integer version, LocalDateTime lastUpdated) {
+    public AccountResponse(Long id, String accountId, String holderName, String bankName,
+                           BigDecimal cashBalance, String status, Integer version, LocalDateTime lastUpdated) {
         this.id = id;
         this.accountId = accountId;
         this.holderName = holderName;
+        this.bankName = bankName;
         this.cashBalance = cashBalance;
         this.status = status;
         this.version = version;
@@ -54,6 +56,14 @@ public class AccountResponse {
 
     public void setHolderName(String holderName) {
         this.holderName = holderName;
+    }
+
+    public String getBankName() {
+        return bankName;
+    }
+
+    public void setBankName(String bankName) {
+        this.bankName = bankName;
     }
 
     public BigDecimal getCashBalance() {
