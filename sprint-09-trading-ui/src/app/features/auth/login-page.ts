@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ErrorCatalog } from '../../core/errors/error-catalog';
 import { ReturnUrlStore } from '../../core/auth/return-url.store';
@@ -9,6 +9,7 @@ import { AuthService, LoginRequest, TokenResponse } from '../../generated/auth-c
 
 @Component({
   selector: 'tui-login-page',
+  imports: [RouterLink],
   templateUrl: './login-page.html',
   styleUrl: './login-page.css'
 })
@@ -27,6 +28,11 @@ export class LoginPage {
   protected readonly username = signal('');
   protected readonly password = signal('');
   protected readonly error = signal<string | null>(null);
+
+  /** Set when the register page signs a visitor back over to this page. */
+  protected readonly registered = signal(
+    this.route.snapshot.queryParamMap.get('registered') === 'true'
+  );
 
   protected togglePasswordVisibility(): void {
     this.passwordVisible.update((visible) => !visible);

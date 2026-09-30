@@ -8,14 +8,7 @@
       <span>Trading UI</span>
     </span>
 
-    <p class="login-subtitle">Sign in to place orders and view your portfolio</p>
-
-    @if (registered()) {
-      <div class="alert alert-success login-alert" role="status" data-testid="login-registered-banner">
-        <i class="bi bi-check-circle-fill me-2"></i>
-        Account created. Sign in below to start trading.
-      </div>
-    }
+    <p class="login-subtitle">Create your account to start trading</p>
 
     <form
       class="needs-validation"
@@ -33,11 +26,33 @@
             class="login-input"
             placeholder="jane.doe"
             required
+            minlength="3"
+            maxlength="64"
+            pattern="[a-zA-Z0-9._-]+"
             autocomplete="username"
             autofocus
             data-testid="username"
             [value]="username()"
             (input)="onUsernameInput($event)"
+          >
+        </div>
+      </div>
+
+      <div class="login-form-group">
+        <label for="email" class="login-form-label">Email</label>
+        <div class="login-input-group">
+          <i class="bi bi-envelope input-icon"></i>
+          <input
+            type="email"
+            id="email"
+            class="login-input"
+            placeholder="jane.doe@example.com"
+            required
+            maxlength="150"
+            autocomplete="email"
+            data-testid="email"
+            [value]="email()"
+            (input)="onEmailInput($event)"
           >
         </div>
       </div>
@@ -50,9 +65,11 @@
             [type]="passwordVisible() ? 'text' : 'password'"
             id="password"
             class="login-input login-input-password"
-            placeholder="••••••••"
+            placeholder="At least 12 characters"
             required
-            autocomplete="current-password"
+            minlength="12"
+            maxlength="128"
+            autocomplete="new-password"
             data-testid="password"
             [value]="password()"
             (input)="onPasswordInput($event)"
@@ -68,22 +85,34 @@
         </div>
       </div>
 
-      <div class="login-options">
-        <label class="custom-control-label">
+      <div class="login-form-group">
+        <label for="confirm-password" class="login-form-label">Confirm Password</label>
+        <div class="login-input-group">
+          <i class="bi bi-shield-check input-icon"></i>
           <input
-            type="checkbox"
-            class="custom-checkbox-input"
-            data-testid="remember-me"
-            [checked]="remember()"
-            (change)="onRememberChange($event)"
+            [type]="confirmPasswordVisible() ? 'text' : 'password'"
+            id="confirm-password"
+            class="login-input login-input-password"
+            placeholder="Repeat your password"
+            required
+            autocomplete="new-password"
+            data-testid="confirm-password"
+            [value]="confirmPassword()"
+            (input)="onConfirmPasswordInput($event)"
           >
-          <span>Remember Me</span>
-        </label>
-        <a href="javascript:void(0)" class="forgot-password-link">Forgot Password?</a>
+          <button
+            type="button"
+            class="password-toggle-btn"
+            [attr.aria-label]="confirmPasswordVisible() ? 'Hide password' : 'Show password'"
+            (click)="toggleConfirmPasswordVisibility()"
+          >
+            <i class="bi" [class.bi-eye]="!confirmPasswordVisible()" [class.bi-eye-slash]="confirmPasswordVisible()"></i>
+          </button>
+        </div>
       </div>
 
       @if (error(); as message) {
-        <div class="alert alert-danger login-alert" role="alert" data-testid="login-error">
+        <div class="alert alert-danger login-alert" role="alert" data-testid="register-error">
           <i class="bi bi-exclamation-triangle-fill me-2"></i>
           {{ message }}
         </div>
@@ -93,13 +122,13 @@
         @if (submitting()) {
           <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
         }
-        <span>{{ submitting() ? 'Signing in…' : 'Sign In' }}</span>
+        <span>{{ submitting() ? 'Creating account…' : 'Create Account' }}</span>
         <i class="bi bi-arrow-right"></i>
       </button>
     </form>
 
     <p class="login-footer-text">
-      Don't have an account? <a routerLink="/register">Register Now</a>
+      Already have an account? <a routerLink="/login">Sign In</a>
     </p>
   </div>
 </div>

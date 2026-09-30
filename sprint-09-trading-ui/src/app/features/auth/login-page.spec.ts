@@ -197,4 +197,19 @@ describe('LoginPage', () => {
     setInput(fixture, 'password', 'correct horse');
     expect(root(fixture).querySelector('[data-testid="login-error"]')).toBeNull();
   });
+
+  it('links out to the registration page', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    const link = root(fixture).querySelector<HTMLAnchorElement>('.login-footer-text a');
+    expect(link?.getAttribute('href')).toBe('/register');
+  });
+
+  it('welcomes a trader back after a successful registration', async () => {
+    const { fixture } = setUp({ registered: 'true' });
+    await fixture.whenStable();
+    expect(
+      root(fixture).querySelector('[data-testid="login-registered-banner"]')?.textContent
+    ).toContain('created');
+  });
 });

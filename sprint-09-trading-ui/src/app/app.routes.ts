@@ -10,6 +10,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login-page').then((m) => m.LoginPage)
   },
   {
+    // Unguarded like sign-in: creating an account is something a signed-out
+    // visitor must be able to do without a session.
+    path: 'register',
+    loadComponent: () => import('./features/auth/register-page').then((m) => m.RegisterPage)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     canActivateChild: [authGuardChild],

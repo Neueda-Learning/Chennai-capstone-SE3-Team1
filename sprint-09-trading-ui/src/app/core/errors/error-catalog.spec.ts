@@ -4,7 +4,8 @@ import { TestBed } from '@angular/core/testing';
 import {
   AUTH_ERROR_CODES,
   ErrorCatalog,
-  authErrorMessageByCode
+  authErrorMessageByCode,
+  registerErrorMessageByCode
 } from './error-catalog';
 
 describe('ErrorCatalog', () => {
@@ -49,6 +50,35 @@ describe('ErrorCatalog', () => {
       expect(authErrorMessageByCode[code]).toBeTruthy();
       const message = catalog.messageForSignIn(signInFailure(401, 'Unauthorized', { errorCode: code }));
       expect(message).not.toContain('could not be completed');
+      expect(message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('names a taken username or email for a refused registration', () => {
+    const message = catalog.messageForRegister(
+      new HttpErrorResponse({
+        status: 409,
+        statusText: 'Conflict',
+        error: { errorCode: 'AUTH-409', message: 'Registration failed' }
+      })
+    );
+    expect(message).toContain('already registered');
+  });
+
+  it('explains when the registration service is unreachable', () => {
+    const message = catalog.messageForRegister(
+      new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' })
+    );
+    expect(message).toContain('connection');
+  });
+
+  it('renders a message for every code a registration can fail with', () => {
+    for (const code of AUTH_ERROR_CODES) {
+      expect(registerErrorMessageByCode[code]).toBeTruthy();
+      const message = catalog.messageForRegister(
+        new HttpErrorResponse({ status: 409, statusText: 'Conflict', error: { errorCode: code, message: 'vague' } })
+      );
+      expect(message).not.toBe('Registration could not be completed. Please try again.');
       expect(message.length).toBeGreaterThan(0);
     }
   });
