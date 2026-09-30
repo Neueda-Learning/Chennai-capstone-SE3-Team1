@@ -21,6 +21,10 @@ export interface AccountResponse {
     accountId: string;
     holderName: string;
     /**
+     * The name of the bank this account is funded from, e.g. `HDFC Bank`. Null until the user links a bank account with `POST /api/v1/bank-accounts`; a user who has not linked one has no bank to name, which is a real state rather than a missing value. 
+     */
+    bankName?: string;
+    /**
      * Available cash, to two decimal places.
      */
     cashBalance: number;

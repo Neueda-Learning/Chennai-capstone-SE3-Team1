@@ -36,15 +36,19 @@
 
         <div class="mb-3">
           <label for="symbol" class="form-label-custom">Symbol</label>
-          <input
-            type="text"
+          <select
             id="symbol"
-            class="form-control-custom"
+            class="form-select-custom"
             formControlName="symbol"
-            placeholder="RELIANCE"
-            autocomplete="off"
             [class.is-invalid-custom]="fieldInvalid('symbol')"
-          />
+          >
+            <option value="" disabled>Select an instrument</option>
+            @for (instrument of instruments; track instrument.symbol) {
+              <option [value]="instrument.symbol">
+                {{ instrument.symbol }} — {{ instrument.name }}
+              </option>
+            }
+          </select>
           @if (messageFor('symbol'); as symbolMessage) {
             <span class="form-feedback-custom invalid-custom">{{ symbolMessage }}</span>
           }
@@ -164,16 +168,57 @@
       <div class="card-header">
         <h2 class="card-title">Wallet</h2>
       </div>
-      <div class="stat-label">Trading Account</div>
+      <div class="stat-label">Linked Bank</div>
       <div class="stat-value" data-testid="account-id">
-        @if (hasAccount()) {
-          {{ accountId() }}
-        } @else {
-          <span class="text-muted">Not linked</span>
+        @switch (accountState()) {
+          @case ('loading') {
+            <span class="text-muted">Loading…</span>
+          }
+          @case ('ready') {
+            @if (account()!.bankName) {
+              <span data-testid="bank-name">{{ account()!.bankName }}</span>
+              <div class="stat-label">
+                {{ account()!.holderName }}
+                @if (account()!.accountId) {
+                  <span>· {{ account()!.accountId }}</span>
+                }
+              </div>
+            } @else {
+              <span class="text-muted" data-testid="bank-name">No bank linked</span>
+              <div class="stat-label">{{ account()!.holderName }}</div>
+            }
+          }
+          @case ('failed') {
+            <span class="text-muted">Could not load account</span>
+          }
+          @default {
+            @if (hasAccount()) {
+              <span class="text-muted">Account {{ accountId() }}</span>
+            } @else {
+              <span class="text-muted">Not linked</span>
+            }
+          }
         }
       </div>
-      <div class="stat-label mt-3">Available Balance</div>
-      <div class="stat-value">₹42,500.00</div>
+
+      <div class="stat-label mt-3">Wallet Balance</div>
+      @switch (balanceState()) {
+        @case ('loading') {
+          <div class="stat-value text-muted" data-testid="balance">Loading…</div>
+        }
+        @case ('ready') {
+          <div class="stat-value" data-testid="balance">
+            {{ balance()!.cashBalance | currency: balance()!.currency : 'symbol' : '1.2-2' }}
+          </div>
+          <div class="stat-label">As of {{ balance()!.asOf }}</div>
+        }
+        @case ('failed') {
+          <div class="stat-value text-muted" data-testid="balance">Could not load balance</div>
+        }
+        @default {
+          <div class="stat-value text-muted" data-testid="balance">—</div>
+        }
+      }
     </div>
   </div>
 </div>

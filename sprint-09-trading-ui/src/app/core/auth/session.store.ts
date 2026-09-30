@@ -94,13 +94,29 @@ export class SessionStore {
   }
 
   /** Drops the session locally. Called after the auth service has (best
-   *  effort) revoked the refresh token; the local wipe is what actually ends
-   *  the session in this browser. */
+   *  effort) revoked the refresh token; the local wipe is what actually ends the
+   *  session in this browser. */
   signOut(): void {
     this.token.set(null);
     this.refresh.set(null);
     this.account.set(null);
     this.clearStores();
+  }
+
+  /**
+   * Replaces the tokens without touching `remembered`, for the one case that is
+   * not a sign-in: claiming a bank account creates the trading account, so the
+   * token this session is already holding is stale and has to be exchanged. Going
+   * through `signIn` for that would be a lie about what just happened and would
+   * quietly drop a "remember me" session down to a tab-only one, so the
+   * persistence promise is read back off whichever store already holds the
+   * session and re-applied.
+   */
+  adoptTokens(accessToken: string, accountId: number, refreshToken: string | null): void {
+    this.token.set(accessToken);
+    this.refresh.set(refreshToken);
+    this.account.set(accountId);
+    this.persist(this.rememberedStore.getItem(SESSION_KEY) !== null);
   }
 
   private persist(remembered: boolean): void {

@@ -66,6 +66,15 @@ public class JwtVerificationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        // A CORS preflight carries no Authorization header by design, so verifying one
+        // would answer the browser's question with AUTH-401 and the real request would
+        // never be sent. CorsFilter runs first and answers the preflight itself; this
+        // exemption is the second line of defence for a preflight CorsFilter does not
+        // recognise as one, where passing through still beats a misleading 401.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         String path = request.getRequestURI();
         return !(path.startsWith("/api/v1/") || isLegacyRoute(path));
     }

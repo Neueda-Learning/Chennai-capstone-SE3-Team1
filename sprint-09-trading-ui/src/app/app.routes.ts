@@ -35,6 +35,11 @@ export const routes: Routes = [
       {
         path: 'blotter',
         loadComponent: () => import('./features/blotter/blotter-page').then((m) => m.BlotterPage)
+      },
+      {
+        path: 'bank-accounts',
+        loadComponent: () =>
+          import('./features/bank-accounts/bank-account-page').then((m) => m.BankAccountPage)
       }
     ]
   },

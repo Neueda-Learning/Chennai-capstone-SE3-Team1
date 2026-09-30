@@ -13,8 +13,8 @@ import java.util.Optional;
 public interface AccountMapper {
 
     @Select("""
-            SELECT c.client_id AS clientId, b.account_number AS accountNumber, c.name,
-                   c.created_on AS createdOn, c.account_state AS accountState,
+            SELECT c.client_id AS clientId, b.account_number AS accountNumber, b.bank_name AS bankName,
+                   c.name, c.created_on AS createdOn, c.account_state AS accountState,
                    c.wallet_balance AS walletBalance, c.version, c.updated_on AS updatedOn
             FROM clients c
             LEFT JOIN bank_account b ON b.client_id = c.client_id
@@ -35,6 +35,7 @@ public interface AccountMapper {
     class AccountRow {
         private Long clientId;
         private String accountNumber;
+        private String bankName;
         private String name;
         private LocalDateTime createdOn;
         private String accountState;
@@ -47,6 +48,9 @@ public interface AccountMapper {
 
         public String getAccountNumber() { return accountNumber; }
         public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+
+        public String getBankName() { return bankName; }
+        public void setBankName(String bankName) { this.bankName = bankName; }
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }

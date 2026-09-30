@@ -14,10 +14,12 @@ export const appConfig: ApplicationConfig = {
     // The bearer interceptor attaches the session's access token to every call
     // except the three publicly registered auth endpoints.
     provideHttpClient(withInterceptors([bearerInterceptor])),
-    // Base paths match the `servers` entry each contract declares for local
-    // development (docker-compose maps the auth service to 3000, the Trade
-    // REST API to 8080).
+    // Base paths match the ports the local non-Docker stack actually binds.
+    // `run-local.ps1` starts the Trade REST API on 8081 ($ApiPort), and the
+    // auth service on 3000. The contract's `servers` entry says 8080, but that
+    // is the port inside the docker-compose trade-api container, not the one
+    // run-local.ps1 publishes on the host.
     provideAuthApi({ basePath: 'http://localhost:3000' }),
-    provideTradeApi({ basePath: 'http://localhost:8080' })
+    provideTradeApi({ basePath: 'http://localhost:8081' })
   ]
 };
