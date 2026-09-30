@@ -7,6 +7,8 @@ import { randomUUID } from 'crypto';
 import { AppModule } from '../src/app.module';
 import { UserRepository } from '../src/auth/user.repository';
 import { RefreshTokenRepository } from '../src/auth/refresh-token.repository';
+import { OtpPurpose, OtpRepository } from '../src/auth/otp.repository';
+import { MailerService } from '../src/auth/mailer.service';
 import { Role } from '../src/auth/dto/role';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../src/auth/token.constants';
 
@@ -26,6 +28,7 @@ interface FakeUser {
   paramsVersion: number;
   version: number;
   createdOn: Date;
+  status: 'PENDING' | 'ACTIVE';
 }
 
 interface FakeRefresh {
@@ -46,9 +49,7 @@ class FakeUserRepo {
   }
 
   async findByEmail(email: string): Promise<FakeUser | null> {
-    return (
-      [...this.usersById.values()].find((u) => u.email === email) ?? null
-    );
+    return [...this.usersById.values()].find((u) => u.email === email) ?? null;
   }
 
   async findById(id: string): Promise<FakeUser | null> {
@@ -61,6 +62,7 @@ class FakeUserRepo {
     roles: Role[];
     passwordHash: string;
     paramsVersion: number;
+    status: 'PENDING' | 'ACTIVE';
   }): Promise<FakeUser> {
     const u: FakeUser = {
       id: randomUUID(),
@@ -76,10 +78,19 @@ class FakeUserRepo {
       paramsVersion: input.paramsVersion,
       version: 1,
       createdOn: new Date(),
+      status: input.status,
     };
     this.usersById.set(u.id, u);
     this.usersByUsername.set(u.username, u);
     return u;
+  }
+
+  async setStatus(id: string, status: 'PENDING' | 'ACTIVE'): Promise<void> {
+    const u = this.usersById.get(id);
+    if (u) {
+      u.status = status;
+      u.version += 1;
+    }
   }
 
   async updatePasswordHash(
@@ -131,8 +142,94 @@ class FakeRefreshRepo {
   }
 }
 
+class FakeOtpRepo {
+  codes: Array<{
+    id: string;
+    email: string;
+    purpose: OtpPurpose;
+    codeHash: string;
+    expiresAt: Date;
+    consumedAt: Date | null;
+    attempts: number;
+    createdAt: Date;
+  }> = [];
+
+  async create(input: {
+    email: string;
+    purpose: OtpPurpose;
+    codeHash: string;
+    expiresAt: Date;
+  }): Promise<any> {
+    const record = {
+      id: randomUUID(),
+      email: input.email,
+      purpose: input.purpose,
+      codeHash: input.codeHash,
+      expiresAt: input.expiresAt,
+      consumedAt: null,
+      attempts: 0,
+      createdAt: new Date(),
+    };
+    this.codes.push(record);
+    return record;
+  }
+
+  async findActive(email: string, purpose: OtpPurpose): Promise<any | null> {
+    const now = new Date();
+    const live = this.codes.filter(
+      (c) =>
+        c.email === email &&
+        c.purpose === purpose &&
+        c.consumedAt === null &&
+        c.expiresAt > now,
+    );
+    return live.length > 0 ? live[live.length - 1] : null;
+  }
+
+  async markConsumed(id: string): Promise<void> {
+    const found = this.codes.find((c) => c.id === id && c.consumedAt === null);
+    if (found) found.consumedAt = new Date();
+  }
+
+  async setAttempts(id: string, attempts: number): Promise<void> {
+    const found = this.codes.find((c) => c.id === id);
+    if (found) found.attempts = attempts;
+  }
+
+  async consumeAllActive(email: string, purpose: OtpPurpose): Promise<void> {
+    for (const c of this.codes) {
+      if (c.email === email && c.purpose === purpose && c.consumedAt === null) {
+        c.consumedAt = new Date();
+      }
+    }
+  }
+}
+
+/** Stands in for SMTP: records what would have gone out so tests can read the code. */
+class FakeMailer extends MailerService {
+  sent: Array<{ to: string; code: string; purpose: 'verification' | 'reset' }> =
+    [];
+
+  async sendVerificationEmail(email: string, code: string): Promise<void> {
+    this.sent.push({ to: email, code, purpose: 'verification' });
+  }
+
+  async sendPasswordResetEmail(email: string, code: string): Promise<void> {
+    this.sent.push({ to: email, code, purpose: 'reset' });
+  }
+
+  lastCodeFor(email: string, purpose: 'verification' | 'reset'): string {
+    const forEmail = this.sent.filter(
+      (m) => m.to === email && m.purpose === purpose,
+    );
+    return forEmail[forEmail.length - 1].code;
+  }
+}
+
 const fakeUsers = new FakeUserRepo();
 const fakeRefresh = new FakeRefreshRepo();
+const fakeOtp = new FakeOtpRepo();
+const fakeMailer = new FakeMailer();
 
 describe('Auth service (e2e)', () => {
   let app: INestApplication;
@@ -146,6 +243,10 @@ describe('Auth service (e2e)', () => {
       .useValue(fakeUsers)
       .overrideProvider(RefreshTokenRepository)
       .useValue(fakeRefresh)
+      .overrideProvider(OtpRepository)
+      .useValue(fakeOtp)
+      .overrideProvider(MailerService)
+      .useValue(fakeMailer)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -175,6 +276,8 @@ describe('Auth service (e2e)', () => {
     fakeUsers.usersById.clear();
     fakeUsers.usersByUsername.clear();
     fakeRefresh.tokens.clear();
+    fakeOtp.codes = [];
+    fakeMailer.sent = [];
   });
 
   const registerBody = {
@@ -182,6 +285,22 @@ describe('Auth service (e2e)', () => {
     email: 'priya.menon@example.com',
     password: 'Correct-Horse-Battery-9',
   };
+
+  /**
+   * Registers and then spends the emailed code, which is the path every signed-in
+   * test has to take now: registration alone leaves the account PENDING.
+   */
+  async function registerAndVerify(
+    body = registerBody,
+  ): Promise<{ otp: string }> {
+    await request(server).post('/auth/register').send(body).expect(201);
+    const otp = fakeMailer.lastCodeFor(body.email, 'verification');
+    await request(server)
+      .post('/auth/verify-otp')
+      .send({ email: body.email, otp })
+      .expect(200);
+    return { otp };
+  }
 
   describe('register', () => {
     it('creates a user with no trading account and returns NO tokens', async () => {
@@ -272,10 +391,7 @@ describe('Auth service (e2e)', () => {
 
   describe('login', () => {
     it('returns the same AUTH-401 body for an unknown user and a wrong password', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
 
       const unknown = await request(server)
         .post('/auth/login')
@@ -298,10 +414,7 @@ describe('Auth service (e2e)', () => {
     });
 
     it('issues a Bearer access token and opaque refresh token on success', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
 
       const res = await request(server)
         .post('/auth/login')
@@ -342,10 +455,7 @@ describe('Auth service (e2e)', () => {
 
   describe('me', () => {
     it('returns the authenticated user for a valid token', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -433,10 +543,7 @@ describe('Auth service (e2e)', () => {
 
   describe('refresh', () => {
     it('rotates the refresh token on every use', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -478,10 +585,7 @@ describe('Auth service (e2e)', () => {
     });
 
     it('accepts a token and keeps the session valid for /me', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -503,10 +607,7 @@ describe('Auth service (e2e)', () => {
 
   describe('logout', () => {
     it("revokes the session's refresh token, leaving the access token usable until it expires but the refresh token dead", async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -539,10 +640,7 @@ describe('Auth service (e2e)', () => {
     });
 
     it("rejects another user's refresh token with AUTH-401", async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -551,10 +649,11 @@ describe('Auth service (e2e)', () => {
         })
         .expect(200);
 
-      await request(server)
-        .post('/auth/register')
-        .send({ ...registerBody, username: 'rahul.verma', email: 'rahul.verma@example.com' })
-        .expect(201);
+      await registerAndVerify({
+        ...registerBody,
+        username: 'rahul.verma',
+        email: 'rahul.verma@example.com',
+      });
       const otherLogin = await request(server)
         .post('/auth/login')
         .send({
@@ -577,10 +676,7 @@ describe('Auth service (e2e)', () => {
     });
 
     it('is a harmless no-op logging out twice with the same token', async () => {
-      await request(server)
-        .post('/auth/register')
-        .send(registerBody)
-        .expect(201);
+      await registerAndVerify();
       const login = await request(server)
         .post('/auth/login')
         .send({
@@ -603,6 +699,242 @@ describe('Auth service (e2e)', () => {
     });
   });
 
+  describe('verify-otp', () => {
+    it('returns the account as PENDING, emails a code, and signs the user out until it is spent', async () => {
+      const registered = await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+
+      expect(registered.body).toMatchObject({ status: 'PENDING' });
+      expect(fakeMailer.sent).toHaveLength(1);
+      expect(fakeMailer.sent[0].to).toBe(registerBody.email);
+
+      await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(401);
+
+      const otp = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+      const verified = await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp })
+        .expect(200);
+      expect(verified.body).toEqual({ verified: true });
+
+      await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(200);
+    });
+
+    it('rejects a wrong code with AUTH-410 and leaves the account PENDING', async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+
+      const res = await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp: '000000' })
+        .expect(410);
+
+      expect(res.body).toEqual({
+        errorCode: 'AUTH-410',
+        message: 'The verification code is invalid or has expired',
+      });
+      await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(401);
+    });
+
+    it('rejects an unknown address with the same AUTH-410 body, so it reveals nothing', async () => {
+      await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: 'ghost@example.com', otp: '123456' })
+        .expect(410);
+    });
+
+    it('rejects a code that is not six digits with VAL-422', async () => {
+      const res = await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp: 'abc' })
+        .expect(422);
+      expect(res.body.errorCode).toBe('VAL-422');
+    });
+
+    it('spends the code once, so replaying it fails', async () => {
+      const { otp } = await (async () => {
+        await request(server)
+          .post('/auth/register')
+          .send(registerBody)
+          .expect(201);
+        const code = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+        return { otp: code };
+      })();
+
+      await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp })
+        .expect(200);
+      await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp })
+        .expect(410);
+    });
+
+    it('resend replaces the earlier code, which then stops working', async () => {
+      await request(server)
+        .post('/auth/register')
+        .send(registerBody)
+        .expect(201);
+      const first = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+
+      const resent = await request(server)
+        .post('/auth/resend-otp')
+        .send({ email: registerBody.email })
+        .expect(200);
+      expect(resent.body).toEqual({ sent: true });
+
+      const second = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+      await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp: first })
+        .expect(410);
+      await request(server)
+        .post('/auth/verify-otp')
+        .send({ email: registerBody.email, otp: second })
+        .expect(200);
+    });
+  });
+
+  describe('forgot-password', () => {
+    it('answers identically for an address with and without an account', async () => {
+      await registerAndVerify();
+
+      const known = await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: registerBody.email })
+        .expect(200);
+      const unknown = await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: 'ghost@example.com' })
+        .expect(200);
+
+      expect(known.body).toEqual({ sent: true });
+      expect(unknown.body).toEqual(known.body);
+      // Only the real address got a code in the outbox.
+      expect(fakeMailer.sent.filter((m) => m.purpose === 'reset')).toHaveLength(
+        1,
+      );
+    });
+
+    it('rejects a malformed address with VAL-422', async () => {
+      const res = await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: 'not-an-email' })
+        .expect(422);
+      expect(res.body.errorCode).toBe('VAL-422');
+    });
+  });
+
+  describe('reset-password', () => {
+    const newPassword = 'Tulip-Lantern-42';
+
+    it('sets the new password, signs the old one out and lets the new one in', async () => {
+      await registerAndVerify();
+      const before = await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: registerBody.email })
+        .expect(200);
+      const otp = fakeMailer.lastCodeFor(registerBody.email, 'reset');
+
+      const res = await request(server)
+        .post('/auth/reset-password')
+        .send({ email: registerBody.email, otp, newPassword })
+        .expect(200);
+      expect(res.body).toEqual({ reset: true });
+
+      // The session that existed before the reset is dead.
+      await request(server)
+        .post('/auth/refresh')
+        .send({ refreshToken: before.body.refreshToken })
+        .expect(401);
+
+      await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(401);
+      await request(server)
+        .post('/auth/login')
+        .send({ username: registerBody.username, password: newPassword })
+        .expect(200);
+    });
+
+    it('rejects a wrong code with AUTH-410 and changes no password', async () => {
+      await registerAndVerify();
+      await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: registerBody.email })
+        .expect(200);
+
+      await request(server)
+        .post('/auth/reset-password')
+        .send({ email: registerBody.email, otp: '000000', newPassword })
+        .expect(410);
+
+      await request(server)
+        .post('/auth/login')
+        .send({
+          username: registerBody.username,
+          password: registerBody.password,
+        })
+        .expect(200);
+    });
+
+    it('rejects a new password that fails the policy with VAL-422, leaving the code usable', async () => {
+      await registerAndVerify();
+      await request(server)
+        .post('/auth/forgot-password')
+        .send({ email: registerBody.email })
+        .expect(200);
+      const otp = fakeMailer.lastCodeFor(registerBody.email, 'reset');
+
+      const res = await request(server)
+        .post('/auth/reset-password')
+        .send({ email: registerBody.email, otp, newPassword: 'short' })
+        .expect(422);
+      expect(res.body.errorCode).toBe('VAL-422');
+
+      // The code was not spent, so the same one still works with a good password.
+      await request(server)
+        .post('/auth/reset-password')
+        .send({ email: registerBody.email, otp, newPassword })
+        .expect(200);
+    });
+  });
+
   describe('openapi', () => {
     it('serves the OpenAPI JSON at /docs/json', async () => {
       const res = await request(server).get('/docs/json').expect(200);
@@ -612,6 +944,10 @@ describe('Auth service (e2e)', () => {
       expect(res.body.paths['/auth/refresh']).toBeDefined();
       expect(res.body.paths['/auth/logout']).toBeDefined();
       expect(res.body.paths['/auth/me']).toBeDefined();
+      expect(res.body.paths['/auth/verify-otp']).toBeDefined();
+      expect(res.body.paths['/auth/forgot-password']).toBeDefined();
+      expect(res.body.paths['/auth/resend-otp']).toBeDefined();
+      expect(res.body.paths['/auth/reset-password']).toBeDefined();
     });
 
     it('serves the Swagger UI at /docs', async () => {

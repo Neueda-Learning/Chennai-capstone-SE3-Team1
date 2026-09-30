@@ -40,6 +40,22 @@ export const registerErrorMessageByCode: Readonly<Record<string, string>> = {
   'VAL-422': 'One of the registration fields is not valid. Check the highlighted fields and try again.'
 };
 
+/**
+ * Email-verification and password-reset failures to sentences. `AUTH-410` is the
+ * service's single answer for every way a one-time code can fail, so the message
+ * cannot promise which one it was. `VAL-422` on a reset means the new password
+ * did not meet the policy.
+ */
+export const otpErrorMessageByCode: Readonly<Record<string, string>> = {
+  'AUTH-401': 'That request could not be completed. Try again shortly.',
+  'AUTH-410': 'That code is not right, or it has expired. Ask for a new one and try again.',
+  'VAL-422': 'One of the fields is not valid. Check and try again.'
+};
+
+/** Fallbacks for the two pages that talk to the verification routes. */
+export const otpFallbackMessage = 'That could not be completed. Please try again.';
+export const resetFallbackMessage = 'The password could not be changed. Please try again.';
+
 /** Turns a failed sign-in into a sentence a trader can act on, or a safe
  *  fallback when the failure is not something the contract described. */
 @Injectable({ providedIn: 'root' })
@@ -75,5 +91,31 @@ export class ErrorCatalog {
       }
     }
     return 'Registration could not be completed. Please try again.';
+  }
+
+  /** Turns a failed email verification into a sentence a trader can act on. */
+  messageForVerify(failure: unknown): string {
+    return this.messageForOtpFailure(failure, otpFallbackMessage);
+  }
+
+  /** Turns a failed password reset into a sentence a trader can act on. */
+  messageForReset(failure: unknown): string {
+    return this.messageForOtpFailure(failure, resetFallbackMessage);
+  }
+
+  private messageForOtpFailure(failure: unknown, fallback: string): string {
+    if (failure instanceof HttpErrorResponse) {
+      if (failure.status === 0) {
+        return 'Could not reach the verification service. Check your connection and try again.';
+      }
+      const envelope = failure.error as ErrorEnvelope | undefined;
+      if (envelope?.errorCode) {
+        const message = otpErrorMessageByCode[envelope.errorCode];
+        if (message !== undefined) {
+          return message;
+        }
+      }
+    }
+    return fallback;
   }
 }

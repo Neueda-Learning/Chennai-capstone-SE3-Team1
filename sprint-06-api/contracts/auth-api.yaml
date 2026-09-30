@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: Auth service
   version: 1.0.0
-  summary: Registration, login, token refresh, logout and current-user lookup for the Enterprise Trading Platform.
+  summary: Registration, email verification, login, password reset, token refresh, logout and current-user lookup for the Enterprise Trading Platform.
   description: |
     Binding contract for the NestJS auth service built in Sprint 8. The Trade REST API and Angular
     UI must depend on this contract rather than on implementation details.
@@ -59,6 +59,22 @@ info:
     - Validate the signature, the expiry and the issuer on every protected request. Never trust a
       decoded payload that has not had its signature checked.
     - Do not put anything in a JWT that you would not publish. The payload is base64, not encrypted.
+
+    ## Email verification rules
+
+    Registration creates the user as `PENDING` and emails a six-digit one-time code. A `PENDING`
+    user cannot sign in. `POST /auth/verify-otp` turns the account `ACTIVE`.
+
+    - A code is stored only as a SHA-256 digest, never in the clear, and only its digest is ever
+      logged. Issuing a replacement burns the code it replaces, and a code is single-use.
+    - A code expires after ten minutes and is burnt after five wrong guesses. `AUTH-410` is
+      returned for every failure - no code, wrong digits, expired, spent - so the response cannot
+      be used to discover which addresses have accounts.
+    - `POST /auth/forgot-password` and `POST /auth/resend-otp` always answer `200` with `sent: true`,
+      whether or not the address is on file. A `404` there would turn the route into a directory of
+      accounts.
+    - A password reset revokes every refresh token for that user, so whoever prompted the reset is
+      signed out everywhere.
   contact:
     name: Enterprise Trading Platform, programme materials
   license:
@@ -73,6 +89,8 @@ servers:
 tags:
   - name: Auth
     description: Registration, login and token lifecycle.
+  - name: Verification
+    description: Email verification and password reset.
   - name: Profile
     description: The authenticated user.
 
@@ -84,13 +102,14 @@ paths:
       security: []
       summary: Register a user
       description: |
-        Creates a user and nothing else. The user can log in straight away, but their token's
-        `accountId` is `null` and the Trade REST API refuses every account and order route until
-        they link a bank account with `POST /api/v1/bank-accounts`. That call creates the trading
-        account; a refresh after it returns a token carrying the new `accountId`.
+        Creates a user and nothing else, with `status` `PENDING`, and emails a six-digit code to
+        `email`. The user cannot sign in until `POST /auth/verify-otp` returns `verified: true`;
+        login with the right password in the meantime returns `AUTH-401`. Until a bank account is
+        linked, a token's `accountId` is `null` and the Trade REST API refuses every account and
+        order route - that is the Trade REST API's `POST /api/v1/bank-accounts`.
 
-        Registration does not return tokens. The client logs in afterwards. Returning a session from
-        a registration endpoint makes the endpoint an unauthenticated session factory, and any
+        Registration returns no tokens. The client verifies the code and then logs in. Returning a
+        session from a registration endpoint makes it an unauthenticated session factory, and any
         weakness in it becomes an authentication bypass.
       requestBody:
         required: true
@@ -100,7 +119,7 @@ paths:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
-          description: User created.
+          description: User created, awaiting email verification.
           content:
             application/json:
               schema:
@@ -119,6 +138,126 @@ paths:
         '422':
           $ref: '#/components/responses/InvalidInput'
 
+  /auth/verify-otp:
+    post:
+      tags: [Verification]
+      operationId: verifyOtp
+      security: []
+      summary: Verify the emailed registration code and activate the account
+      description: |
+        Spends the code and moves the account from `PENDING` to `ACTIVE`, so the next login works.
+        Every failure is `AUTH-410` with the same body: an address with no account, a code that is
+        wrong, spent or expired, and an account that is already `ACTIVE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+            examples:
+              verify:
+                value:
+                  email: priya.menon@example.com
+                  otp: '123456'
+      responses:
+        '200':
+          description: The account is now `ACTIVE`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpVerifiedResponse'
+        '410':
+          $ref: '#/components/responses/CodeInvalid'
+        '422':
+          $ref: '#/components/responses/InvalidInput'
+
+  /auth/forgot-password:
+    post:
+      tags: [Verification]
+      operationId: forgotPassword
+      security: []
+      summary: Email a password-reset code
+      description: |
+        Emails a six-digit reset code that expires after ten minutes. Always answers `200` with
+        `sent: true`, whether or not the address has an account, so this route cannot be used to
+        discover which addresses exist. The user learns the outcome by trying the code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '200':
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSentResponse'
+        '422':
+          $ref: '#/components/responses/InvalidInput'
+
+  /auth/resend-otp:
+    post:
+      tags: [Verification]
+      operationId: resendOtp
+      security: []
+      summary: Re-send the registration code
+      description: |
+        Issues a fresh registration code for a `PENDING` account, burning the earlier one so it
+        stops working. Always answers `200` with `sent: true`, whatever the address or the account
+        state, so the response reveals nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '200':
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSentResponse'
+        '422':
+          $ref: '#/components/responses/InvalidInput'
+
+  /auth/reset-password:
+    post:
+      tags: [Verification]
+      operationId: resetPassword
+      security: []
+      summary: Set a new password with an emailed code
+      description: |
+        Spends a reset code, stores the new password under the same policy as registration, and
+        revokes every refresh token for that user. A new password that fails the policy returns
+        `VAL-422` before the code is spent, so it can be corrected without another email. A wrong
+        or spent code returns `AUTH-410`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            examples:
+              reset:
+                value:
+                  email: priya.menon@example.com
+                  otp: '123456'
+                  newPassword: 'correct horse battery staple'
+      responses:
+        '200':
+          description: Password changed; every session revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+        '410':
+          $ref: '#/components/responses/CodeInvalid'
+        '422':
+          $ref: '#/components/responses/InvalidInput'
+
   /auth/login:
     post:
       tags: [Auth]
@@ -127,7 +266,9 @@ paths:
       summary: Log in and receive tokens
       description: |
         Verifies the credentials and issues an access token and a refresh token. Every failure,
-        whatever its cause, returns the same `AUTH-401` body.
+        whatever its cause, returns `AUTH-401`. One exception: an account still `PENDING` its email
+        verification gets a message saying so. That branch is only reachable with the correct
+        password, so it tells the caller nothing they do not already know.
       requestBody:
         required: true
         content:
@@ -264,6 +405,20 @@ components:
               value:
                 errorCode: VAL-422
                 message: Invalid input
+    CodeInvalid:
+      description: |
+        The one-time code is wrong, spent, expired, or there is no code at all - and the service
+        answers the same way in every case, so this cannot be used to discover which addresses have
+        an account. 410 rather than 401: the request was understood, the code it carried is gone.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            gone:
+              value:
+                errorCode: AUTH-410
+                message: The verification code is invalid or has expired
 
   schemas:
 
@@ -283,8 +438,10 @@ components:
           minLength: 12
           maxLength: 128
           description: |
-            Minimum twelve characters. Length beats character-class rules, so do not impose a
-            symbol requirement that pushes users towards a shorter password.
+            Minimum twelve characters, at least one number or special character, and none of the
+            literal string `password` or a run of four sequential or adjacent keyboard characters
+            (`1234`, `3456`, `asdf`, `qwer`). Length beats character-class rules, so no rule here
+            pushes a user towards a shorter password.
           writeOnly: true
         email:
           type: string
@@ -328,6 +485,87 @@ components:
           type: string
           description: The refresh token issued by the previous login or refresh.
 
+    EmailRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          description: Stored trimmed and lower-cased, so a code matches however the address was typed.
+          example: priya.menon@example.com
+
+    VerifyOtpRequest:
+      type: object
+      additionalProperties: false
+      required: [email, otp]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 150
+        otp:
+          type: string
+          pattern: '^\d{6}$'
+          minLength: 6
+          maxLength: 6
+          description: The six digits from the email. Single-use, ten-minute lifetime, five guesses.
+          writeOnly: true
+          example: '123456'
+
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email, otp, newPassword]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 150
+        otp:
+          type: string
+          pattern: '^\d{6}$'
+          minLength: 6
+          maxLength: 6
+          writeOnly: true
+          example: '123456'
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Held to the same policy as `RegisterRequest.password`.
+          writeOnly: true
+
+    OtpSentResponse:
+      type: object
+      additionalProperties: false
+      required: [sent]
+      properties:
+        sent:
+          type: boolean
+          description: Always `true`. There is no value for a caller to branch on, by design.
+          example: true
+
+    OtpVerifiedResponse:
+      type: object
+      additionalProperties: false
+      required: [verified]
+      properties:
+        verified:
+          type: boolean
+          example: true
+
+    PasswordResetResponse:
+      type: object
+      additionalProperties: false
+      required: [reset]
+      properties:
+        reset:
+          type: boolean
+          example: true
+
     TokenResponse:
       type: object
       additionalProperties: false
@@ -352,7 +590,7 @@ components:
     UserResponse:
       type: object
       additionalProperties: false
-      required: [id, username, email, phone, accountId, roles]
+      required: [id, username, email, phone, accountId, roles, status]
       properties:
         id:
           type: string
@@ -381,6 +619,13 @@ components:
           items:
             $ref: '#/components/schemas/Role'
           example: [CUSTOMER]
+        status:
+          type: string
+          enum: [PENDING, ACTIVE]
+          description: |
+            `PENDING` for a registration whose emailed code has not been verified yet. A `PENDING`
+            account cannot sign in.
+          example: ACTIVE
         createdOn:
           type: string
           format: date-time
@@ -399,12 +644,13 @@ components:
       properties:
         errorCode:
           type: string
-          enum: [AUTH-401, AUTH-409, VAL-422]
+          enum: [AUTH-401, AUTH-409, AUTH-410, VAL-422]
           description: |
             | Code | HTTP | Meaning |
             |---|---|---|
             | `AUTH-401` | 401 | Unauthorised or invalid token |
             | `AUTH-409` | 409 | Username or email already registered |
+            | `AUTH-410` | 410 | One-time code wrong, spent or expired |
             | `VAL-422` | 422 | Invalid input |
 
             `AUTH-409` extends the platform error catalogue and is scoped to this service. The
@@ -416,7 +662,8 @@ components:
           description: |
             Deliberately vague on this service. `Unauthorised` and `Registration failed` are the
             only two messages that should appear on a failure path, because a more helpful message
-            tells an attacker which half of the credential pair was wrong.
+            tells an attacker which half of the credential pair was wrong. `AUTH-410` carries one
+            fixed message for every way a code can fail.
           example: Unauthorised
 
 security:

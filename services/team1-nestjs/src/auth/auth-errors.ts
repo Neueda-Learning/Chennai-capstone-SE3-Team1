@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 export type AuthErrorCode =
-  'AUTH-401' | 'AUTH-409' | 'VAL-422' | 'INTERNAL-500';
+  'AUTH-401' | 'AUTH-409' | 'AUTH-410' | 'VAL-422' | 'INTERNAL-500';
 
 export interface ErrorEnvelope {
   errorCode: AuthErrorCode;
@@ -27,6 +27,11 @@ export const AUTH_ERRORS: Record<
     status: HttpStatus.UNPROCESSABLE_ENTITY,
     message: 'Invalid input',
   },
+  OTP_INVALID: {
+    code: 'AUTH-410',
+    status: HttpStatus.GONE,
+    message: 'The verification code is invalid or has expired',
+  },
   INTERNAL: {
     code: 'INTERNAL-500',
     status: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -43,7 +48,9 @@ export class AuthServiceException extends HttpException {
           ? HttpStatus.UNAUTHORIZED
           : errorCode === 'AUTH-409'
             ? HttpStatus.CONFLICT
-            : HttpStatus.UNPROCESSABLE_ENTITY),
+            : errorCode === 'AUTH-410'
+              ? HttpStatus.GONE
+              : HttpStatus.UNPROCESSABLE_ENTITY),
     );
   }
 
@@ -66,6 +73,18 @@ export class AuthServiceException extends HttpException {
 
   static invalidInput(message = 'Invalid input'): AuthServiceException {
     return new AuthServiceException('VAL-422', message);
+  }
+
+  /**
+   * One message for every way an OTP can fail to verify - unknown email, no code
+   * pending, wrong digits, exhausted attempts - so a caller cannot tell which
+   * emails have an account. 410 rather than 401: the request is understood, the
+   * code it carried is simply gone.
+   */
+  static otpInvalid(
+    message = 'The verification code is invalid or has expired',
+  ): AuthServiceException {
+    return new AuthServiceException('AUTH-410', message);
   }
 
   static internal(): AuthServiceException {

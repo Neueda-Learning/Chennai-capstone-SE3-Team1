@@ -17,6 +17,20 @@
       </div>
     }
 
+    @if (verified()) {
+      <div class="alert alert-success login-alert" role="status" data-testid="login-verified-banner">
+        <i class="bi bi-patch-check-fill me-2"></i>
+        Email verified. Sign in below to start trading.
+      </div>
+    }
+
+    @if (reset()) {
+      <div class="alert alert-success login-alert" role="status" data-testid="login-reset-banner">
+        <i class="bi bi-shield-check me-2"></i>
+        Password changed. Sign in with your new password.
+      </div>
+    }
+
     <form
       class="needs-validation"
       [class.was-validated]="submitted()"
@@ -79,13 +93,17 @@
           >
           <span>Remember Me</span>
         </label>
-        <a href="javascript:void(0)" class="forgot-password-link">Forgot Password?</a>
+        <a routerLink="/forgot-password" class="forgot-password-link" data-testid="forgot-password">Forgot Password?</a>
       </div>
 
       @if (error(); as message) {
         <div class="alert alert-danger login-alert" role="alert" data-testid="login-error">
           <i class="bi bi-exclamation-triangle-fill me-2"></i>
           {{ message }}
+        </div>
+        <div class="form-text text-center mt-2" data-testid="login-verify-hint">
+          Still waiting on an email code?
+          <a routerLink="/verify-otp" [queryParams]="{ email: username().trim() }">Enter it here</a>
         </div>
       }
 

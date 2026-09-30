@@ -71,6 +71,18 @@ describe('RegisterPage', () => {
     fixture.detectChanges();
   }
 
+  function requirement(fixture: RegisterFixture, label: string): HTMLElement | null {
+    const help = root(fixture).querySelector<HTMLElement>('[data-testid="password-help"]');
+    if (help === null) {
+      return null;
+    }
+    return (
+      Array.from(help.querySelectorAll<HTMLElement>('.password-requirement')).find(
+        (item) => item.textContent?.includes(label) ?? false
+      ) ?? null
+    );
+  }
+
   function userResponse(): Record<string, unknown> {
     return {
       id: 'u-42',
@@ -78,15 +90,16 @@ describe('RegisterPage', () => {
       email: 'jane.doe@example.com',
       phone: null,
       accountId: null,
-      roles: ['CUSTOMER']
+      roles: ['CUSTOMER'],
+      status: 'PENDING'
     };
   }
 
   const validForm: FormData = {
     username: 'jane.doe',
     email: 'jane.doe@example.com',
-    password: 'correct horse battery',
-    confirmPassword: 'correct horse battery'
+    password: 'correct horse battery7',
+    confirmPassword: 'correct horse battery7'
   };
 
   afterEach(() => {
@@ -132,7 +145,7 @@ describe('RegisterPage', () => {
     expect(session.isSignedIn()).toBe(false);
   });
 
-  it('shows a live length hint on the password once the trader types', async () => {
+  it('shows a live password checklist that starts failing then passes', async () => {
     const { fixture } = setUp();
     await fixture.whenStable();
     const compiled = root(fixture);
@@ -140,14 +153,59 @@ describe('RegisterPage', () => {
     expect(compiled.querySelector('[data-testid="password-help"]')).toBeNull();
 
     setInput(fixture, 'password', 'short');
-    const shortHelp = compiled.querySelector<HTMLElement>('[data-testid="password-help"]');
-    expect(shortHelp?.classList.contains('text-danger')).toBe(true);
-    expect(shortHelp?.textContent).toContain('at least 12 characters');
+    const lengthItem = requirement(fixture, 'At least 12 characters');
+    expect(lengthItem?.classList.contains('text-danger')).toBe(true);
 
     setInput(fixture, 'password', 'correct horse battery');
-    const okHelp = compiled.querySelector<HTMLElement>('[data-testid="password-help"]');
-    expect(okHelp?.classList.contains('text-success')).toBe(true);
-    expect(okHelp?.textContent).toContain('length requirement');
+    const passes = requirement(fixture, 'At least 12 characters');
+    expect(passes?.classList.contains('text-success')).toBe(true);
+    expect(requirement(fixture, 'Not contain "password"')?.classList.contains('text-success')).toBe(true);
+  });
+
+  it('flags the combined forbidden-content rule the service enforces', async () => {
+    const { fixture } = setUp();
+    const compiled = root(fixture);
+
+    setInput(fixture, 'password', 'Password123456');
+    expect(requirement(fixture, 'Not contain "password"')?.classList.contains('text-danger')).toBe(true);
+    setInput(fixture, 'password', 'dfghjkdfghjk');
+    expect(requirement(fixture, 'keyboard patterns')?.classList.contains('text-danger')).toBe(true);
+    setInput(fixture, 'password', '345678345678');
+    expect(requirement(fixture, 'sequential')?.classList.contains('text-danger')).toBe(true);
+    setInput(fixture, 'password', 'a!b@c!d#e7x');
+    expect(requirement(fixture, 'Not contain "password"')?.classList.contains('text-success')).toBe(true);
+    expect(compiled.querySelector('[data-testid="register-error"]')).toBeNull();
+  });
+
+  it('refuses to submit a password that violates the policy', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    setInput(fixture, 'username', 'jane.doe');
+    setInput(fixture, 'email', 'jane.doe@example.com');
+    setInput(fixture, 'password', 'password123456');
+    setInput(fixture, 'confirm-password', 'password123456');
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    expect(root(fixture).querySelector('[data-testid="register-error"]')).toBeNull();
+    expect(requirement(fixture, 'Not contain "password"')?.classList.contains('text-danger')).toBe(true);
+    http.expectNone(REGISTER_URL);
+  });
+
+  it('demands at least one number or special character as the trader types', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+
+    setInput(fixture, 'password', 'twelvecharlower');
+    expect(
+      requirement(fixture, 'number or special character')?.classList.contains('text-danger')
+    ).toBe(true);
+
+    setInput(fixture, 'password', 'twelvechar7low');
+    expect(
+      requirement(fixture, 'number or special character')?.classList.contains('text-success')
+    ).toBe(true);
   });
 
   it('warns live when the confirmation does not match, without submitting', async () => {
@@ -176,7 +234,7 @@ describe('RegisterPage', () => {
     http.expectNone(REGISTER_URL);
   });
 
-  it('registers a valid user, sends no Authorization header, and hands back to sign-in', async () => {
+  it('registers a valid user, sends no Authorization header, and hands back to email verification', async () => {
     const { fixture, session, router } = setUp();
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     fillForm(fixture, validForm);
@@ -188,14 +246,18 @@ describe('RegisterPage', () => {
     expect(request.request.body).toEqual({
       username: 'jane.doe',
       email: 'jane.doe@example.com',
-      password: 'correct horse battery'
+      password: 'correct horse battery7'
     });
     expect(request.request.headers.has('Authorization')).toBe(false);
 
     request.flush(userResponse());
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { registered: 'true' } });
+    // The account is PENDING until the emailed code is spent, so sign-in is
+    // not the next step - verification is.
+    expect(navigate).toHaveBeenCalledWith(['/verify-otp'], {
+      queryParams: { email: 'jane.doe@example.com' }
+    });
     expect(session.isSignedIn()).toBe(false);
   });
 

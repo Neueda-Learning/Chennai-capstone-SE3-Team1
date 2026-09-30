@@ -33,6 +33,13 @@ export class UserResponseDto {
   @ApiProperty({ enum: Role, isArray: true })
   roles: Role[];
 
+  @ApiProperty({
+    enum: ['PENDING', 'ACTIVE'],
+    description:
+      'PENDING for a registration whose emailed code has not been verified yet; such an account cannot sign in.',
+  })
+  status: 'PENDING' | 'ACTIVE';
+
   @ApiPropertyOptional({ format: 'date-time' })
   createdOn?: Date;
 }

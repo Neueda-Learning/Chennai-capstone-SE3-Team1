@@ -3,6 +3,9 @@ import { plainToInstance } from 'class-transformer';
 import { RegisterRequestDto } from './register-request.dto';
 import { LoginRequestDto } from './login-request.dto';
 import { RefreshRequestDto } from './refresh-request.dto';
+import { EmailRequestDto } from './email-request.dto';
+import { VerifyOtpRequestDto } from './verify-otp-request.dto';
+import { ResetPasswordRequestDto } from './reset-password-request.dto';
 
 describe('RegisterRequestDto validation', () => {
   it('accepts a valid registration body', async () => {
@@ -159,5 +162,96 @@ describe('RefreshRequestDto validation', () => {
     ) as RefreshRequestDto;
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
+  });
+});
+
+describe('EmailRequestDto validation', () => {
+  it('lower-cases and trims the address, so codes match however it was typed', async () => {
+    const dto = plainToInstance(
+      EmailRequestDto,
+      { email: '  Priya.Menon@Example.com ' },
+      { enableImplicitConversion: true },
+    ) as EmailRequestDto;
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+    expect(dto.email).toBe('priya.menon@example.com');
+  });
+
+  it('rejects an address that is not an email', async () => {
+    const dto = plainToInstance(
+      EmailRequestDto,
+      { email: 'not-an-email' },
+      { enableImplicitConversion: true },
+    ) as EmailRequestDto;
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'email')).toBe(true);
+  });
+});
+
+describe('VerifyOtpRequestDto validation', () => {
+  it('accepts an email plus six digits', async () => {
+    const dto = plainToInstance(
+      VerifyOtpRequestDto,
+      { email: 'priya.menon@example.com', otp: '123456' },
+      { enableImplicitConversion: true },
+    ) as VerifyOtpRequestDto;
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a code that is not exactly six digits', async () => {
+    const dto = plainToInstance(
+      VerifyOtpRequestDto,
+      { email: 'priya.menon@example.com', otp: '12345' },
+      { enableImplicitConversion: true },
+    ) as VerifyOtpRequestDto;
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'otp')).toBe(true);
+  });
+
+  it('rejects letters where digits belong', async () => {
+    const dto = plainToInstance(
+      VerifyOtpRequestDto,
+      { email: 'priya.menon@example.com', otp: '12345a' },
+      { enableImplicitConversion: true },
+    ) as VerifyOtpRequestDto;
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'otp')).toBe(true);
+  });
+});
+
+describe('ResetPasswordRequestDto validation', () => {
+  const valid = {
+    email: 'priya.menon@example.com',
+    otp: '123456',
+    newPassword: 'correct horse battery7',
+  };
+
+  it('accepts an email, a code and a long-enough password', async () => {
+    const dto = plainToInstance(ResetPasswordRequestDto, valid, {
+      enableImplicitConversion: true,
+    }) as ResetPasswordRequestDto;
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a new password under 12 characters', async () => {
+    const dto = plainToInstance(
+      ResetPasswordRequestDto,
+      { ...valid, newPassword: 'short' },
+      { enableImplicitConversion: true },
+    ) as ResetPasswordRequestDto;
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'newPassword')).toBe(true);
+  });
+
+  it('rejects a missing code', async () => {
+    const dto = plainToInstance(
+      ResetPasswordRequestDto,
+      { email: valid.email, newPassword: valid.newPassword },
+      { enableImplicitConversion: true },
+    ) as ResetPasswordRequestDto;
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'otp')).toBe(true);
   });
 });

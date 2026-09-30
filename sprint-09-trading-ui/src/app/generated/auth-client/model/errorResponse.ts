@@ -14,11 +14,11 @@
  */
 export interface ErrorResponse { 
     /**
-     * | Code | HTTP | Meaning | |---|---|---| | `AUTH-401` | 401 | Unauthorised or invalid token | | `AUTH-409` | 409 | Username or email already registered | | `VAL-422` | 422 | Invalid input |  `AUTH-409` extends the platform error catalogue and is scoped to this service. The catalogue in `trade-api.yaml` has no registration-conflict code because registration is not a trading operation. 
+     * | Code | HTTP | Meaning | |---|---|---| | `AUTH-401` | 401 | Unauthorised or invalid token | | `AUTH-409` | 409 | Username or email already registered | | `AUTH-410` | 410 | One-time code wrong, spent or expired | | `VAL-422` | 422 | Invalid input |  `AUTH-409` extends the platform error catalogue and is scoped to this service. The catalogue in `trade-api.yaml` has no registration-conflict code because registration is not a trading operation. 
      */
     errorCode: ErrorResponse.ErrorCodeEnum;
     /**
-     * Deliberately vague on this service. `Unauthorised` and `Registration failed` are the only two messages that should appear on a failure path, because a more helpful message tells an attacker which half of the credential pair was wrong. 
+     * Deliberately vague on this service. `Unauthorised` and `Registration failed` are the only two messages that should appear on a failure path, because a more helpful message tells an attacker which half of the credential pair was wrong. `AUTH-410` carries one fixed message for every way a code can fail. 
      */
     message: string;
 }
@@ -26,6 +26,7 @@ export namespace ErrorResponse {
     export const ErrorCodeEnum = {
         Auth401: 'AUTH-401',
         Auth409: 'AUTH-409',
+        Auth410: 'AUTH-410',
         Val422: 'VAL-422',
     } as const;
     export type ErrorCodeEnum = typeof ErrorCodeEnum[keyof typeof ErrorCodeEnum];

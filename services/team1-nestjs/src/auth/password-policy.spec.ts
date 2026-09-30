@@ -18,10 +18,14 @@ describe('PasswordPolicy', () => {
     );
   });
 
-  it('accepts passwords without upper/lower/number/symbol requirements (length-first)', () => {
-    // 12+ lower-case only must pass: length beats character-class rules per the contract.
-    expect(policy.evaluate('twelvecharlower').valid).toBe(true);
-    expect(policy.evaluate('ALLUPPERLENGTH12').valid).toBe(true);
+  it('requires at least one number or special character', () => {
+    expect(policy.evaluate('twelvecharlower').valid).toBe(false);
+    expect(policy.evaluate('ALLUPPERONLYLETTERS').valid).toBe(false);
+    expect(policy.evaluate('twelvecharlower').errors).toContain(
+      'Password must contain at least one number or special character',
+    );
+    expect(policy.evaluate('twelvecharlo7er').valid).toBe(true);
+    expect(policy.evaluate('twelvechars!').valid).toBe(true);
   });
 
   it('rejects containing "password"', () => {
@@ -36,20 +40,33 @@ describe('PasswordPolicy', () => {
     const p = 'Pass123456!x';
     expect(policy.evaluate(p).valid).toBe(false);
     expect(policy.evaluate(p).errors).toContain(
-      'Password cannot contain sequential numbers',
+      'Password cannot contain sequential numbers or letters',
     );
   });
 
-  it('rejects containing keyboard patterns', () => {
-    const p = 'QwertyPass1234';
-    expect(policy.evaluate(p).valid).toBe(false);
-    expect(policy.evaluate(p).errors).toContain(
-      'Password cannot contain keyboard patterns',
+  it('rejects sequential runs the old literal check missed', () => {
+    expect(policy.evaluate('345678345678').valid).toBe(false);
+    expect(policy.evaluate('987654987654').valid).toBe(false);
+    expect(policy.evaluate('abcdefghijkl').valid).toBe(false);
+    expect(policy.evaluate('345678345678').errors.join()).toContain(
+      'sequential',
     );
   });
 
-  it('accepts a 12+ char password with no special chars', () => {
-    const result = policy.evaluate('correcthorsebattery');
+  it('rejects keyboard patterns on any row and in either direction', () => {
+    expect(policy.evaluate('QwertyPass1234').valid).toBe(false);
+    expect(policy.evaluate('asdfghzxcvbn').valid).toBe(false);
+    expect(policy.evaluate('dfghjkdfghjk').valid).toBe(false);
+    expect(policy.evaluate('poiuytrewqaa').valid).toBe(false);
+    expect(policy.evaluate('dfghjkdfghjk').errors.join()).toContain('keyboard');
+  });
+
+  it('does not flag incidental short pairs', () => {
+    expect(policy.evaluate('12ab34cd56efg').valid).toBe(true);
+  });
+
+  it('accepts a 12+ char password with a number or special char', () => {
+    const result = policy.evaluate('correcthorsebattery7');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });

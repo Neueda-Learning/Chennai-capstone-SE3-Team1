@@ -16,6 +16,26 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/register-page').then((m) => m.RegisterPage)
   },
   {
+    // Unguarded for the same reason as register: a new account cannot sign in
+    // until the emailed code is spent, so this is part of signing up.
+    path: 'verify-otp',
+    loadComponent: () =>
+      import('./features/auth/verify-otp-page').then((m) => m.VerifyOtpPage)
+  },
+  {
+    // Unguarded: a visitor locked out of their password has no session to guard.
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./features/auth/forgot-password-page').then((m) => m.ForgotPasswordPage)
+  },
+  {
+    // Unguarded, and paired with forgot-password: the code in the email is the
+    // only thing standing in for the session this route has no access to.
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./features/auth/reset-password-page').then((m) => m.ResetPasswordPage)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     canActivateChild: [authGuardChild],

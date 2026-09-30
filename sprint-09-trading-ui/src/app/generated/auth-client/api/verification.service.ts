@@ -17,17 +17,19 @@ import { Observable }                                        from 'rxjs';
 import { OpenApiHttpParams, QueryParamStyle } from '../query.params';
 
 // @ts-ignore
+import { EmailRequest } from '../model/emailRequest';
+// @ts-ignore
 import { ErrorResponse } from '../model/errorResponse';
 // @ts-ignore
-import { LoginRequest } from '../model/loginRequest';
+import { OtpSentResponse } from '../model/otpSentResponse';
 // @ts-ignore
-import { RefreshRequest } from '../model/refreshRequest';
+import { OtpVerifiedResponse } from '../model/otpVerifiedResponse';
 // @ts-ignore
-import { RegisterRequest } from '../model/registerRequest';
+import { PasswordResetResponse } from '../model/passwordResetResponse';
 // @ts-ignore
-import { TokenResponse } from '../model/tokenResponse';
+import { ResetPasswordRequest } from '../model/resetPasswordRequest';
 // @ts-ignore
-import { UserResponse } from '../model/userResponse';
+import { VerifyOtpRequest } from '../model/verifyOtpRequest';
 
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS }                     from '../variables';
@@ -35,48 +37,48 @@ import { Configuration }                                     from '../configurat
 import { BaseService } from '../api.base.service';
 
 
-export interface LoginRequestParams {
-    loginRequest: LoginRequest;
+export interface ForgotPasswordRequestParams {
+    emailRequest: EmailRequest;
 }
 
-export interface LogoutRequestParams {
-    refreshRequest: RefreshRequest;
+export interface ResendOtpRequestParams {
+    emailRequest: EmailRequest;
 }
 
-export interface RefreshRequestParams {
-    refreshRequest: RefreshRequest;
+export interface ResetPasswordRequestParams {
+    resetPasswordRequest: ResetPasswordRequest;
 }
 
-export interface RegisterRequestParams {
-    registerRequest: RegisterRequest;
+export interface VerifyOtpRequestParams {
+    verifyOtpRequest: VerifyOtpRequest;
 }
 
 
 @Injectable({
   providedIn: 'root'
 })
-export class AuthService extends BaseService {
+export class VerificationService extends BaseService {
 
     constructor(protected httpClient: HttpClient, @Optional() @Inject(BASE_PATH) basePath: string|string[], @Optional() configuration?: Configuration) {
         super(basePath, configuration);
     }
 
     /**
-     * Log in and receive tokens
-     * Verifies the credentials and issues an access token and a refresh token. Every failure, whatever its cause, returns &#x60;AUTH-401&#x60;. One exception: an account still &#x60;PENDING&#x60; its email verification gets a message saying so. That branch is only reachable with the correct password, so it tells the caller nothing they do not already know. 
-     * @endpoint post /auth/login
+     * Email a password-reset code
+     * Emails a six-digit reset code that expires after ten minutes. Always answers &#x60;200&#x60; with &#x60;sent: true&#x60;, whether or not the address has an account, so this route cannot be used to discover which addresses exist. The user learns the outcome by trying the code. 
+     * @endpoint post /auth/forgot-password
      * @param requestParameters
      * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
      * @param reportProgress flag to report request and response progress.
      * @param options additional options
      */
-    public login(requestParameters: LoginRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<TokenResponse>;
-    public login(requestParameters: LoginRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<TokenResponse>>;
-    public login(requestParameters: LoginRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<TokenResponse>>;
-    public login(requestParameters: LoginRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
-        const loginRequest = requestParameters?.loginRequest;
-        if (loginRequest === null || loginRequest === undefined) {
-            throw new Error('Required parameter loginRequest was null or undefined when calling login.');
+    public forgotPassword(requestParameters: ForgotPasswordRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<OtpSentResponse>;
+    public forgotPassword(requestParameters: ForgotPasswordRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<OtpSentResponse>>;
+    public forgotPassword(requestParameters: ForgotPasswordRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<OtpSentResponse>>;
+    public forgotPassword(requestParameters: ForgotPasswordRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        const emailRequest = requestParameters?.emailRequest;
+        if (emailRequest === null || emailRequest === undefined) {
+            throw new Error('Required parameter emailRequest was null or undefined when calling forgotPassword.');
         }
 
         let localVarHeaders = this.defaultHeaders;
@@ -113,12 +115,12 @@ export class AuthService extends BaseService {
             }
         }
 
-        let localVarPath = `/auth/login`;
+        let localVarPath = `/auth/forgot-password`;
         const { basePath, withCredentials } = this.configuration;
-        return this.httpClient.request<TokenResponse>('post', `${basePath}${localVarPath}`,
+        return this.httpClient.request<OtpSentResponse>('post', `${basePath}${localVarPath}`,
             {
                 context: localVarHttpContext,
-                body: loginRequest,
+                body: emailRequest,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,
@@ -130,27 +132,24 @@ export class AuthService extends BaseService {
     }
 
     /**
-     * Revoke the caller\&#39;s current refresh token
-     * Revokes only the presented refresh token; other sessions the user is logged into elsewhere are unaffected. Protected: the access token in &#x60;Authorization&#x60; identifies the caller, and the presented refresh token must be theirs - one that is unknown or belongs to someone else returns the same &#x60;AUTH-401&#x60; either way. Logging out twice with the same token is a no-op the second time, not an error.  The access token itself is not revocable and keeps working until it expires (up to 15 minutes); only the refresh token is revoked, so no new access token can be minted once it does. 
-     * @endpoint post /auth/logout
+     * Re-send the registration code
+     * Issues a fresh registration code for a &#x60;PENDING&#x60; account, burning the earlier one so it stops working. Always answers &#x60;200&#x60; with &#x60;sent: true&#x60;, whatever the address or the account state, so the response reveals nothing. 
+     * @endpoint post /auth/resend-otp
      * @param requestParameters
      * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
      * @param reportProgress flag to report request and response progress.
      * @param options additional options
      */
-    public logout(requestParameters: LogoutRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
-    public logout(requestParameters: LogoutRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
-    public logout(requestParameters: LogoutRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
-    public logout(requestParameters: LogoutRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
-        const refreshRequest = requestParameters?.refreshRequest;
-        if (refreshRequest === null || refreshRequest === undefined) {
-            throw new Error('Required parameter refreshRequest was null or undefined when calling logout.');
+    public resendOtp(requestParameters: ResendOtpRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<OtpSentResponse>;
+    public resendOtp(requestParameters: ResendOtpRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<OtpSentResponse>>;
+    public resendOtp(requestParameters: ResendOtpRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<OtpSentResponse>>;
+    public resendOtp(requestParameters: ResendOtpRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        const emailRequest = requestParameters?.emailRequest;
+        if (emailRequest === null || emailRequest === undefined) {
+            throw new Error('Required parameter emailRequest was null or undefined when calling resendOtp.');
         }
 
         let localVarHeaders = this.defaultHeaders;
-
-        // authentication (bearerAuth) required
-        localVarHeaders = this.configuration.addCredentialToHeaders('bearerAuth', 'Authorization', localVarHeaders, 'Bearer ');
 
         const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
             'application/json'
@@ -184,12 +183,12 @@ export class AuthService extends BaseService {
             }
         }
 
-        let localVarPath = `/auth/logout`;
+        let localVarPath = `/auth/resend-otp`;
         const { basePath, withCredentials } = this.configuration;
-        return this.httpClient.request<any>('post', `${basePath}${localVarPath}`,
+        return this.httpClient.request<OtpSentResponse>('post', `${basePath}${localVarPath}`,
             {
                 context: localVarHttpContext,
-                body: refreshRequest,
+                body: emailRequest,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,
@@ -201,21 +200,21 @@ export class AuthService extends BaseService {
     }
 
     /**
-     * Exchange a refresh token for a new token pair
-     * Consumes the presented refresh token and issues a new pair. The presented token stops working immediately. Presenting a token that has already been consumed is treated as theft: revoke every refresh token for that user and return &#x60;AUTH-401&#x60;. 
-     * @endpoint post /auth/refresh
+     * Set a new password with an emailed code
+     * Spends a reset code, stores the new password under the same policy as registration, and revokes every refresh token for that user. A new password that fails the policy returns &#x60;VAL-422&#x60; before the code is spent, so it can be corrected without another email. A wrong or spent code returns &#x60;AUTH-410&#x60;. 
+     * @endpoint post /auth/reset-password
      * @param requestParameters
      * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
      * @param reportProgress flag to report request and response progress.
      * @param options additional options
      */
-    public refresh(requestParameters: RefreshRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<TokenResponse>;
-    public refresh(requestParameters: RefreshRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<TokenResponse>>;
-    public refresh(requestParameters: RefreshRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<TokenResponse>>;
-    public refresh(requestParameters: RefreshRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
-        const refreshRequest = requestParameters?.refreshRequest;
-        if (refreshRequest === null || refreshRequest === undefined) {
-            throw new Error('Required parameter refreshRequest was null or undefined when calling refresh.');
+    public resetPassword(requestParameters: ResetPasswordRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<PasswordResetResponse>;
+    public resetPassword(requestParameters: ResetPasswordRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<PasswordResetResponse>>;
+    public resetPassword(requestParameters: ResetPasswordRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<PasswordResetResponse>>;
+    public resetPassword(requestParameters: ResetPasswordRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        const resetPasswordRequest = requestParameters?.resetPasswordRequest;
+        if (resetPasswordRequest === null || resetPasswordRequest === undefined) {
+            throw new Error('Required parameter resetPasswordRequest was null or undefined when calling resetPassword.');
         }
 
         let localVarHeaders = this.defaultHeaders;
@@ -252,12 +251,12 @@ export class AuthService extends BaseService {
             }
         }
 
-        let localVarPath = `/auth/refresh`;
+        let localVarPath = `/auth/reset-password`;
         const { basePath, withCredentials } = this.configuration;
-        return this.httpClient.request<TokenResponse>('post', `${basePath}${localVarPath}`,
+        return this.httpClient.request<PasswordResetResponse>('post', `${basePath}${localVarPath}`,
             {
                 context: localVarHttpContext,
-                body: refreshRequest,
+                body: resetPasswordRequest,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,
@@ -269,21 +268,21 @@ export class AuthService extends BaseService {
     }
 
     /**
-     * Register a user
-     * Creates a user and nothing else, with &#x60;status&#x60; &#x60;PENDING&#x60;, and emails a six-digit code to &#x60;email&#x60;. The user cannot sign in until &#x60;POST /auth/verify-otp&#x60; returns &#x60;verified: true&#x60;; login with the right password in the meantime returns &#x60;AUTH-401&#x60;. Until a bank account is linked, a token\&#39;s &#x60;accountId&#x60; is &#x60;null&#x60; and the Trade REST API refuses every account and order route - that is the Trade REST API\&#39;s &#x60;POST /api/v1/bank-accounts&#x60;.  Registration returns no tokens. The client verifies the code and then logs in. Returning a session from a registration endpoint makes it an unauthenticated session factory, and any weakness in it becomes an authentication bypass. 
-     * @endpoint post /auth/register
+     * Verify the emailed registration code and activate the account
+     * Spends the code and moves the account from &#x60;PENDING&#x60; to &#x60;ACTIVE&#x60;, so the next login works. Every failure is &#x60;AUTH-410&#x60; with the same body: an address with no account, a code that is wrong, spent or expired, and an account that is already &#x60;ACTIVE&#x60;. 
+     * @endpoint post /auth/verify-otp
      * @param requestParameters
      * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
      * @param reportProgress flag to report request and response progress.
      * @param options additional options
      */
-    public register(requestParameters: RegisterRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<UserResponse>;
-    public register(requestParameters: RegisterRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<UserResponse>>;
-    public register(requestParameters: RegisterRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<UserResponse>>;
-    public register(requestParameters: RegisterRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
-        const registerRequest = requestParameters?.registerRequest;
-        if (registerRequest === null || registerRequest === undefined) {
-            throw new Error('Required parameter registerRequest was null or undefined when calling register.');
+    public verifyOtp(requestParameters: VerifyOtpRequestParams, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<OtpVerifiedResponse>;
+    public verifyOtp(requestParameters: VerifyOtpRequestParams, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<OtpVerifiedResponse>>;
+    public verifyOtp(requestParameters: VerifyOtpRequestParams, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<OtpVerifiedResponse>>;
+    public verifyOtp(requestParameters: VerifyOtpRequestParams, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        const verifyOtpRequest = requestParameters?.verifyOtpRequest;
+        if (verifyOtpRequest === null || verifyOtpRequest === undefined) {
+            throw new Error('Required parameter verifyOtpRequest was null or undefined when calling verifyOtp.');
         }
 
         let localVarHeaders = this.defaultHeaders;
@@ -320,12 +319,12 @@ export class AuthService extends BaseService {
             }
         }
 
-        let localVarPath = `/auth/register`;
+        let localVarPath = `/auth/verify-otp`;
         const { basePath, withCredentials } = this.configuration;
-        return this.httpClient.request<UserResponse>('post', `${basePath}${localVarPath}`,
+        return this.httpClient.request<OtpVerifiedResponse>('post', `${basePath}${localVarPath}`,
             {
                 context: localVarHttpContext,
-                body: registerRequest,
+                body: verifyOtpRequest,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,

@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 import { AuthServiceException } from './auth-errors';
 import { Role } from './dto/role';
 
+export type UserStatus = 'PENDING' | 'ACTIVE';
+
 export interface UserRecord {
   id: string;
   username: string;
@@ -16,6 +18,8 @@ export interface UserRecord {
   paramsVersion: number;
   version: number;
   createdOn: Date;
+  /** PENDING until the registration OTP is verified; ACTIVE users can sign in. */
+  status: UserStatus;
 }
 
 export interface NewUserInput {
@@ -24,6 +28,7 @@ export interface NewUserInput {
   roles: Role[];
   passwordHash: string;
   paramsVersion: number;
+  status: UserStatus;
 }
 
 export class DuplicateUsernameError extends Error {
@@ -33,7 +38,7 @@ export class DuplicateUsernameError extends Error {
   }
 }
 
-const USER_COLUMNS = `id, username, email, phone, account_id, roles, password_hash, params_version, version, created_on`;
+const USER_COLUMNS = `id, username, email, phone, account_id, roles, password_hash, params_version, version, created_on, status`;
 
 function mapRow(row: any): UserRecord {
   return {
@@ -47,6 +52,7 @@ function mapRow(row: any): UserRecord {
     paramsVersion: row.params_version,
     version: row.version,
     createdOn: row.created_on,
+    status: row.status === 'PENDING' ? 'PENDING' : 'ACTIVE',
   };
 }
 
@@ -80,12 +86,13 @@ export class UserRepository {
 
   /**
    * Registration creates the user only. account_id stays NULL until the user links a
-   * bank account through the Trade REST API, which fills it in.
+   * bank account through the Trade REST API, which fills it in. status starts
+   * PENDING: the account exists but cannot sign in until the emailed code is verified.
    */
   async create(input: NewUserInput): Promise<UserRecord> {
     const r = await this.pool.query<Record<string, any>>(
-      `INSERT INTO users (username, email, roles, password_hash, params_version, version, created_on, updated)
-       VALUES ($1, $2, $3, $4, $5, 1, now(), now())
+      `INSERT INTO users (username, email, roles, password_hash, params_version, status, version, created_on, updated)
+       VALUES ($1, $2, $3, $4, $5, $6, 1, now(), now())
        RETURNING ${USER_COLUMNS}`,
       [
         input.username,
@@ -93,9 +100,17 @@ export class UserRepository {
         input.roles,
         input.passwordHash,
         input.paramsVersion,
+        input.status,
       ],
     );
     return mapRow(r.rows[0]);
+  }
+
+  async setStatus(id: string, status: UserStatus): Promise<void> {
+    await this.pool.query(
+      `UPDATE users SET status = $1, version = version + 1, updated = now() WHERE id = $2`,
+      [status, id],
+    );
   }
 
   async updatePasswordHash(

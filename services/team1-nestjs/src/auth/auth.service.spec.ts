@@ -6,6 +6,7 @@ import { LoginRateLimiter } from './rate-limiter';
 import { UserRepository, UserRecord } from './user.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService, TokenPair } from './token.service';
+import { OtpService } from './otp.service';
 import { AuthServiceException } from './auth-errors';
 import { Role } from './dto/role';
 
@@ -27,6 +28,7 @@ describe('AuthService', () => {
     findByEmail: jest.Mock;
     findById: jest.Mock;
     create: jest.Mock;
+    setStatus: jest.Mock;
     updatePasswordHash: jest.Mock;
   };
   let refreshTokens: {
@@ -40,6 +42,7 @@ describe('AuthService', () => {
     hashRefreshToken: jest.Mock;
     refreshTokenExpiry: jest.Mock;
   };
+  let otp: { issue: jest.Mock; verify: jest.Mock };
   let logger: { log: jest.Mock; warn: jest.Mock; error: jest.Mock };
 
   const user: UserRecord = {
@@ -53,7 +56,24 @@ describe('AuthService', () => {
     paramsVersion: 1,
     version: 1,
     createdOn: new Date('2026-10-05T08:00:00Z'),
+    status: 'ACTIVE',
   };
+
+  const pendingUser: UserRecord = { ...user, status: 'PENDING' };
+
+  /** Awaits a call expected to fail and hands back the AuthServiceException. */
+  async function caughtError(
+    promise: Promise<unknown>,
+  ): Promise<AuthServiceException> {
+    let caught: unknown;
+    try {
+      await promise;
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(AuthServiceException);
+    return caught as AuthServiceException;
+  }
 
   const pair: TokenPair = {
     accessToken: 'header.payload.sig',
@@ -78,6 +98,7 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
+      setStatus: jest.fn(),
       updatePasswordHash: jest.fn(),
     };
     refreshTokens = {
@@ -91,6 +112,7 @@ describe('AuthService', () => {
       hashRefreshToken: jest.fn(),
       refreshTokenExpiry: jest.fn(),
     };
+    otp = { issue: jest.fn(), verify: jest.fn() };
     logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
@@ -102,6 +124,7 @@ describe('AuthService', () => {
         { provide: UserRepository, useValue: users },
         { provide: RefreshTokenRepository, useValue: refreshTokens },
         { provide: TokenService, useValue: tokens },
+        { provide: OtpService, useValue: otp },
         { provide: 'AUTH_LOGGER', useValue: logger },
       ],
     }).compile();
@@ -123,7 +146,9 @@ describe('AuthService', () => {
       password.hash.mockResolvedValue('new-argon2-hash');
     }
 
-    async function registerError(request = body): Promise<AuthServiceException> {
+    async function registerError(
+      request = body,
+    ): Promise<AuthServiceException> {
       let caught: unknown;
       try {
         await service.register(request);
@@ -137,12 +162,18 @@ describe('AuthService', () => {
     it('creates a CUSTOMER user with no trading account, ignoring supplied roles', async () => {
       registrationPasses();
       users.create.mockImplementation(
-        async (input: { username: string; email: string; roles: Role[] }) => ({
+        async (input: {
+          username: string;
+          email: string;
+          roles: Role[];
+          status: UserRecord['status'];
+        }) => ({
           ...user,
           username: input.username,
           email: input.email,
           roles: input.roles,
           accountId: null,
+          status: input.status,
         }),
       );
 
@@ -154,6 +185,7 @@ describe('AuthService', () => {
         roles: [Role.CUSTOMER],
         passwordHash: 'new-argon2-hash',
         paramsVersion: 1,
+        status: 'PENDING',
       });
       // No tokens on registration.
       expect(tokens.createTokenPair).not.toHaveBeenCalled();
@@ -165,11 +197,24 @@ describe('AuthService', () => {
         accountId: null,
         roles: [Role.CUSTOMER],
         createdOn: user.createdOn,
+        status: 'PENDING',
       });
       expect(logger.log).toHaveBeenCalledWith(
         'credential_created',
         'register',
         expect.any(Object),
+      );
+    });
+
+    it('emails a registration code and leaves the account PENDING until it is verified', async () => {
+      registrationPasses();
+      users.create.mockResolvedValue(pendingUser);
+
+      await service.register(body);
+
+      expect(otp.issue).toHaveBeenCalledWith(
+        'priya.menon@example.com',
+        'REGISTER',
       );
     });
 
@@ -354,6 +399,29 @@ describe('AuthService', () => {
       expect((wrongCaught as AuthServiceException).getStatus()).toBe(
         (unknownCaught as AuthServiceException).getStatus(),
       );
+    });
+
+    it('refuses a PENDING account even with the right password, and issues no tokens', async () => {
+      rateLimiter.check.mockReturnValue({ allowed: true });
+      users.findByUsername.mockResolvedValue(pendingUser);
+      password.verify.mockResolvedValue(true);
+
+      let caught: unknown;
+      try {
+        await service.login({
+          username: 'priya.menon',
+          password: 'correct horse battery staple',
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expect((caught as AuthServiceException).getStatus()).toBe(401);
+      expect((caught as AuthServiceException).getResponse()).toMatchObject({
+        message: expect.stringContaining('verification code'),
+      });
+      expect(tokens.createTokenPair).not.toHaveBeenCalled();
+      expect(refreshTokens.store).not.toHaveBeenCalled();
     });
 
     it('rehashes an outdated argon2 hash on successful login', async () => {
@@ -591,6 +659,184 @@ describe('AuthService', () => {
           iss: 'auth-service',
         }),
       ).rejects.toBeInstanceOf(AuthServiceException);
+    });
+  });
+
+  describe('verifyOtp', () => {
+    const body = {
+      email: 'priya.menon@example.com',
+      otp: '123456',
+    };
+
+    it('activates a PENDING account once the code checks out', async () => {
+      users.findByEmail.mockResolvedValue(pendingUser);
+      otp.verify.mockResolvedValue(undefined);
+      users.setStatus.mockResolvedValue(undefined);
+
+      const result = await service.verifyOtp(body);
+
+      expect(otp.verify).toHaveBeenCalledWith(
+        'priya.menon@example.com',
+        'REGISTER',
+        '123456',
+      );
+      expect(users.setStatus).toHaveBeenCalledWith(user.id, 'ACTIVE');
+      expect(result).toEqual({ verified: true });
+    });
+
+    it('fails with AUTH-410 for an unknown email, without touching the code', async () => {
+      users.findByEmail.mockResolvedValue(null);
+
+      const error = await caughtError(
+        service.verifyOtp({ ...body, email: 'ghost@example.com' }),
+      );
+
+      expect(error.getStatus()).toBe(410);
+      expect(otp.verify).not.toHaveBeenCalled();
+      expect(users.setStatus).not.toHaveBeenCalled();
+    });
+
+    it('fails with AUTH-410 for an account that is already ACTIVE', async () => {
+      users.findByEmail.mockResolvedValue(user);
+
+      await expect(service.verifyOtp(body)).rejects.toBeInstanceOf(
+        AuthServiceException,
+      );
+      expect(otp.verify).not.toHaveBeenCalled();
+    });
+
+    it('does not activate the account when the code is rejected', async () => {
+      users.findByEmail.mockResolvedValue(pendingUser);
+      otp.verify.mockRejectedValue(AuthServiceException.otpInvalid());
+
+      await expect(service.verifyOtp(body)).rejects.toBeInstanceOf(
+        AuthServiceException,
+      );
+      expect(users.setStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('forgotPassword', () => {
+    it('emails a RESET code for a known address', async () => {
+      users.findByEmail.mockResolvedValue(user);
+      otp.issue.mockResolvedValue('123456');
+
+      const result = await service.forgotPassword({
+        email: 'priya.menon@example.com',
+      });
+
+      expect(otp.issue).toHaveBeenCalledWith(
+        'priya.menon@example.com',
+        'RESET',
+      );
+      expect(result).toEqual({ sent: true });
+    });
+
+    it('answers identically for an unknown address, and sends nothing', async () => {
+      users.findByEmail.mockResolvedValue(null);
+
+      const result = await service.forgotPassword({
+        email: 'ghost@example.com',
+      });
+
+      expect(result).toEqual({ sent: true });
+      expect(otp.issue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resendOtp', () => {
+    it('re-sends the registration code for a PENDING account', async () => {
+      users.findByEmail.mockResolvedValue(pendingUser);
+      otp.issue.mockResolvedValue('654321');
+
+      const result = await service.resendOtp({
+        email: 'priya.menon@example.com',
+      });
+
+      expect(otp.issue).toHaveBeenCalledWith(
+        'priya.menon@example.com',
+        'REGISTER',
+      );
+      expect(result).toEqual({ sent: true });
+    });
+
+    it('sends nothing once the account is ACTIVE, but still answers sent', async () => {
+      users.findByEmail.mockResolvedValue(user);
+
+      const result = await service.resendOtp({
+        email: 'priya.menon@example.com',
+      });
+
+      expect(result).toEqual({ sent: true });
+      expect(otp.issue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword', () => {
+    const body = {
+      email: 'priya.menon@example.com',
+      otp: '123456',
+      newPassword: 'correct horse battery7',
+    };
+
+    beforeEach(() => {
+      policy.evaluate.mockReturnValue({ valid: true, errors: [] });
+      users.findByEmail.mockResolvedValue(user);
+      otp.verify.mockResolvedValue(undefined);
+      password.hash.mockResolvedValue('new-argon2-hash');
+    });
+
+    it('stores the new hash, revokes every session and burns the code', async () => {
+      const result = await service.resetPassword(body);
+
+      expect(otp.verify).toHaveBeenCalledWith(
+        'priya.menon@example.com',
+        'RESET',
+        '123456',
+      );
+      expect(users.updatePasswordHash).toHaveBeenCalledWith(
+        user.id,
+        'new-argon2-hash',
+        1,
+      );
+      expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(user.id);
+      expect(result).toEqual({ reset: true });
+    });
+
+    it('rejects a weak password with VAL-422 and leaves the code unspent', async () => {
+      policy.evaluate.mockReturnValue({
+        valid: false,
+        errors: ['Password must be at least 12 characters'],
+      });
+
+      const error = await caughtError(
+        service.resetPassword({ ...body, newPassword: 'short' }),
+      );
+
+      expect(error.getStatus()).toBe(422);
+      expect(otp.verify).not.toHaveBeenCalled();
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+    });
+
+    it('fails with AUTH-410 for an unknown address', async () => {
+      users.findByEmail.mockResolvedValue(null);
+
+      const error = await caughtError(
+        service.resetPassword({ ...body, email: 'ghost@example.com' }),
+      );
+
+      expect(error.getStatus()).toBe(410);
+      expect(otp.verify).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing when the code is rejected', async () => {
+      otp.verify.mockRejectedValue(AuthServiceException.otpInvalid());
+
+      await expect(service.resetPassword(body)).rejects.toBeInstanceOf(
+        AuthServiceException,
+      );
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+      expect(refreshTokens.revokeAllForUser).not.toHaveBeenCalled();
     });
   });
 });

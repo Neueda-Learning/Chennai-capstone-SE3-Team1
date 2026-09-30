@@ -13,7 +13,7 @@ import { Role } from './role';
 export interface RegisterRequest { 
     username: string;
     /**
-     * Minimum twelve characters. Length beats character-class rules, so do not impose a symbol requirement that pushes users towards a shorter password. 
+     * Minimum twelve characters, at least one number or special character, and none of the literal string `password` or a run of four sequential or adjacent keyboard characters (`1234`, `3456`, `asdf`, `qwer`). Length beats character-class rules, so no rule here pushes a user towards a shorter password. 
      */
     password: string;
     /**

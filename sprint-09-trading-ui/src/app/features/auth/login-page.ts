@@ -34,6 +34,16 @@ export class LoginPage {
     this.route.snapshot.queryParamMap.get('registered') === 'true'
   );
 
+  /** Set by the verification screen once the emailed code has been spent. */
+  protected readonly verified = signal(
+    this.route.snapshot.queryParamMap.get('verified') === 'true'
+  );
+
+  /** Set by the reset screen once a new password has been stored. */
+  protected readonly reset = signal(
+    this.route.snapshot.queryParamMap.get('reset') === 'true'
+  );
+
   protected togglePasswordVisibility(): void {
     this.passwordVisible.update((visible) => !visible);
   }

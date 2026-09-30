@@ -212,4 +212,59 @@ describe('LoginPage', () => {
       root(fixture).querySelector('[data-testid="login-registered-banner"]')?.textContent
     ).toContain('created');
   });
+
+  it('confirms a verified account so the trader knows the code landed', async () => {
+    const { fixture } = setUp({ verified: 'true' });
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-verified-banner"]')?.textContent).toContain(
+      'verified'
+    );
+  });
+
+  it('confirms a changed password', async () => {
+    const { fixture } = setUp({ reset: 'true' });
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-reset-banner"]')?.textContent).toContain(
+      'password'
+    );
+  });
+
+  it('shows no banner at all on a plain visit', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-registered-banner"]')).toBeNull();
+    expect(root(fixture).querySelector('[data-testid="login-verified-banner"]')).toBeNull();
+    expect(root(fixture).querySelector('[data-testid="login-reset-banner"]')).toBeNull();
+  });
+
+  it('offers a way into email verification when sign-in is refused, carrying the typed username over', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    setInput(fixture, 'username', '  jane.doe  ');
+    setInput(fixture, 'password', 'correct horse battery7');
+
+    submit(fixture);
+    http
+      .expectOne(AUTH_URL)
+      .flush({ errorCode: 'AUTH-401', message: 'Invalid credentials' }, { status: 401, statusText: 'Unauthorized' });
+    fixture.detectChanges();
+
+    // The service deliberately does not say whether the account exists or the
+    // password was wrong, so the hint must not imply it did.
+    const hint = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="login-verify-hint"] a');
+    expect(hint?.getAttribute('href')).toBe('/verify-otp?email=jane.doe');
+  });
+
+  it('keeps that hint out of the way until something has gone wrong', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-verify-hint"]')).toBeNull();
+  });
+
+  it('points a stuck trader at the reset route', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    const link = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="forgot-password"]');
+    expect(link?.getAttribute('href')).toBe('/forgot-password');
+  });
 });

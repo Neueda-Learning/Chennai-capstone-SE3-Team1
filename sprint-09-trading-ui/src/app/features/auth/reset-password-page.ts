@@ -1,41 +1,49 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ErrorCatalog } from '../../core/errors/error-catalog';
 import {
   passwordPolicyPassed,
   passwordRequirements as rulesForPassword
 } from '../../core/auth/password-rules';
-import { AuthService, RegisterRequest } from '../../generated/auth-client';
+import {
+  ResetPasswordRequest,
+  VerificationService
+} from '../../generated/auth-client';
 
 @Component({
-  selector: 'tui-register-page',
+  selector: 'tui-reset-password-page',
   imports: [RouterLink],
-  templateUrl: './register-page.html',
-  styleUrl: './register-page.css'
+  templateUrl: './reset-password-page.html',
+  styleUrl: './reset-password-page.css'
 })
-export class RegisterPage {
-  private readonly auth = inject(AuthService);
+export class ResetPasswordPage {
+  private readonly verification = inject(VerificationService);
   private readonly errors = inject(ErrorCatalog);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly passwordVisible = signal(false);
   protected readonly confirmPasswordVisible = signal(false);
   protected readonly submitted = signal(false);
   protected readonly submitting = signal(false);
-  protected readonly username = signal('');
-  protected readonly email = signal('');
+  protected readonly otp = signal('');
   protected readonly password = signal('');
   protected readonly confirmPassword = signal('');
   protected readonly error = signal<string | null>(null);
 
   /**
-   * Live validation, shown only after the trader starts typing. The rules come
-   * from `password-rules.ts`, which mirrors `PasswordPolicy` in
-   * `services/team1-nestjs` exactly, so the page never disagrees with the
-   * VAL-422 the service returns.
+   * Carried over from the forgot-password page. The code is what proves the
+   * reset; the address only says which account the code is checked against.
    */
+  protected readonly email = signal(
+    this.route.snapshot.queryParamMap.get('email')?.trim() ?? ''
+  );
+
+  protected readonly otpComplete = computed(() => /^\d{6}$/.test(this.otp().trim()));
+
+  /** The same rules the register screen shows, and the same ones the service enforces. */
   protected readonly showPasswordHelp = computed(() => this.password() !== '');
   protected readonly passwordRequirements = computed(() =>
     rulesForPassword(this.password())
@@ -56,13 +64,8 @@ export class RegisterPage {
     this.confirmPasswordVisible.update((visible) => !visible);
   }
 
-  protected onUsernameInput(event: Event): void {
-    this.username.set((event.target as HTMLInputElement).value);
-    this.error.set(null);
-  }
-
-  protected onEmailInput(event: Event): void {
-    this.email.set((event.target as HTMLInputElement).value);
+  protected onOtpInput(event: Event): void {
+    this.otp.set((event.target as HTMLInputElement).value);
     this.error.set(null);
   }
 
@@ -80,14 +83,14 @@ export class RegisterPage {
     event.preventDefault();
     this.submitted.set(true);
 
-    const username = this.username().trim();
-    const email = this.email().trim();
-    const password = this.password();
-    if (username === '' || email === '' || password === '' || this.confirmPassword() === '') {
+    const email = this.email();
+    const otp = this.otp().trim();
+    const newPassword = this.password();
+    if (email === '' || !this.otpComplete() || newPassword === '') {
       return;
     }
 
-    if (password !== this.confirmPassword()) {
+    if (newPassword !== this.confirmPassword()) {
       this.error.set('The two password fields do not match.');
       return;
     }
@@ -99,27 +102,13 @@ export class RegisterPage {
     this.error.set(null);
     this.submitting.set(true);
 
-    const request: RegisterRequest = { username, password, email };
-    this.auth.register({ registerRequest: request }).subscribe({
-      next: () => this.onRegistered(),
-      error: (failure: HttpErrorResponse) => this.onRegistrationFailed(failure)
+    const request: ResetPasswordRequest = { email, otp, newPassword };
+    this.verification.resetPassword({ resetPasswordRequest: request }).subscribe({
+      next: () => void this.router.navigate(['/login'], { queryParams: { reset: 'true' } }),
+      error: (failure: HttpErrorResponse) => {
+        this.submitting.set(false);
+        this.error.set(this.errors.messageForReset(failure));
+      }
     });
-  }
-
-  /**
-   * Registration returns no tokens by design, and the account is PENDING until
-   * the emailed code is spent - so the next stop is the verification screen, not
-   * sign-in. The email travels in the query string so the trader does not retype
-   * it; the server treats it as a claim, not as proof, and still checks the code.
-   */
-  private onRegistered(): void {
-    void this.router.navigate(['/verify-otp'], {
-      queryParams: { email: this.email().trim() }
-    });
-  }
-
-  private onRegistrationFailed(failure: HttpErrorResponse): void {
-    this.submitting.set(false);
-    this.error.set(this.errors.messageForRegister(failure));
   }
 }

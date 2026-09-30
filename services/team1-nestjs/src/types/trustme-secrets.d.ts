@@ -6,7 +6,10 @@ declare module 'trustme-secrets' {
     fetch(secretName: string): Promise<string>;
   }
 
-  export function using(keyFile?: string, password?: string): Promise<TrustMeClient>;
+  export function using(
+    keyFile?: string,
+    password?: string,
+  ): Promise<TrustMeClient>;
   export function forget(keyFile: string): Promise<boolean>;
   export function get(secretName: string): Promise<string>;
 

@@ -26,6 +26,18 @@ export interface UserResponse {
      */
     accountId: number | null;
     roles: Array<Role>;
+    /**
+     * `PENDING` for a registration whose emailed code has not been verified yet. A `PENDING` account cannot sign in. 
+     */
+    status: UserResponse.StatusEnum;
     createdOn?: string;
 }
+export namespace UserResponse {
+    export const StatusEnum = {
+        Pending: 'PENDING',
+        Active: 'ACTIVE',
+    } as const;
+    export type StatusEnum = typeof StatusEnum[keyof typeof StatusEnum];
+}
+
 

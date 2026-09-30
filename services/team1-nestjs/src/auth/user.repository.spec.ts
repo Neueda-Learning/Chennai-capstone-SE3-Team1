@@ -22,6 +22,7 @@ describe('UserRepository', () => {
     params_version: 1,
     version: 1,
     created_on: new Date('2026-10-05T08:00:00Z'),
+    status: 'ACTIVE',
   };
 
   beforeEach(() => {
@@ -48,6 +49,7 @@ describe('UserRepository', () => {
         paramsVersion: 1,
         version: 1,
         createdOn: row.created_on,
+        status: 'ACTIVE',
       });
     });
 
@@ -83,17 +85,20 @@ describe('UserRepository', () => {
 
   describe('create', () => {
     it('inserts without an account and maps a null account_id to null', async () => {
-      pool.query.mockResolvedValue({ rows: [{ ...row, account_id: null }] });
+      pool.query.mockResolvedValue({
+        rows: [{ ...row, account_id: null, status: 'PENDING' }],
+      });
       const result = await repo.create({
         username: 'priya.menon',
         email: 'priya.menon@example.com',
         roles: [Role.CUSTOMER],
         passwordHash: 'argon2hash',
         paramsVersion: 1,
+        status: 'PENDING',
       });
       const [sql, params] = pool.query.mock.calls[0];
       expect(sql).toContain(
-        'INSERT INTO users (username, email, roles, password_hash, params_version, version, created_on, updated)',
+        'INSERT INTO users (username, email, roles, password_hash, params_version, status, version, created_on, updated)',
       );
       expect(params).toEqual([
         'priya.menon',
@@ -101,8 +106,21 @@ describe('UserRepository', () => {
         [Role.CUSTOMER],
         'argon2hash',
         1,
+        'PENDING',
       ]);
       expect(result.accountId).toBeNull();
+      expect(result.status).toBe('PENDING');
+    });
+  });
+
+  describe('setStatus', () => {
+    it('bumps version and stamps updated', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+      await repo.setStatus(row.id, 'ACTIVE');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('version = version + 1'),
+        ['ACTIVE', row.id],
+      );
     });
   });
 

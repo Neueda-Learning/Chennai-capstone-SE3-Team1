@@ -6,12 +6,21 @@ import { UserRepository, UserRecord } from './user.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService, AccessTokenClaims, TokenPair } from './token.service';
 import { AuthServiceException } from './auth-errors';
+import { OtpService } from './otp.service';
 import { Role } from './dto/role';
 import { UserResponseDto } from './dto/user-response.dto';
 import { RegisterRequestDto } from './dto/register-request.dto';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { RefreshRequestDto } from './dto/refresh-request.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
+import { EmailRequestDto } from './dto/email-request.dto';
+import { VerifyOtpRequestDto } from './dto/verify-otp-request.dto';
+import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
+import {
+  OtpSentResponseDto,
+  OtpVerifiedResponseDto,
+  PasswordResetResponseDto,
+} from './dto/otp-response.dto';
 
 interface AuthLogger {
   log: (
@@ -41,6 +50,11 @@ export class AuthService {
   private readonly DUMMY_HASH =
     '$argon2id$v=19$m=65536,t=3,p=4$ZHVtbXlfc2FsdF8xNmJ5$Uu3oqR1zeXZUQXEVme3U5DfdcY3G5TmW79MFNbkPtqI';
 
+  // One sentence, kept in step with PasswordPolicy: the UI shows the same rules
+  // as a live checklist, so this is the fallback for a caller that skipped it.
+  private readonly POLICY_MESSAGE =
+    'Password does not meet security requirements (minimum 12 characters, at least one number or special character, and no "password" or run of 4 sequential or keyboard characters)';
+
   constructor(
     private readonly password: PasswordService,
     private readonly policy: PasswordPolicy,
@@ -48,15 +62,14 @@ export class AuthService {
     private readonly users: UserRepository,
     private readonly refreshTokens: RefreshTokenRepository,
     private readonly tokens: TokenService,
+    private readonly otp: OtpService,
     @Inject('AUTH_LOGGER') private readonly logger: AuthLogger,
   ) {}
 
   async register(request: RegisterRequestDto): Promise<UserResponseDto> {
     const policyResult = this.policy.evaluate(request.password);
     if (!policyResult.valid) {
-      throw AuthServiceException.invalidInput(
-        'Password does not meet security requirements (minimum 12 characters, must include uppercase, lowercase, number, special character)',
-      );
+      throw AuthServiceException.invalidInput(this.POLICY_MESSAGE);
     }
 
     const existing = await this.users.findByUsername(request.username);
@@ -78,6 +91,12 @@ export class AuthService {
       userId: user.id,
       username: user.username,
     });
+
+    // The account is PENDING until this code is verified; the code itself is only
+    // ever in the outbox, never in this log line.
+    await this.otp.issue(user.email, 'REGISTER');
+    this.logger.log('registration_otp_issued', 'register', { userId: user.id });
+
     return this.toUserResponse(user);
   }
 
@@ -110,6 +129,18 @@ export class AuthService {
     }
 
     this.rateLimiter.recordSuccess(request.username);
+
+    if (user.status === 'PENDING') {
+      // Only reachable with the right password, so this says nothing an attacker
+      // does not already know, and it keeps a half-registered account out of the
+      // session. Not a failure: recordSuccess above stands.
+      this.logger.warn('login_blocked_pending_verification', 'login', {
+        userId: user.id,
+      });
+      throw AuthServiceException.unauthorised(
+        'Account created - check your email for the verification code and sign in once verified',
+      );
+    }
 
     if (this.password.needsRehash(user.passwordHash)) {
       const newHash = await this.password.hash(request.password);
@@ -208,6 +239,88 @@ export class AuthService {
     return this.toUserResponse(user);
   }
 
+  /**
+   * Completes a registration: the right code flips the account to ACTIVE, so the
+   * next sign-in succeeds. An unknown email, an already-active account and a
+   * wrong code are all AUTH-410 - the UI sends the user back to the login screen
+   * either way rather than telling them which case they hit.
+   */
+  async verifyOtp(
+    request: VerifyOtpRequestDto,
+  ): Promise<OtpVerifiedResponseDto> {
+    const user = await this.users.findByEmail(request.email);
+    if (!user || user.status !== 'PENDING') {
+      throw AuthServiceException.otpInvalid();
+    }
+
+    await this.otp.verify(request.email, 'REGISTER', request.otp);
+    await this.users.setStatus(user.id, 'ACTIVE');
+
+    this.logger.log('registration_verified', 'verify-otp', { userId: user.id });
+    return { verified: true };
+  }
+
+  /**
+   * Emails a password-reset code. Answers { sent: true } whether or not the
+   * address is on file: a 404 here would turn this route into an account
+   * directory. The user only learns the outcome by trying the code.
+   */
+  async forgotPassword(request: EmailRequestDto): Promise<OtpSentResponseDto> {
+    const user = await this.users.findByEmail(request.email);
+    if (user) {
+      await this.otp.issue(request.email, 'RESET');
+      this.logger.log('password_reset_otp_issued', 'forgot-password', {
+        userId: user.id,
+      });
+    }
+    return { sent: true };
+  }
+
+  /** Re-sends the registration code, replacing any earlier one still waiting. */
+  async resendOtp(request: EmailRequestDto): Promise<OtpSentResponseDto> {
+    const user = await this.users.findByEmail(request.email);
+    if (user && user.status === 'PENDING') {
+      await this.otp.issue(request.email, 'REGISTER');
+      this.logger.log('registration_otp_reissued', 'resend-otp', {
+        userId: user.id,
+      });
+    }
+    return { sent: true };
+  }
+
+  /**
+   * Swaps the password once a RESET code matches, then revokes every refresh
+   * token: whoever prompted the reset should not be left signed in. The policy
+   * runs before the code is spent, so a rejected password can be corrected
+   * without asking for another email.
+   */
+  async resetPassword(
+    request: ResetPasswordRequestDto,
+  ): Promise<PasswordResetResponseDto> {
+    const policyResult = this.policy.evaluate(request.newPassword);
+    if (!policyResult.valid) {
+      throw AuthServiceException.invalidInput(this.POLICY_MESSAGE);
+    }
+
+    const user = await this.users.findByEmail(request.email);
+    if (!user) {
+      throw AuthServiceException.otpInvalid();
+    }
+
+    await this.otp.verify(request.email, 'RESET', request.otp);
+
+    const hash = await this.password.hash(request.newPassword);
+    await this.users.updatePasswordHash(
+      user.id,
+      hash,
+      this.CURRENT_PARAMS_VERSION,
+    );
+    await this.refreshTokens.revokeAllForUser(user.id);
+
+    this.logger.log('password_reset', 'reset-password', { userId: user.id });
+    return { reset: true };
+  }
+
   private async createUser(
     request: RegisterRequestDto,
     passwordHash: string,
@@ -220,6 +333,7 @@ export class AuthService {
         roles,
         passwordHash,
         paramsVersion: this.CURRENT_PARAMS_VERSION,
+        status: 'PENDING',
       });
     } catch (error) {
       if (UserRepository.isUniqueViolation(error)) {
@@ -279,6 +393,7 @@ export class AuthService {
       accountId: user.accountId,
       roles: user.roles,
       createdOn: user.createdOn,
+      status: user.status,
     };
   }
 }
