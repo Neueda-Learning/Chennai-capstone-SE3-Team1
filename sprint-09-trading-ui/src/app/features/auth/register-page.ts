@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { ErrorCatalog } from '../../core/errors/error-catalog';
@@ -25,6 +25,18 @@ export class RegisterPage {
   protected readonly password = signal('');
   protected readonly confirmPassword = signal('');
   protected readonly error = signal<string | null>(null);
+
+  /**
+   * Live validation, shown only after the trader starts typing. The contract
+   * is length-first (12-128) with no complexity rules, so the hint must not
+   * demand symbols or digits the backend never asks for.
+   */
+  protected readonly showPasswordHelp = computed(() => this.password() !== '');
+  protected readonly passwordLengthOk = computed(() => this.password().length >= 12);
+  protected readonly confirmTouched = computed(() => this.confirmPassword() !== '');
+  protected readonly passwordsMatch = computed(
+    () => this.password() !== '' && this.password() === this.confirmPassword()
+  );
 
   protected togglePasswordVisibility(): void {
     this.passwordVisible.update((visible) => !visible);

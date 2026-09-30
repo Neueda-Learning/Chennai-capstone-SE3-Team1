@@ -132,6 +132,38 @@ describe('RegisterPage', () => {
     expect(session.isSignedIn()).toBe(false);
   });
 
+  it('shows a live length hint on the password once the trader types', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    const compiled = root(fixture);
+
+    expect(compiled.querySelector('[data-testid="password-help"]')).toBeNull();
+
+    setInput(fixture, 'password', 'short');
+    const shortHelp = compiled.querySelector<HTMLElement>('[data-testid="password-help"]');
+    expect(shortHelp?.classList.contains('text-danger')).toBe(true);
+    expect(shortHelp?.textContent).toContain('at least 12 characters');
+
+    setInput(fixture, 'password', 'correct horse battery');
+    const okHelp = compiled.querySelector<HTMLElement>('[data-testid="password-help"]');
+    expect(okHelp?.classList.contains('text-success')).toBe(true);
+    expect(okHelp?.textContent).toContain('length requirement');
+  });
+
+  it('warns live when the confirmation does not match, without submitting', async () => {
+    const { fixture } = setUp();
+    fillForm(fixture, { ...validForm, confirmPassword: 'something else entirely' });
+
+    const confirmHelp = root(fixture).querySelector<HTMLElement>('[data-testid="confirm-password-help"]');
+    expect(confirmHelp?.classList.contains('text-danger')).toBe(true);
+    expect(confirmHelp?.textContent).toContain('do not match');
+    expect(root(fixture).querySelector('[data-testid="register-error"]')).toBeNull();
+    http.expectNone(REGISTER_URL);
+
+    setInput(fixture, 'confirm-password', validForm.password);
+    expect(root(fixture).querySelector('[data-testid="confirm-password-help"]')?.classList.contains('text-success')).toBe(true);
+  });
+
   it('refuses mismatched passwords without calling the service', async () => {
     const { fixture } = setUp();
     fillForm(fixture, { ...validForm, confirmPassword: 'something else entirely' });
