@@ -70,6 +70,7 @@
             minlength="12"
             maxlength="128"
             autocomplete="new-password"
+            aria-describedby="password-help"
             data-testid="password"
             [value]="password()"
             (input)="onPasswordInput($event)"
@@ -83,6 +84,19 @@
             <i class="bi" [class.bi-eye]="!passwordVisible()" [class.bi-eye-slash]="passwordVisible()"></i>
           </button>
         </div>
+        @if (showPasswordHelp()) {
+          <div
+            id="password-help"
+            class="form-text mt-1"
+            [class.text-success]="passwordLengthOk()"
+            [class.text-danger]="!passwordLengthOk()"
+            aria-live="polite"
+            data-testid="password-help"
+          >
+            <i class="bi" [class.bi-check-circle-fill]="passwordLengthOk()" [class.bi-exclamation-circle-fill]="!passwordLengthOk()"></i>
+            {{ passwordLengthOk() ? 'Meets the length requirement.' : 'Must be at least 12 characters.' }}
+          </div>
+        }
       </div>
 
       <div class="login-form-group">
@@ -96,6 +110,7 @@
             placeholder="Repeat your password"
             required
             autocomplete="new-password"
+            aria-describedby="confirm-password-help"
             data-testid="confirm-password"
             [value]="confirmPassword()"
             (input)="onConfirmPasswordInput($event)"
@@ -109,6 +124,19 @@
             <i class="bi" [class.bi-eye]="!confirmPasswordVisible()" [class.bi-eye-slash]="confirmPasswordVisible()"></i>
           </button>
         </div>
+        @if (confirmTouched()) {
+          <div
+            id="confirm-password-help"
+            class="form-text mt-1"
+            [class.text-success]="passwordsMatch()"
+            [class.text-danger]="!passwordsMatch()"
+            aria-live="polite"
+            data-testid="confirm-password-help"
+          >
+            <i class="bi" [class.bi-check-circle-fill]="passwordsMatch()" [class.bi-exclamation-circle-fill]="!passwordsMatch()"></i>
+            {{ passwordsMatch() ? 'Passwords match.' : 'Passwords do not match.' }}
+          </div>
+        }
       </div>
 
       @if (error(); as message) {
