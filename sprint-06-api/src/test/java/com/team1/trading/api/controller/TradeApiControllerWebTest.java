@@ -40,6 +40,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -221,7 +223,7 @@ class TradeApiControllerWebTest {
         @DisplayName("Account details carry the full contract body")
         void getAccount_body() throws Exception {
             given(accountService.getAccount(eq(1L), nullable(Long.class)))
-                    .willReturn(new AccountResponse(1L, "ACC-000001", "Priya Menon",
+                    .willReturn(new AccountResponse(1L, "ACC-000001", "Priya Menon", "ICICI Bank",
                             new BigDecimal("24500.75"), "ACTIVE", 7,
                             LocalDateTime.of(2026, 9, 28, 9, 14, 22)));
 
@@ -229,9 +231,26 @@ class TradeApiControllerWebTest {
                     .andExpect(status().isOk())
                     .andExpect(content().json("""
                             {"id":1,"accountId":"ACC-000001","holderName":"Priya Menon",
+                             "bankName":"ICICI Bank",
                              "cashBalance":24500.75,"status":"ACTIVE","version":7,
                              "lastUpdated":"2026-09-28T09:14:22"}
                             """, true));
+        }
+
+        @Test
+        @DisplayName("Account with no linked bank reports a null bankName instead of erroring")
+        void getAccount_noLinkedBank() throws Exception {
+            given(accountService.getAccount(eq(7L), nullable(Long.class)))
+                    .willReturn(new AccountResponse(7L, null, "Sam Jag", null,
+                            new BigDecimal("125000.00"), "ACTIVE", 0,
+                            LocalDateTime.of(2026, 9, 30, 6, 0, 0)));
+
+            mockMvc.perform(get("/api/v1/accounts/{id}", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.holderName", is("Sam Jag")))
+                    .andExpect(jsonPath("$.bankName", is(nullValue())))
+                    .andExpect(jsonPath("$.accountId", is(nullValue())))
+                    .andExpect(jsonPath("$.cashBalance", is(125000.00)));
         }
 
         @Test

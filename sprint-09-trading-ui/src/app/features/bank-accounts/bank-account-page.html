@@ -1,0 +1,281 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Bank Account Details</h1>
+    <p class="page-subtitle">
+      Claim the bank account that funds your trading wallet, then move money in when you need it.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    @switch (bankState()) {
+      @case ('checking') {
+        <div class="card">
+          <div class="card-body text-muted">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Checking your bank account…
+          </div>
+        </div>
+      }
+
+      @case ('failed') {
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Bank Account</h2>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                <div class="fw-semibold">Could not read your account</div>
+                <div class="small">
+                  Your trading account is not answering right now. Reload the page to try again.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      @case ('unlinked') {
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Link Your Bank Account</h2>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              This is a one-time setup. Enter the number of a bank account that already exists in
+              your name. We look the bank, IFSC and balance up from that number, so nothing here can
+              be mistyped into existence.
+            </p>
+
+            <form [formGroup]="linkForm" (submit)="onLinkSubmit($event)" novalidate>
+              <div class="mb-3">
+                <label for="accountNumber" class="form-label-custom">Bank Account Number</label>
+                <input
+                  id="accountNumber"
+                  type="text"
+                  class="form-control-custom"
+                  formControlName="accountNumber"
+                  placeholder="IN45HDFC0000007890123"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [class.is-invalid-custom]="fieldInvalid('link', 'accountNumber')"
+                  (blur)="normaliseAccountNumber()"
+                />
+                @if (messageFor('link', 'accountNumber'); as numberMessage) {
+                  <span class="form-feedback-custom invalid-custom">{{ numberMessage }}</span>
+                }
+              </div>
+
+              <button
+                type="submit"
+                class="btn-custom btn-custom-primary btn-custom-lg w-100"
+                [disabled]="linkState() === 'submitting'"
+              >
+                @if (linkState() === 'submitting') {
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  Linking…
+                } @else {
+                  Link Bank Account
+                }
+              </button>
+            </form>
+
+            @if (linkError(); as message) {
+              <div class="alert alert-danger d-flex align-items-start gap-2 mt-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div class="small">{{ message }}</div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @case ('linked') {
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Linked Bank Account</h2>
+          </div>
+          <div class="card-body">
+            @if (sessionWarning(); as warning) {
+              <div
+                class="alert alert-warning d-flex align-items-start gap-2 mb-3"
+                role="alert"
+                data-testid="session-warning"
+              >
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div class="small">{{ warning }}</div>
+              </div>
+            }
+
+            <div class="stat-label">Bank</div>
+            <div class="stat-value" data-testid="bank-name">{{ bankName() ?? 'Unknown bank' }}</div>
+
+            <div class="stat-label mt-3">Account Number</div>
+            <div class="stat-value" data-testid="bank-number">
+              {{ bankNumber() ?? 'Not available' }}
+            </div>
+
+            @if (ifscCode(); as ifsc) {
+              <div class="stat-label mt-3">IFSC</div>
+              <div class="stat-value" data-testid="bank-ifsc">{{ ifsc }}</div>
+            }
+
+            <div class="stat-label mt-3">Bank Account Balance</div>
+            <div class="stat-value" data-testid="bank-balance">
+              @if (bankAmount(); as balance) {
+                {{ balance | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              } @else {
+                <span class="text-muted">Could not load bank balance</span>
+              }
+            </div>
+
+            <div class="stat-label mt-3">Trading Wallet Balance</div>
+            <div class="stat-value" data-testid="wallet-balance">
+              @if (walletAmount(); as balance) {
+                {{ balance | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              } @else {
+                <span class="text-muted">Could not load wallet balance</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        @if (canTransfer()) {
+          <div class="card mt-4">
+            <div class="card-header">
+              <h2 class="card-title">Move Money</h2>
+            </div>
+            <div class="card-body">
+              <div class="mb-3 d-flex gap-2">
+                <button
+                  type="button"
+                  class="btn-custom flex-grow-1"
+                  [class.btn-custom-primary]="direction() === 'BANK_TO_WALLET'"
+                  [class.btn-custom-outline-primary]="direction() !== 'BANK_TO_WALLET'"
+                  data-testid="direction-in"
+                  (click)="selectDirection('BANK_TO_WALLET')"
+                >
+                  <i class="bi bi-arrow-down-circle"></i> Bank → Wallet
+                </button>
+                <button
+                  type="button"
+                  class="btn-custom flex-grow-1"
+                  [class.btn-custom-primary]="direction() === 'WALLET_TO_BANK'"
+                  [class.btn-custom-outline-primary]="direction() !== 'WALLET_TO_BANK'"
+                  data-testid="direction-out"
+                  (click)="selectDirection('WALLET_TO_BANK')"
+                >
+                  <i class="bi bi-arrow-up-circle"></i> Wallet → Bank
+                </button>
+              </div>
+
+              <p class="text-muted small" data-testid="available">
+                {{ availableLabel() }}:
+                @if (availableToTransfer(); as available) {
+                  {{ available | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+                } @else {
+                  not loaded
+                }
+              </p>
+
+              <form [formGroup]="transferForm" (submit)="onTransferSubmit($event)" novalidate>
+                <div class="mb-3">
+                  <label for="amount" class="form-label-custom">
+                    Amount to move to {{ destinationLabel() }}
+                  </label>
+                  <input
+                    id="amount"
+                    type="text"
+                    inputmode="decimal"
+                    class="form-control-custom"
+                    formControlName="amount"
+                    placeholder="250.00"
+                    [class.is-invalid-custom]="fieldInvalid('transfer', 'amount')"
+                  />
+                  @if (messageFor('transfer', 'amount'); as amountMessage) {
+                    <span class="form-feedback-custom invalid-custom">{{ amountMessage }}</span>
+                  }
+                </div>
+
+                <button
+                  type="submit"
+                  class="btn-custom btn-custom-primary btn-custom-lg w-100"
+                  [disabled]="transferState() === 'submitting'"
+                >
+                  @if (transferState() === 'submitting') {
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    Moving…
+                  } @else {
+                    Move to {{ destinationLabel() }}
+                  }
+                </button>
+              </form>
+
+              @if (transferError(); as message) {
+                <div class="alert alert-danger d-flex align-items-start gap-2 mt-3" role="alert">
+                  <i class="bi bi-exclamation-triangle-fill"></i>
+                  <div class="small">{{ message }}</div>
+                </div>
+              }
+
+              @if (lastTransfer(); as transfer) {
+                <div
+                  class="alert alert-success d-flex align-items-start gap-2 mt-3"
+                  role="status"
+                  data-testid="transfer-result"
+                >
+                  <i class="bi bi-check-circle-fill"></i>
+                  <div>
+                    <div class="fw-semibold">
+                      Moved {{ transfer.amount }}
+                      @if (transfer.direction === 'BANK_TO_WALLET') {
+                        from your bank to your wallet
+                      } @else {
+                        from your wallet to your bank
+                      }
+                    </div>
+                    <div class="small">
+                      Wallet balance {{ transfer.walletBalance }} · bank balance
+                      {{ transfer.bankBalance }}
+                    </div>
+                    <div class="small">Reference {{ transfer.transferId }}</div>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">How this works</h2>
+      </div>
+      <div class="card-body">
+        <ul class="small text-muted mb-0">
+          <li class="mb-2">
+            You can hold exactly one bank account. Once it is linked this form goes away for good.
+          </li>
+          <li class="mb-2">
+            The number has to belong to an account that already exists and nobody has claimed.
+            A number someone else holds, or one that does not exist, is refused.
+          </li>
+          <li class="mb-2">
+            Money moves either way, and is always limited to what the account it is
+            leaving actually holds.
+          </li>
+          <li>
+            Each transfer carries its own reference, so pressing the button twice will not pay you
+            twice.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
