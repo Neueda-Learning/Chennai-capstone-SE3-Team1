@@ -1,5 +1,6 @@
-import { Component, OnInit, OnDestroy, signal, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { BlotterService, BlotterRow } from './blotter.service';
 import { OrderStatus } from '../../generated/trade-client';
 import { OrdersService } from '../../generated/trade-client/api/orders.service';
@@ -8,7 +9,7 @@ import { ErrorCatalog } from '../../core/errors/error-catalog';
 
 @Component({
   selector: 'tui-blotter-page',
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './blotter-page.html',
   styleUrl: './blotter-page.css'
 })
@@ -24,14 +25,89 @@ export class BlotterPage implements OnInit, OnDestroy {
   selectedOrderForDetails = signal<BlotterRow | null>(null);
   isCancelling = signal<string | null>(null); // Track which order is being cancelled (by orderId)
 
+  // Filter state
+  searchText = signal('');
+  selectedStatus = signal<OrderStatus | 'ALL'>('ALL');
+  selectedSide = signal<'BUY' | 'SELL' | 'ALL'>('ALL');
+  timeFrame = signal<'today' | 'week' | 'month' | 'all'>('all');
+  currentPage = signal(1);
+  pageSize = signal(10);
+
   // Status constants for template
   readonly OrderStatus = OrderStatus;
+  readonly Math = Math;
+  readonly Array = Array;
+  readonly timeFrameOptions = [
+    { label: 'Today', value: 'today' as const },
+    { label: 'Last 7 Days', value: 'week' as const },
+    { label: 'Last 30 Days', value: 'month' as const },
+    { label: 'All Time', value: 'all' as const }
+  ];
 
   // Inject dependencies
   private readonly session = inject(SessionStore);
   private readonly blotterService = inject(BlotterService);
   private readonly ordersService = inject(OrdersService);
   private readonly errorCatalog = inject(ErrorCatalog);
+
+  // Computed signal for filtered rows
+  filteredRows = computed(() => {
+    let filtered = this.rows();
+
+    // Apply time frame filter
+    const timeFrame = this.timeFrame();
+    if (timeFrame !== 'all') {
+      const now = new Date();
+      const startDate = new Date();
+      
+      if (timeFrame === 'today') {
+        startDate.setHours(0, 0, 0, 0);
+      } else if (timeFrame === 'week') {
+        startDate.setDate(startDate.getDate() - 7);
+      } else if (timeFrame === 'month') {
+        startDate.setMonth(startDate.getMonth() - 1);
+      }
+
+      filtered = filtered.filter(row => {
+        const rowDate = new Date(row.date);
+        return rowDate >= startDate && rowDate <= now;
+      });
+    }
+
+    // Apply status filter
+    if (this.selectedStatus() !== 'ALL') {
+      filtered = filtered.filter(row => row.status === this.selectedStatus());
+    }
+
+    // Apply side filter
+    if (this.selectedSide() !== 'ALL') {
+      filtered = filtered.filter(row => row.side === this.selectedSide());
+    }
+
+    // Apply search filter
+    const search = this.searchText().toLowerCase();
+    if (search) {
+      filtered = filtered.filter(row =>
+        row.orderId.toLowerCase().includes(search) ||
+        row.symbol.toLowerCase().includes(search)
+      );
+    }
+
+    return filtered;
+  });
+
+  // Computed signal for paginated rows
+  paginatedRows = computed(() => {
+    const filtered = this.filteredRows();
+    const start = (this.currentPage() - 1) * this.pageSize();
+    const end = start + this.pageSize();
+    return filtered.slice(start, end);
+  });
+
+  // Computed signal for total pages
+  totalPages = computed(() => {
+    return Math.ceil(this.filteredRows().length / this.pageSize());
+  });
 
   ngOnInit(): void {
     this.startPolling();
@@ -126,20 +202,21 @@ export class BlotterPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Get badge CSS class based on status.
+   * Get badge CSS class based on status for theme-consistent styling.
+   * Maps to theme classes: .badge-table.success, .badge-table.pending, .badge-table.failed
    */
   getStatusClass(status: string): string {
     switch (status) {
       case OrderStatus.Filled:
-        return 'status-filled';
+        return 'success';
       case OrderStatus.New:
-        return 'status-new';
+        return 'pending';
       case OrderStatus.Rejected:
-        return 'status-rejected';
+        return 'failed';
       case OrderStatus.Cancelled:
-        return 'status-cancelled';
+        return 'cancelled';
       default:
-        return 'status-unknown';
+        return '';
     }
   }
 
@@ -173,6 +250,54 @@ export class BlotterPage implements OnInit, OnDestroy {
    */
   closeDetailsModal(): void {
     this.selectedOrderForDetails.set(null);
+  }
+
+  /**
+   * Reset pagination when filters change.
+   */
+  onFilterChange(): void {
+    this.currentPage.set(1);
+  }
+
+  /**
+   * Clear all filters.
+   */
+  clearFilters(): void {
+    this.searchText.set('');
+    this.selectedStatus.set('ALL');
+    this.selectedSide.set('ALL');
+    this.timeFrame.set('all');
+    this.currentPage.set(1);
+  }
+
+  /**
+   * Check if any filters are active.
+   */
+  hasActiveFilters(): boolean {
+    return (
+      this.searchText() !== '' ||
+      this.selectedStatus() !== 'ALL' ||
+      this.selectedSide() !== 'ALL' ||
+      this.timeFrame() !== 'all'
+    );
+  }
+
+  /**
+   * Go to previous page.
+   */
+  previousPage(): void {
+    if (this.currentPage() > 1) {
+      this.currentPage.set(this.currentPage() - 1);
+    }
+  }
+
+  /**
+   * Go to next page.
+   */
+  nextPage(): void {
+    if (this.currentPage() < this.totalPages()) {
+      this.currentPage.set(this.currentPage() + 1);
+    }
   }
 
   /**

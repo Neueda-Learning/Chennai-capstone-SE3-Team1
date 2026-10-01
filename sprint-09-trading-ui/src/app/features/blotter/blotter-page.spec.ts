@@ -252,10 +252,10 @@ describe('BlotterPage', () => {
 
   describe('status badges', () => {
     it('should render correct status badge classes', () => {
-      expect(component.getStatusClass(OrderStatus.Filled)).toBe('status-filled');
-      expect(component.getStatusClass(OrderStatus.New)).toBe('status-new');
-      expect(component.getStatusClass(OrderStatus.Rejected)).toBe('status-rejected');
-      expect(component.getStatusClass(OrderStatus.Cancelled)).toBe('status-cancelled');
+      expect(component.getStatusClass(OrderStatus.Filled)).toBe('success');
+      expect(component.getStatusClass(OrderStatus.New)).toBe('pending');
+      expect(component.getStatusClass(OrderStatus.Rejected)).toBe('failed');
+      expect(component.getStatusClass(OrderStatus.Cancelled)).toBe('cancelled');
     });
 
     it('should display status with word and color', () => {
@@ -272,7 +272,7 @@ describe('BlotterPage', () => {
       await fixture.whenStable();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      const statusBadges = compiled.querySelectorAll('.status-new, .status-filled');
+      const statusBadges = compiled.querySelectorAll('.badge-table.pending, .badge-table.success');
 
       expect(statusBadges.length).toBeGreaterThan(0);
     });
