@@ -237,7 +237,7 @@ describe('LoginPage', () => {
     expect(root(fixture).querySelector('[data-testid="login-reset-banner"]')).toBeNull();
   });
 
-  it('offers a way into email verification when sign-in is refused, carrying the typed username over', async () => {
+  it('offers a way into email verification when sign-in is refused', async () => {
     const { fixture } = setUp();
     await fixture.whenStable();
     setInput(fixture, 'username', '  jane.doe  ');
@@ -252,7 +252,7 @@ describe('LoginPage', () => {
     // The service deliberately does not say whether the account exists or the
     // password was wrong, so the hint must not imply it did.
     const hint = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="login-verify-hint"] a');
-    expect(hint?.getAttribute('href')).toBe('/verify-otp?email=jane.doe');
+    expect(hint?.getAttribute('href')).toBe('/verify-otp');
   });
 
   it('keeps that hint out of the way until something has gone wrong', async () => {

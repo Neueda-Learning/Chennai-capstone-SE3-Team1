@@ -69,13 +69,24 @@ describe('VerifyOtpPage', () => {
     expect(setUp().fixture.componentInstance).toBeTruthy();
   });
 
-  it('carries the email over from registration, read-only', async () => {
+  it('carries the email over from registration', async () => {
     const { fixture } = setUp();
     await fixture.whenStable();
 
     const email = root(fixture).querySelector<HTMLInputElement>('[data-testid="verify-email"]');
     expect(email?.value).toBe('jane.doe@example.com');
-    expect(email?.readOnly).toBe(true);
+  });
+
+  it('allows entering an email when opened directly', async () => {
+    const { fixture } = setUp({});
+    await fixture.whenStable();
+
+    setInput(fixture, 'verify-email', 'jane.doe@example.com');
+    setInput(fixture, 'otp', '123456');
+    submit(fixture);
+
+    const request = http.expectOne(VERIFY_URL);
+    expect(request.request.body).toEqual({ email: 'jane.doe@example.com', otp: '123456' });
   });
 
   it('does not call the service until six digits are typed', async () => {

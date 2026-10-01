@@ -31,12 +31,13 @@
             type="email"
             id="verify-email"
             class="login-input"
+            placeholder="jane.doe@example.com"
             required
             maxlength="150"
             autocomplete="email"
-            readonly
             data-testid="verify-email"
             [value]="email()"
+            (input)="onEmailInput($event)"
           >
         </div>
       </div>

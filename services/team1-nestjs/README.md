@@ -59,6 +59,14 @@ All configuration is loaded from environment variables. See `.env.example` for a
 | `KAFKA_BROKER` | Kafka broker address | `localhost:9092` |
 | `FAUXNANCE_BASE_URL` | Fauxnance API base URL | `https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1` |
 | `FAUXNANCE_API_KEY` | Fauxnance API key | *optional* |
+| `SMTP_ENABLED` | Enable real SMTP email delivery for OTP flows | `false` |
+| `SMTP_HOST` | SMTP hostname | *required when `SMTP_ENABLED=true`* |
+| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_SECURE` | Use SMTPS/implicit TLS | `false` |
+| `SMTP_REQUIRE_TLS` | Enforce STARTTLS when using plain SMTP | `true` |
+| `SMTP_USER` | SMTP username | *required when `SMTP_ENABLED=true`* |
+| `SMTP_PASS` | SMTP password / app password | *required when `SMTP_ENABLED=true`* |
+| `SMTP_FROM` | From-address used in OTP emails | *required when `SMTP_ENABLED=true`* |
 
 ## Docker
 
@@ -96,6 +104,10 @@ docker ps
 | `GET` | `/health/ready` | Readiness probe |
 | `GET` | `/health/startup` | Startup probe |
 | `POST` | `/auth/register` | Register a user (no tokens issued) |
+| `POST` | `/auth/verify-otp` | Verify registration email code |
+| `POST` | `/auth/forgot-password` | Request a password-reset OTP by email |
+| `POST` | `/auth/resend-otp` | Re-send registration OTP (for pending account) |
+| `POST` | `/auth/reset-password` | Reset password with emailed OTP |
 | `POST` | `/auth/login` | Log in, receive access + refresh tokens |
 | `POST` | `/auth/refresh` | Rotate a refresh token for a new pair |
 | `GET` | `/auth/me` | Current user (protected by bearer token) |

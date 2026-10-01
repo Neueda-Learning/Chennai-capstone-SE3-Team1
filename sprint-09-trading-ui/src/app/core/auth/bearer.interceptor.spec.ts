@@ -7,7 +7,15 @@ import { SessionStore } from './session.store';
 import { bearerInterceptor } from './bearer.interceptor';
 
 const ACCESS_TOKEN = 'signed-jwt-from-sign-in';
-const PUBLIC = ['login', 'register', 'refresh'];
+const PUBLIC = [
+  'login',
+  'register',
+  'refresh',
+  'verify-otp',
+  'forgot-password',
+  'resend-otp',
+  'reset-password',
+];
 
 describe('bearerInterceptor', () => {
   let http: HttpClient;

@@ -6,6 +6,13 @@ import * as Joi from 'joi';
 // outside a module" - require() goes through Jest's normal module resolution and works.
 import trustme from 'trustme-secrets';
 
+function asBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
 // Same vault, same secret names Java (application.properties: ${trustme.secret.X}) and
 // Python (scripts/db_config.py's ENV_KEYS) already read from: "JWT_SECRET" for the HS256
 // signing key, "PostGres" for the database password. No env-var or hardcoded fallback here
@@ -39,6 +46,17 @@ export const configuration = registerAs('app', async () => {
         'https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1',
       apiKey: process.env.FAUXNANCE_API_KEY ?? '',
     },
+
+    smtp: {
+      enabled: asBool(process.env.SMTP_ENABLED, false),
+      host: process.env.SMTP_HOST ?? '',
+      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+      secure: asBool(process.env.SMTP_SECURE, false),
+      requireTls: asBool(process.env.SMTP_REQUIRE_TLS, true),
+      user: process.env.SMTP_USER ?? '',
+      pass: process.env.SMTP_PASS ?? '',
+      from: process.env.SMTP_FROM ?? '',
+    },
   };
 });
 
@@ -63,4 +81,29 @@ export const validationSchema = Joi.object({
     .uri()
     .default('https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1'),
   FAUXNANCE_API_KEY: Joi.string().allow('').optional(),
+
+  SMTP_ENABLED: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(false),
+  SMTP_HOST: Joi.when('SMTP_ENABLED', {
+    is: true,
+    then: Joi.string().required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_SECURE: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(false),
+  SMTP_REQUIRE_TLS: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(true),
+  SMTP_USER: Joi.when('SMTP_ENABLED', {
+    is: true,
+    then: Joi.string().required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  SMTP_PASS: Joi.when('SMTP_ENABLED', {
+    is: true,
+    then: Joi.string().required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  SMTP_FROM: Joi.when('SMTP_ENABLED', {
+    is: true,
+    then: Joi.string().email().required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
 });

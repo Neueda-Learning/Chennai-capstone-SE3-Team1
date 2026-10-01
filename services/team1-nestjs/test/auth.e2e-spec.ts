@@ -206,7 +206,7 @@ class FakeOtpRepo {
 }
 
 /** Stands in for SMTP: records what would have gone out so tests can read the code. */
-class FakeMailer extends MailerService {
+class FakeMailer {
   sent: Array<{ to: string; code: string; purpose: 'verification' | 'reset' }> =
     [];
 

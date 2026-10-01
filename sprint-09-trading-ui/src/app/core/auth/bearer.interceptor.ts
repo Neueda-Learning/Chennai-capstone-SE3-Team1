@@ -10,7 +10,15 @@ import { SessionStore } from './session.store';
  * the generated clients set no flag on the request, so the skip-list is the
  * contract, and matching the path keeps the check where the contract lives.
  */
-const PUBLIC_AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
+const PUBLIC_AUTH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/verify-otp',
+  '/auth/forgot-password',
+  '/auth/resend-otp',
+  '/auth/reset-password',
+];
 
 /** Whether the request targets one of the endpoints that must stay anonymous. */
 function isPublicAuthEndpoint(url: string): boolean {

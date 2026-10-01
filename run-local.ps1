@@ -434,13 +434,16 @@ Write-Host @"
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/orders  -H "Authorization: Bearer `$T"
   curl.exe -s localhost:$ApiPort/api/v1/accounts/1/balance -H "Authorization: Bearer `$T"
 
-  # onboard a new user end to end through the auth service (PowerShell): register, log in, claim
+    # onboard a new user end to end through the auth service (PowerShell): register, verify email, log in, claim
   # one of the seeded unclaimed bank accounts, refresh, fund the wallet. To run it again, change the
   # username and email and claim another unclaimed account: IN45ICIC0000008901234,
   # IN45SBIN0000009012345, IN45AXIS0000010123456, IN45KKBK0000011234567, IN45YESB0000012345678.
   # Seeded users can't log in: their password hashes are placeholders.
   `$A = 'http://localhost:$AuthPort'; `$API = 'http://localhost:$ApiPort'
   Invoke-RestMethod "`$A/auth/register" -Method Post -ContentType application/json -Body '{"username":"priya.menon","email":"priya.menon@example.com","password":"Correct-Horse-Battery-9"}'
+    # Get the OTP from your email inbox. If SMTP is disabled, read logs\local\auth.log for [otp.outbox].
+    `$OTP = Read-Host 'Enter the 6-digit verification OTP'
+    Invoke-RestMethod "`$A/auth/verify-otp" -Method Post -ContentType application/json -Body (@{ email = 'priya.menon@example.com'; otp = `$OTP } | ConvertTo-Json)
   `$S = Invoke-RestMethod "`$A/auth/login" -Method Post -ContentType application/json -Body '{"username":"priya.menon","password":"Correct-Horse-Battery-9"}'
   `$H = @{ Authorization = "Bearer `$(`$S.accessToken)" }   # accountId null: account routes are ACC-403 until the link
   `$L = Invoke-RestMethod "`$API/api/v1/bank-accounts" -Method Post -Headers `$H -ContentType application/json -Body '{"accountNumber":"IN45HDFC0000007890123"}'

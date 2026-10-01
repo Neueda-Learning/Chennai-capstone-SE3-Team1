@@ -35,6 +35,11 @@ export class VerifyOtpPage {
 
   protected readonly otpComplete = computed(() => /^\d{6}$/.test(this.otp().trim()));
 
+  protected onEmailInput(event: Event): void {
+    this.email.set((event.target as HTMLInputElement).value);
+    this.error.set(null);
+  }
+
   protected onOtpInput(event: Event): void {
     this.otp.set((event.target as HTMLInputElement).value);
     this.error.set(null);
@@ -44,7 +49,7 @@ export class VerifyOtpPage {
     event.preventDefault();
     this.submitted.set(true);
 
-    const email = this.email();
+    const email = this.email().trim();
     const otp = this.otp().trim();
     if (email === '' || !this.otpComplete()) {
       return;
@@ -67,7 +72,7 @@ export class VerifyOtpPage {
   protected onResend(event: Event): void {
     event.preventDefault();
 
-    const email = this.email();
+    const email = this.email().trim();
     if (email === '' || this.resending()) {
       return;
     }
