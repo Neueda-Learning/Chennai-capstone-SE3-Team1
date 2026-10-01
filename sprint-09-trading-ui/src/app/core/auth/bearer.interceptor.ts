@@ -1,5 +1,7 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { catchError, throwError } from 'rxjs';
 
 import { SessionStore } from './session.store';
 
@@ -37,20 +39,54 @@ function isPublicAuthEndpoint(url: string): boolean {
  *
  * The token is read fresh on every request from the one place allowed to hold
  * it; a sign-out between scheduling and dispatch simply omits the header.
+ * 
+ * Also handles 401 Unauthorized responses by:
+ * 1. Clearing the session (signOut)
+ * 2. Redirecting to /login
+ * 3. Allowing the error to propagate to the component for error display
  */
 export const bearerInterceptor: HttpInterceptorFn = (request, next) => {
   if (isPublicAuthEndpoint(request.url)) {
-    return next(request);
+    return next(request).pipe(
+      catchError((error: unknown) => {
+        return throwError(() => error);
+      })
+    );
   }
 
-  const accessToken = inject(SessionStore).accessToken();
+  const session = inject(SessionStore);
+  const router = inject(Router);
+  const accessToken = session.accessToken();
+  
   if (accessToken === null) {
-    return next(request);
+    return next(request).pipe(
+      catchError((error: unknown) => {
+        return throwError(() => error);
+      })
+    );
   }
 
   return next(
     request.clone({
       setHeaders: { Authorization: `Bearer ${accessToken}` }
+    })
+  ).pipe(
+    catchError((error: unknown) => {
+      // Handle 401 Unauthorized - session expired or token revoked
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        console.warn('[Auth] Received 401 Unauthorized - session expired');
+        
+        // Clear the session
+        session.signOut();
+        
+        // Redirect to login page with the current URL as return destination
+        router.navigate(['/login'], {
+          queryParams: { returnUrl: router.url }
+        });
+      }
+      
+      // Pass the error through to the component for UI error display
+      return throwError(() => error);
     })
   );
 };
