@@ -9,14 +9,19 @@ cd executor
 mvn clean verify
 ```
 
-## Configuration (via `.env` at repo root)
+## Configuration
 
-| Variable | Description | Default |
-|---|---|---|
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker | `localhost:9092` |
-| `FAUXNANCE_BASE_URL` | Fauxnance API base URL | `http://localhost:8082` |
-| `FAUXNANCE_API_KEY` | Fauxnance API key | (required) |
-| `POSTGRES_*` | Database credentials via TrustMe key file | |
+Secrets come from the TrustMe vault, not from environment variables or a `.env` file:
+
+| TrustMe secret | Description |
+|---|---|
+| `Fauxnance`, `Fauxnance_Endpoint` | Fauxnance API key and base URL |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | Database connection |
+| `JWT_SECRET` | Shared token-signing key |
+
+The poll interval (60s), symbol suffix (`.NS`) and port (8083) are fixed in `application.yml`. The one
+environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`), because where Kafka is
+differs between machines.
 
 ## Prerequisites
 

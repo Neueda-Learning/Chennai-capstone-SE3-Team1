@@ -375,7 +375,7 @@ def build_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Runs with no arguments on a machine that has psql and a local Postgres.\n"
-            "Override any setting with a flag, a PG* environment variable, or a .env file."
+            "Settings come from the TrustMe vault; override any of them with a flag."
         ),
     )
     add_connection_args(p)
@@ -421,7 +421,7 @@ def main(argv=None):
                 "cannot reach the PostgreSQL server at " + cfg.host + ":" + str(cfg.port)
                 + " as user " + cfg.user + ".\n" + detail
                 + "\nIs the server running? Check the host/port/user/password "
-                "(flags, PG* env vars, or .env)."
+                "(the TrustMe vault, or flags)."
             )
 
         if args.reset and not args.dry_run:

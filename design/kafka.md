@@ -135,7 +135,7 @@ numbers below work.
 | **60s** | **1440** | **Our setting.** Fits, with 60 spare on the poller budget and the 500 reserve untouched |
 | 120s | 720 | Fits with room, at the cost of a two-minute-old price |
 
-**Our configuration: `POLL_INTERVAL_SECONDS=60`, 4 symbols in the universe,
+**Our configuration: `executor.poll-interval-seconds=60`, 4 symbols in the universe,
 1 batch per poll, 1440 requests/day — 96% of the poller budget and 72% of the
 whole key's allowance.**
 
@@ -143,7 +143,7 @@ The floor of 58 seconds is derived, not picked: `ceil(86400 / 1500) = 57.6`, so
 58 is the fastest interval that keeps one batch per poll inside 1500/day. It is
 computed in `PollingSchedule.floorSeconds()` and applied in `PollerProperties`,
 which clamps anything lower and logs a warning at startup. A
-`POLL_INTERVAL_SECONDS=5` in someone's `.env` at 2am produces a 58-second poller
+a poll interval of 5 seconds set by someone at 2am produces a 58-second poller
 and a warning, not a dead key.
 
 ### Why batching is not optional

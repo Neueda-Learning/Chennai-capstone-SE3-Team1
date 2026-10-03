@@ -11,7 +11,6 @@ import trustme_secrets as trustme
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
 SEED_DIR = REPO_ROOT / "seed"
-ENV_FILE = REPO_ROOT / ".env"
 
 DEFAULTS = {
     "host": "localhost",
@@ -40,19 +39,6 @@ FIELD_SEP = "\x1f"
 
 class DbError(RuntimeError):
     pass
-
-
-def _read_env_file():
-    values = {}
-    if not ENV_FILE.is_file():
-        return values
-    for raw in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        values[key.strip().upper()] = val.strip().strip('"').strip("'")
-    return values
 
 
 def find_psql():
@@ -92,26 +78,20 @@ class DbConfig:
 
     @classmethod
     def resolve(cls, args=None):
-        dotenv = _read_env_file()
+        # An explicit command-line flag wins (it is the caller saying so, not configuration); every
+        # other source is the TrustMe vault. There is no environment-variable or .env fallback:
+        # the connection details and the password live in one place.
         settings = {}
-        for name, env_key in ENV_KEYS.items():
+        for name, secret_name in ENV_KEYS.items():
             cli_value = getattr(args, name, None) if args is not None else None
-            settings[name] = (
-                cli_value
-                or os.environ.get(env_key)
-                or trustme.get(env_key)
-                or dotenv.get(env_key)
-                or DEFAULTS.get(name)
-            )
+            settings[name] = cli_value or trustme.get(secret_name) or DEFAULTS.get(name)
         if not settings["password"]:
             raise DbError(
                 "No database password found. Add a " + repr(ENV_KEYS["password"])
-                + " secret to the TrustMe vault, or override it with --password, "
-                "the " + ENV_KEYS["password"] + " environment variable, or "
-                + ENV_KEYS["password"] + "= in .env."
+                + " secret to the TrustMe vault, or pass --password."
             )
         psql = getattr(args, "psql", None) if args is not None else None
-        return cls(psql=psql or dotenv.get("PSQL_BIN") or find_psql(), **settings)
+        return cls(psql=psql or find_psql(), **settings)
 
 
     def _env(self):
@@ -214,10 +194,10 @@ def quote_ident(value):
 
 
 def add_connection_args(parser):
-    g = parser.add_argument_group("connection (env vars and .env also work)")
-    g.add_argument("--host", help="database host (default " + DEFAULTS["host"] + ", or $PGHOST)")
-    g.add_argument("--port", help="database port (default " + DEFAULTS["port"] + ", or $PGPORT)")
-    g.add_argument("--dbname", help="database name (default " + DEFAULTS["dbname"] + ", or $PGDATABASE)")
-    g.add_argument("--user", help="database user (default " + DEFAULTS["user"] + ", or $PGUSER)")
-    g.add_argument("--password", help="database password (default 'postgres', or $PGPASSWORD)")
-    g.add_argument("--psql", help="path to the psql binary (default: found on PATH, or $PSQL_BIN)")
+    g = parser.add_argument_group("connection (read from the TrustMe vault unless given here)")
+    g.add_argument("--host", help="database host (default " + DEFAULTS["host"] + ",)")
+    g.add_argument("--port", help="database port (default " + DEFAULTS["port"] + ",)")
+    g.add_argument("--dbname", help="database name (default " + DEFAULTS["dbname"] + ",)")
+    g.add_argument("--user", help="database user (default " + DEFAULTS["user"] + ",)")
+    g.add_argument("--password", help="database password (default: the vault's PostGres secret)")
+    g.add_argument("--psql", help="path to the psql binary (default: found on PATH, or the PSQL_BIN environment variable)")

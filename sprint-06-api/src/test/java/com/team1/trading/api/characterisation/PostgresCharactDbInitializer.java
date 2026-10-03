@@ -119,14 +119,10 @@ public class PostgresCharactDbInitializer
                 user = TrustMe.get("PostGres_User");
                 password = TrustMe.get("PostGres");
             }
-            if (host == null || host.isBlank()) host = envOrSystem("PostGres_Host", "PostGres_Host");
-            if (port == null || port.isBlank()) port = envOrSystem("Postgres_Port", "Postgres_Port");
-            if (user == null || user.isBlank()) user = envOrSystem("PostGres_User", "PostGres_User");
-            if (password == null || password.isBlank()) password = envOrSystem("Postgres", "Postgres");
+            // The credentials come from the TrustMe vault and nowhere else.
             if (host == null || port == null || user == null || password == null) {
                 throw new IllegalArgumentException(
-                        "PostgreSQL credentials are not available from the TrustMe key file ("
-                                + keyPath + ") or the PostGres_* / Postgres_* environment variables.");
+                        "PostgreSQL credentials are not available from the TrustMe key file (" + keyPath + ").");
             }
             return new DbSettings(host.trim(), port.trim(), user.trim(), password, dbName);
         }

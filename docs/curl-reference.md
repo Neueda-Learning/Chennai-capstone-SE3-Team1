@@ -335,10 +335,10 @@ curl -s -X PUT "http://localhost:8081/api/bank-accounts/IN45ICIC0000008901234/wi
 ## Minting an admin token
 
 Public `/auth/register` always creates a `CUSTOMER`, so there's no self-service way to get an
-`ADMIN` token. For local testing, hand-sign one with the dev `JWT_SECRET` `run-local.ps1`
-starts the API with (`local-dev-secret-change-me-0123456789abcdef` by default, or whatever you
-passed as `-JwtSecret`) — the API only checks the signature and the `roles` claim, so `sub` /
-`accountId` can be anything.
+`ADMIN` token. For local testing, hand-sign one with the `JWT_SECRET` from the TrustMe vault (the
+same value the API and auth service verify with; read it with
+`python -c "import trustme_secrets as t; t.use_key_file('leapcapstoneteam1-720d03.TM'); print(t.get('JWT_SECRET'))"`)
+— the API only checks the signature and the `roles` claim, so `sub` / `accountId` can be anything.
 
 **PowerShell** — paste this whole block (plain PowerShell, no `--%` needed here since there's
 no embedded-quote body to fight), then use `$AdminT`:
@@ -354,7 +354,7 @@ function New-Jwt($secret, $roles, $accountId = $null, $ttlSec = 3600) {
     $s = & $b64 ($mac.ComputeHash([Text.Encoding]::UTF8.GetBytes("$h.$p")))
     "$h.$p.$s"
 }
-$AdminT = New-Jwt "local-dev-secret-change-me-0123456789abcdef" @("ADMIN")
+$AdminT = New-Jwt "<JWT_SECRET from the vault>" @("ADMIN")
 $AdminT
 ```
 Copy the printed value out and paste it in place of `<ADMIN_TOKEN>` above — `--%` blocks

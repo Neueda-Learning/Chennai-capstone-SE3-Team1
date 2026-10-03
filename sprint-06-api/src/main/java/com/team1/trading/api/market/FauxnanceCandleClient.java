@@ -43,7 +43,7 @@ public class FauxnanceCandleClient {
         factory.setConnectTimeout(Duration.ofSeconds(timeoutSeconds));
         factory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
         this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(baseUrl.replaceAll("/+$", ""))
                 .requestFactory(factory)
                 .defaultHeader("x-api-key", apiKey)
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)

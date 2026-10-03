@@ -19,7 +19,9 @@ import { configuration, validationSchema } from './config/configuration';
       isGlobal: true,
       load: [configuration],
       validationSchema,
-      envFilePath: ['.env.local', '.env'],
+      // No .env files: secrets come from TrustMe (see config/configuration.ts), and nothing
+      // else here is worth a file.
+      ignoreEnvFile: true,
     }),
     TerminusModule,
     LoggingModule,

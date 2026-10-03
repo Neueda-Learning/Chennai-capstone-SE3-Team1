@@ -6,104 +6,116 @@ import * as Joi from 'joi';
 // outside a module" - require() goes through Jest's normal module resolution and works.
 import trustme from 'trustme-secrets';
 
-function asBool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) {
-    return fallback;
+/**
+ * Where every setting comes from.
+ *
+ * Secrets and connection details live in the TrustMe vault - the same entries Java reads as
+ * `${trustme.secret.X}` and Python reads in scripts/db_config.py:
+ *
+ *   JWT_SECRET                                    the HS256 signing key
+ *   PostGres_Host, Postgres_Port, Postgres_DB,
+ *   PostGres_User, PostGres                       the database
+ *   Fauxnance, Fauxnance_Endpoint                 the market-data API key and base URL
+ *   SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM    the mail server that sends OTP codes
+ *
+ * There is deliberately no environment-variable or `.env` fallback for any of them: a second
+ * place a secret could live is a second place for it to leak from or to disagree with the vault.
+ * What the vault does not hold is fixed below as a plain value (the port, the issuer, the SMTP
+ * port and TLS mode) - none of it is sensitive. The one thing still read from the environment is
+ * NODE_ENV, which the runtime and Jest set themselves, and KAFKA_BROKER, a deployment address
+ * (see kafka below).
+ */
+const SERVICE_PORT = 3000;
+const JWT_ISSUER = 'auth-service';
+// Gmail-style submission: connect in the clear on 587, then upgrade with STARTTLS (required).
+const SMTP_PORT = 587;
+const SMTP_IMPLICIT_TLS = false;
+const SMTP_REQUIRE_STARTTLS = true;
+
+/** A secret the service cannot start without: a missing one is an error naming it. */
+async function required(name: string): Promise<string> {
+  const value = await trustme.get(name);
+  if (typeof value !== 'string' || value === '') {
+    throw new Error(`TrustMe secret "${name}" is empty`);
   }
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  return value;
 }
 
-// Same vault, same secret names Java (application.properties: ${trustme.secret.X}) and
-// Python (scripts/db_config.py's ENV_KEYS) already read from: "JWT_SECRET" for the HS256
-// signing key, "PostGres" for the database password. No env-var or hardcoded fallback here
-// on purpose - the config factory below throws if the vault can't supply them, exactly like
-// Spring refuses to start without ${trustme.secret.JWT_SECRET}.
+/** A secret the service can run without (mail, market data): absent means "feature off". */
+async function optional(name: string): Promise<string> {
+  try {
+    const value = await trustme.get(name);
+    return typeof value === 'string' ? value : '';
+  } catch {
+    return '';
+  }
+}
+
 export const configuration = registerAs('app', async () => {
+  const [jwtSecret, dbHost, dbPort, dbName, dbUser, dbPassword] = await Promise.all([
+    required('JWT_SECRET'),
+    required('PostGres_Host'),
+    required('Postgres_Port'),
+    required('Postgres_DB'),
+    required('PostGres_User'),
+    required('PostGres'),
+  ]);
+  const [fauxnanceKey, fauxnanceUrl, smtpHost, smtpUser, smtpPass, smtpFrom] = await Promise.all([
+    optional('Fauxnance'),
+    optional('Fauxnance_Endpoint'),
+    optional('SMTP_HOST'),
+    optional('SMTP_USER'),
+    optional('SMTP_PASS'),
+    optional('SMTP_FROM'),
+  ]);
+
   return {
     nodeEnv: process.env.NODE_ENV || 'development',
-    port: parseInt(process.env.PORT ?? '3000', 10),
+    port: SERVICE_PORT,
 
     jwt: {
-      secret: await trustme.get('JWT_SECRET'),
-      issuer: process.env.JWT_ISSUER ?? 'auth-service',
+      secret: jwtSecret,
+      issuer: JWT_ISSUER,
     },
 
     database: {
-      host: process.env.DB_HOST ?? 'localhost',
-      port: parseInt(process.env.DB_PORT ?? '5432', 10),
-      username: process.env.DB_USERNAME ?? 'postgres',
-      password: await trustme.get('PostGres'),
-      name: process.env.DB_NAME ?? 'trading_platform',
+      host: dbHost,
+      port: parseInt(dbPort, 10),
+      username: dbUser,
+      password: dbPassword,
+      name: dbName,
     },
 
+    // Not in the vault, and not hardcoded: where Kafka is differs between a laptop (localhost)
+    // and a shared broker (run-local.ps1 -KafkaHosted). Only the health check reads it.
     kafka: {
       broker: process.env.KAFKA_BROKER ?? 'localhost:9092',
     },
 
     fauxnance: {
-      baseUrl:
-        process.env.FAUXNANCE_BASE_URL ??
-        'https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1',
-      apiKey: process.env.FAUXNANCE_API_KEY ?? '',
+      baseUrl: fauxnanceUrl.replace(/\/+$/, ''),
+      apiKey: fauxnanceKey,
     },
 
     smtp: {
-      enabled: asBool(process.env.SMTP_ENABLED, false),
-      host: process.env.SMTP_HOST ?? '',
-      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
-      secure: asBool(process.env.SMTP_SECURE, false),
-      requireTls: asBool(process.env.SMTP_REQUIRE_TLS, true),
-      user: process.env.SMTP_USER ?? '',
-      pass: process.env.SMTP_PASS ?? '',
-      from: process.env.SMTP_FROM ?? '',
+      // Mail is on exactly when the vault holds a complete set of credentials. With any of the
+      // four missing the service logs the OTP code instead of sending it, as it always has.
+      enabled: [smtpHost, smtpUser, smtpPass, smtpFrom].every((v) => v !== ''),
+      host: smtpHost,
+      port: SMTP_PORT,
+      secure: SMTP_IMPLICIT_TLS,
+      requireTls: SMTP_REQUIRE_STARTTLS,
+      user: smtpUser,
+      pass: smtpPass,
+      from: smtpFrom,
     },
   };
 });
 
+/** The only environment variables the service looks at; everything else is above. */
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
-  PORT: Joi.number().port().default(3000),
-
-  // JWT_SECRET and DB_PASSWORD are no longer read from the environment - they come from
-  // the TrustMe vault (see the config factory above).
-  JWT_ISSUER: Joi.string().default('auth-service'),
-
-  DB_HOST: Joi.string().required(),
-  DB_PORT: Joi.number().port().default(5432),
-  DB_USERNAME: Joi.string().required(),
-  DB_NAME: Joi.string().required(),
-
   KAFKA_BROKER: Joi.string().default('localhost:9092'),
-
-  FAUXNANCE_BASE_URL: Joi.string()
-    .uri()
-    .default('https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1'),
-  FAUXNANCE_API_KEY: Joi.string().allow('').optional(),
-
-  SMTP_ENABLED: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(false),
-  SMTP_HOST: Joi.when('SMTP_ENABLED', {
-    is: true,
-    then: Joi.string().required(),
-    otherwise: Joi.string().allow('').optional(),
-  }),
-  SMTP_PORT: Joi.number().port().default(587),
-  SMTP_SECURE: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(false),
-  SMTP_REQUIRE_TLS: Joi.boolean().truthy('1').truthy('true').falsy('0').falsy('false').default(true),
-  SMTP_USER: Joi.when('SMTP_ENABLED', {
-    is: true,
-    then: Joi.string().required(),
-    otherwise: Joi.string().allow('').optional(),
-  }),
-  SMTP_PASS: Joi.when('SMTP_ENABLED', {
-    is: true,
-    then: Joi.string().required(),
-    otherwise: Joi.string().allow('').optional(),
-  }),
-  SMTP_FROM: Joi.when('SMTP_ENABLED', {
-    is: true,
-    then: Joi.string().email().required(),
-    otherwise: Joi.string().allow('').optional(),
-  }),
-});
+}).unknown(true);

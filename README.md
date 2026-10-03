@@ -21,17 +21,33 @@ python scripts/verify_db.py     # run the checks
 python -m pytest tests/         # run the migration test suite
 ```
 
-Defaults are `localhost:5432`, user `postgres`, database `trading_platform`.
-Override with a CLI flag, a `PG*` environment variable, or a `.env` file —
-flags win over env vars, env vars win over `.env`. Copy `.env.example` to `.env`
-to set them permanently; `.env` is git-ignored.
+The connection settings come from the TrustMe vault (see below); a CLI flag
+(`--host`, `--password`, ...) overrides any of them for one run.
 
 If `psql` is not on `PATH` the scripts look in
-`C:\Program Files\PostgreSQL\<version>\bin`, or set `PSQL_BIN`.
+`C:\Program Files\PostgreSQL\<version>\bin`, or set the `PSQL_BIN` environment variable.
 
-`.env.example` also carries `FAUXNANCE_API_KEY` and `FAUXNANCE_BASE_URL`, which
-the analytics pipeline in `ETL_Analysis/` reads. The key ships empty on purpose:
-put your own in `.env`, never in a source file, a test or a fixture.
+## Configuration and secrets
+
+Every secret and connection detail comes from the TrustMe vault
+(`leapcapstoneteam1-720d03.TM`). There are no `.env` files for them and no
+environment-variable fallbacks, so there is one place a value can live and one
+place it can be wrong.
+
+| TrustMe secret | Used for | Read by |
+|---|---|---|
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | the database connection | Trade API, executor, auth service, `scripts/*.py` |
+| `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service |
+| `Fauxnance`, `Fauxnance_Endpoint` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `ETL_Analysis/` |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | the mail server that sends OTP codes; mail is on only when all four exist | auth service |
+
+Everything else is a plain value in code or in `application.properties` / `application.yml`
+(ports, the JWT issuer, the currency, the SMTP port and TLS mode, the `.NS` symbol suffix, the
+poll interval). The only environment variables still read are `KAFKA_BOOTSTRAP_SERVERS` and
+`KAFKA_BROKER` (where Kafka is: `localhost` on a laptop, another host with
+`run-local.ps1 -KafkaHosted`), `NODE_ENV` (set by the runtime), and `PSQL_BIN` (where `psql` is).
+
+To add or change a secret, do it in TrustMe; nothing in the repo needs to change.
 
 ## Layout
 

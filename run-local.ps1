@@ -234,32 +234,36 @@ if ($KafkaHosted) {
     # broker and tools are launched straight from the jars instead.
     $kafkaDataDir = "C:\tmp\kraft-combined-logs"      # log.dirs default in server.properties
     $existing = Read-Pids
-    if ($existing -and (Get-Process -Id $existing.kafka -ErrorAction SilentlyContinue) -and (Test-Port $KafkaPort)) {
+    # pids.json has no kafka entry when the broker was started outside this script (or was already
+    # running when it ran); Get-Process -Id $null throws and PowerShell then skips this whole block.
+    if ($existing -and $existing.kafka -and (Get-Process -Id $existing.kafka -ErrorAction SilentlyContinue) -and (Test-Port $KafkaPort)) {
         Write-Host "    broker already running (pid $($existing.kafka))"
         $kafkaPid = $existing.kafka
     } elseif (Test-Port $KafkaPort) {
         Write-Host "    something else already listens on $KafkaPort; using it" -ForegroundColor Yellow
         $kafkaPid = $null
     } else {
+        # Kafka on Windows cannot rename a log file another handle still has open, and several of its
+        # housekeeping jobs rename or delete log files as a matter of course: the log cleaner that
+        # compacts __consumer_offsets, retention deleting expired segments, and KRaft trimming its
+        # own metadata log. One failed rename marks the whole log directory failed and the broker
+        # shuts itself down - and what it leaves behind (half-finished .cleaned/.swap files, or
+        # segments already past retention) makes the NEXT start fail the same way, so a crashed
+        # broker never comes back and orders sit at NEW with nothing to execute them.
+        #
+        # So this local broker starts from an empty data directory every time. Nothing is lost that
+        # matters: the database is the source of truth for orders, balances and holdings, the
+        # topics are recreated just below, and a few minutes of queued quotes are re-polled. The
+        # cleaner and retention are also switched off, so a long session has nothing to delete.
+        if (Test-Path -LiteralPath $kafkaDataDir) {
+            Remove-Item -LiteralPath $kafkaDataDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # (re)format: the wipe above guarantees there is no meta.properties, so this always runs
         if (-not (Test-Path (Join-Path $kafkaDataDir "meta.properties"))) {
             Write-Host "    formatting KRaft storage"
             $id = (java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool random-uuid 2>$null | Select-Object -Last 1).Trim()
             java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool format -t $id -c $kafkaCfg | Out-Null
-        }
-        # Kafka on Windows cannot rename a log file another handle still has open, and its log
-        # cleaner (which compacts __consumer_offsets) renames files constantly. One failed rename
-        # marks the whole log directory failed and the broker shuts itself down - and the half-
-        # finished .cleaned/.swap file it leaves behind makes the NEXT start fail the same way,
-        # so a crashed broker never comes back and orders sit at NEW with nothing to execute them.
-        # Retention does the same thing: deleting an expired segment renames it to *.deleted. After
-        # a few days of downtime every old segment is expired at once and the first sweep kills the
-        # broker. Clear the cleaner's leftovers (they are only scratch files) and switch both the
-        # cleaner and retention-based deletion off for this local broker: nothing here needs
-        # compaction, and a dev broker may keep its few megabytes forever.
-        if (Test-Path $kafkaDataDir) {
-            Get-ChildItem -Path $kafkaDataDir -Recurse -File -ErrorAction SilentlyContinue |
-                Where-Object { $_.Extension -in ".cleaned", ".swap" } |
-                ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
         }
         $kp = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir "kafka.log") -RedirectStandardError (Join-Path $LogDir "kafka.err") `
@@ -361,14 +365,15 @@ $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key
 $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 
 # The auth service's settings go into this process's environment only for as long as it takes
-# to start it (Start-Process hands the child a copy), then come straight back out. DB_PASSWORD
-# is deliberately not among them: the auth service's own config (configuration.ts) fetches its
-# JWT secret and database password straight from the TrustMe vault, the same way Java's
-# application.properties and Python's db_config.py already do - so the two --trustme-* args
-# below are handed to it directly instead, the same way $jvmCommon does for the JVM services.
+# to start it (Start-Process hands the child a copy), then come straight back out. Nothing
+# sensitive is among them, and neither are the database settings: the auth service's own config
+# (configuration.ts) fetches its JWT secret, its database host/port/name/user/password and its
+# mail credentials straight from the TrustMe vault, the same way Java's application.properties
+# and Python's db_config.py already do - so the two --trustme-* args below are handed to it
+# directly instead, the same way $jvmCommon does for the JVM services. What is left is the one
+# deployment address it needs, for its Kafka health check.
 $authEnv = @{
-    PORT = "$AuthPort"; NODE_ENV = "development"; JWT_ISSUER = "auth-service"
-    DB_HOST = $Db.host; DB_PORT = $Db.port; DB_NAME = $Db.name; DB_USERNAME = $Db.user
+    NODE_ENV = "development"; KAFKA_BROKER = $KafkaBootstrap
 }
 foreach ($k in $authEnv.Keys) { Set-Item -Path "Env:$k" -Value $authEnv[$k] }
 try {

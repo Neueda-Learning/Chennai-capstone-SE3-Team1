@@ -16,7 +16,7 @@ A NestJS-based trading service built with TypeScript, following clean architectu
 npm ci
 
 # Copy environment file
-cp .env.example .env
+# no .env file: configuration comes from the TrustMe vault (see Configuration below)
 
 # Run in development mode
 npm run start:dev
@@ -41,32 +41,22 @@ npm run lint
 npm run format
 ```
 
-## Environment Variables
+## Configuration
 
-All configuration is loaded from environment variables. See `.env.example` for all available options.
+Nothing is configured through a `.env` file. Secrets and connection details come from the TrustMe vault
+(the key file and its password are passed as `--trustme-key-file=...` / `--trustme-password=...`, as
+`run-local.ps1` does); see `src/config/configuration.ts`.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment (development/production/test) | `development` |
-| `PORT` | HTTP server port | `3000` |
-| `JWT_SECRET` | JWT signing secret (min 32 chars) | *required* |
-| `JWT_ISSUER` | JWT issuer claim | `auth-service` |
-| `DB_HOST` | PostgreSQL host | `localhost` |
-| `DB_PORT` | PostgreSQL port | `5432` |
-| `DB_USERNAME` | PostgreSQL username | *required* |
-| `DB_PASSWORD` | PostgreSQL password | *required* |
-| `DB_NAME` | PostgreSQL database name | `trading_platform` |
-| `KAFKA_BROKER` | Kafka broker address | `localhost:9092` |
-| `FAUXNANCE_BASE_URL` | Fauxnance API base URL | `https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1` |
-| `FAUXNANCE_API_KEY` | Fauxnance API key | *optional* |
-| `SMTP_ENABLED` | Enable real SMTP email delivery for OTP flows | `false` |
-| `SMTP_HOST` | SMTP hostname | *required when `SMTP_ENABLED=true`* |
-| `SMTP_PORT` | SMTP port | `587` |
-| `SMTP_SECURE` | Use SMTPS/implicit TLS | `false` |
-| `SMTP_REQUIRE_TLS` | Enforce STARTTLS when using plain SMTP | `true` |
-| `SMTP_USER` | SMTP username | *required when `SMTP_ENABLED=true`* |
-| `SMTP_PASS` | SMTP password / app password | *required when `SMTP_ENABLED=true`* |
-| `SMTP_FROM` | From-address used in OTP emails | *required when `SMTP_ENABLED=true`* |
+| TrustMe secret | Description |
+|---|---|
+| `JWT_SECRET` | JWT signing secret (min 32 chars), required |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | PostgreSQL connection, required |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Mail server for OTP emails. Optional: with any of the four missing, codes are logged instead of emailed |
+| `Fauxnance`, `Fauxnance_Endpoint` | Market-data API key and base URL. Optional |
+
+Fixed in code: port `3000`, JWT issuer `auth-service`, SMTP port `587` with required STARTTLS.
+Read from the environment: `NODE_ENV` (default `development`) and `KAFKA_BROKER` (default
+`localhost:9092`, used only by the health check).
 
 ## Docker
 
@@ -79,11 +69,12 @@ docker build -t team1-nestjs .
 ### Run Container
 
 ```bash
+# The service needs the TrustMe key file and its password, passed as arguments (no secret is
+# baked into the image or read from an env file):
 docker run -d \
   -p 3000:3000 \
-  --env-file .env \
   --name team1-nestjs \
-  team1-nestjs
+  team1-nestjs --trustme-key-file=/run/secrets/team.TM --trustme-password=...
 ```
 
 ### Health Checks
@@ -163,7 +154,7 @@ npm run test:cov
 
 Configuration is handled via `@nestjs/config` with:
 - Schema validation using Joi
-- Environment-specific `.env` files
+- Secrets in the TrustMe vault, never in `.env` files
 - Type-safe configuration access via `ConfigService`
 
 ## Health Checks

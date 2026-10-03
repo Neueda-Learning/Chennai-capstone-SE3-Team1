@@ -16,7 +16,6 @@ except ImportError:
 DEFAULT_BASE_URL = "https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1"
 CACHE_DIR = Path(__file__).parent / ".cache"
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ENV_FILE = REPO_ROOT / ".env"
 trustme.use_key_file("leapcapstoneteam1-720d03.TM")
 
 KEY_VAR = "Fauxnance"
@@ -56,9 +55,8 @@ def _api_key() -> str:
     key = trustme.get(KEY_VAR)
     if not key:
         raise MissingApiKey(
-            f"{KEY_VAR} is not set. Put it in {ENV_FILE} as\n"
-            f"    {KEY_VAR}=your-key-here\n"
-            f"or export it in your shell. .env is git-ignored."
+            f"The TrustMe secret {KEY_VAR!r} is empty or missing. Add it to the vault; "
+            f"there is no environment-variable or .env fallback."
         )
     if key.startswith(("your-", "replace", "changeme")):
         raise MissingApiKey(

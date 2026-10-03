@@ -119,16 +119,15 @@ describes all five routes.
 
 ## Configuration
 
-| Variable | Default | Notes |
+| Setting | Source | Notes |
 |---|---|---|
-| `PORT` | `3000` | |
-| `JWT_SECRET` | *required* | Min 32 chars, Joi-validated |
-| `JWT_ISSUER` | `auth-service` | |
-| `DB_HOST` / `DB_PORT` / `DB_USERNAME` / `DB_PASSWORD` / `DB_NAME` | localhost / 5432 / postgres / postgres / trading_platform | |
-| `KAFKA_BROKER` | localhost:9092 | |
+| Port, JWT issuer | fixed in code (`3000`, `auth-service`) | |
+| `JWT_SECRET` | TrustMe | Min 32 chars |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | TrustMe | |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | TrustMe | Optional; mail is on only when all four exist |
+| `KAFKA_BROKER` | environment, default `localhost:9092` | Health check only |
 
-Values come from the environment at runtime; the only committed copy is the
-development value in `.env.example`.
+No setting is read from a `.env` file. See `src/config/configuration.ts`.
 
 ## Tests
 

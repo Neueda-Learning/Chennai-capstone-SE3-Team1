@@ -16,8 +16,8 @@ Needs `psql` (to read the source), Python 3.8+ and `duckdb`
 
 ## The three pipeline commands
 
-Each stage can be run on its own. Connection flags, `PG*`-style env vars and
-`.env` work exactly as for `apply_db.py`.
+Each stage can be run on its own. Connection settings come from the TrustMe vault, with flags to
+override them, exactly as for `apply_db.py`.
 
 ```
 # 1. schema — create analytics.* in the DuckDB warehouse (idempotent)

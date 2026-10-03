@@ -192,7 +192,7 @@ untouched**. The offline one exists because the key currently in circulation is
 a dummy; the live one is written to the sprint's requirements so it works the
 day a real key lands.
 
-`extract_live.py` reads the key from `FAUXNANCE_API_KEY` and nowhere else,
+`extract_live.py` reads the key from the TrustMe secret `Fauxnance` and nowhere else,
 sends it in the `X-Api-Key` header, never logs it, and caches raw responses to
 `.cache/` keyed by symbol and range so re-runs cost nothing against the 2000/day
 quota. It caches the **raw** response, not the cleaned frame, because changing

@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Reads {@code POLL_INTERVAL_SECONDS} and enforces the floor on it.
+ * Reads {@code executor.poll-interval-seconds} and enforces the floor on it.
  *
  * <p>The floor is enforced here rather than documented somewhere and hoped for. A README saying
  * "do not go below 58 seconds" does not survive somebody tuning an env var at 2am to make a demo
@@ -30,7 +30,7 @@ public class PollerProperties {
         this.effectiveIntervalSeconds = PollingSchedule.enforceFloor(configuredIntervalSeconds);
 
         if (effectiveIntervalSeconds != configuredIntervalSeconds) {
-            log.warn("POLL_INTERVAL_SECONDS={} is below the {}s floor and has been clamped. "
+            log.warn("executor.poll-interval-seconds={} is below the {}s floor and has been clamped. "
                             + "At {}s one batch would cost {} requests/day against a {} poller budget. Polling every {}s instead.",
                     configuredIntervalSeconds,
                     PollingSchedule.absoluteFloorSeconds(),

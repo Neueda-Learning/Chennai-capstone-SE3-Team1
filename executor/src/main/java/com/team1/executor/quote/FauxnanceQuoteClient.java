@@ -84,7 +84,7 @@ public class FauxnanceQuoteClient {
         this.quotaLedger = quotaLedger;
 
         this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(baseUrl.replaceAll("/+$", ""))
                 .defaultHeader(API_KEY_HEADER, apiKey)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();

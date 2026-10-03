@@ -14,7 +14,7 @@ Idempotent: running it again resets that account's activity and password and lea
 else alone. `clients` rows can never be deleted (a trigger forbids it), so an existing account is
 reused rather than recreated.
 
-Connection settings resolve exactly as in apply_db.py (flags, environment, TrustMe vault, .env).
+Connection settings resolve exactly as in apply_db.py (the TrustMe vault, or flags).
 The password is hashed with the auth service's own argon2 parameters by calling node from
 services/team1-nestjs, so the result signs in through the real /auth/login.
 

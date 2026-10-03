@@ -12,12 +12,11 @@ two hardcoded users, same response shape, no mapping onto this project's seed da
 ```bash
 cd services/auth-stub
 npm install
-npm start
+node server.js --trustme-key-file=../../leapcapstoneteam1-720d03.TM --trustme-password=<password>
 ```
 
-Listens on `http://localhost:4000`. Normally you don't run it this way, though — on
-Windows, `run-local.ps1` starts it for you alongside the API and executor (all three
-running natively, with Kafka the only thing in Docker, on a separate Linux box), using its
+Listens on `http://localhost:4000`. It is the legacy stand-in for the real auth service
+(`services/team1-nestjs`), and `run-local.ps1` no longer starts it. When it did, it used its
 `-JwtSecret` so a token minted here verifies against the API.
 
 ## Get a token
@@ -38,13 +37,8 @@ API's authentication check but not the per-account reach check — that still re
 
 ## The shared secret
 
-The Trade REST API and this stub both need to know the same HMAC secret. The API's
-`jwt.secret` property normally resolves from the TrustMe vault, which this stub knows
-nothing about — so for a minted token to actually verify, both sides need to check against
-the same value instead. `run-local.ps1` already handles this: it exports `JWT_SECRET` for
-both the API process and this stub before starting either, from its `-JwtSecret` parameter
-(default `local-dev-secret-change-me`), overriding the vault's `jwt.secret` for the API.
-
-Running this stub any other way (standalone, or a future non-Docker path for the API), make
-sure both processes see the same `JWT_SECRET` — otherwise the API is checking signatures
-against a secret this stub was never given, and every token comes back `401`.
+The Trade REST API and this stub both need the same HMAC secret, and both now get it from the
+same place: the `JWT_SECRET` entry in the TrustMe vault. The stub fetches it once at startup
+(the `--trustme-*` arguments above), refuses to start if it is missing or shorter than 32
+characters, and has no fallback value, so a token it issues verifies against the API without
+any step to keep two copies in sync.

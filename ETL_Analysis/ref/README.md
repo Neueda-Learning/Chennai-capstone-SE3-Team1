@@ -148,9 +148,9 @@ you will do most this week, and it should not need a fresh pull.
 
 ## The key and the quota
 
-The key is read from `FAUXNANCE_API_KEY` and from nowhere else. Copy
-`.env.example` at the repository root to `.env`, which is git-ignored, and put
-your key there. It is never a literal in source, never in a test, never in a
+The key is read from the TrustMe secret `Fauxnance` (the base URL from
+`Fauxnance_Endpoint`) and from nowhere else; there is no `.env` file and no
+environment variable. It is never a literal in source, never in a test, never in a
 fixture, never in a notebook you commit. A key that reaches a commit has to be
 revoked, and the history keeps it whether or not you revoke it.
 

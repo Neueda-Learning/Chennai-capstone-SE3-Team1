@@ -606,7 +606,7 @@ def run_app(db_path: str = DEFAULT_DB_PATH) -> None:
                      "separated. Left empty, only the choices above are run.")
             go_live = st.checkbox(
                 "Use the live API", value=False,
-                help="Needs FAUXNANCE_API_KEY. Unticked, the run serves the "
+                help="Needs the Fauxnance secret in TrustMe. Unticked, the run serves the "
                      "bundled fixtures, which are daily whatever interval is "
                      "requested.")
             launched = st.form_submit_button("Run the pipeline",
