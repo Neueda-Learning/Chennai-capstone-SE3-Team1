@@ -1,53 +1,19 @@
 <div class="login-wrapper">
   <tui-theme-toggle class="theme-toggle-floating" />
-  
-  <!-- Animated background elements -->
+
   <div class="login-bg-shape login-bg-shape-1"></div>
   <div class="login-bg-shape login-bg-shape-2"></div>
-  
-  <!-- Hero Section -->
-  <div class="login-hero">
-    <div class="login-hero-content">
-      <div class="login-hero-badge">
-        <i class="bi bi-lightning-charge-fill"></i>
-        Smart Trading Platform
-      </div>
-      <h1 class="login-hero-title">Trading Platform</h1>
-      <p class="login-hero-subtitle">Execute orders, track your portfolio, and manage investments all in one place</p>
-      <div class="login-hero-stats">
-        <div class="stat-item">
-          <div class="stat-value">Live</div>
-          <div class="stat-label">Market Data</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">Real-Time</div>
-          <div class="stat-label">Execution</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">Advanced</div>
-          <div class="stat-label">Analytics</div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="login-card">
-<<<<<<< HEAD
+  <main class="login-card">
     <span class="login-brand">
       <i class="bi bi-graph-up-arrow"></i>
       <span>YRVTrading</span>
     </span>
 
-    <p class="login-subtitle">Sign in to place orders and view your portfolio</p>
-=======
     <div class="login-header">
-      <span class="login-brand">
-        <i class="bi bi-graph-up-arrow"></i>
-        <span>Login</span>
-      </span>
-      <p class="login-subtitle">Sign in to your account</p>
+      <h1 class="login-title">Sign in</h1>
+      <p class="login-subtitle">Access your trading account and portfolio</p>
     </div>
->>>>>>> 406f391 (backup of work)
 
     @if (registered()) {
       <div class="alert alert-success login-alert" role="status" data-testid="login-registered-banner">
@@ -96,14 +62,19 @@
       </div>
 
       <div class="login-form-group">
-        <label for="password" class="login-form-label">Password</label>
+        <div class="login-label-row">
+          <label for="password" class="login-form-label">Password</label>
+          <a routerLink="/forgot-password" class="forgot-password-link" data-testid="forgot-password">
+            Forgot password?
+          </a>
+        </div>
         <div class="login-input-group">
-          <i class="bi bi-shield-lock input-icon"></i>
+          <i class="bi bi-lock input-icon"></i>
           <input
             [type]="passwordVisible() ? 'text' : 'password'"
             id="password"
             class="login-input login-input-password"
-            placeholder="••••••••"
+            placeholder="Enter your password"
             required
             autocomplete="current-password"
             data-testid="password"
@@ -130,9 +101,8 @@
             [checked]="remember()"
             (change)="onRememberChange($event)"
           >
-          <span>Remember Me</span>
+          <span>Keep me signed in</span>
         </label>
-        <a routerLink="/forgot-password" class="forgot-password-link" data-testid="forgot-password">Forgot Password?</a>
       </div>
 
       @if (error(); as message) {
@@ -148,15 +118,14 @@
 
       <button type="submit" class="btn-login" [disabled]="submitting()" data-testid="submit">
         @if (submitting()) {
-          <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
         }
-        <span>{{ submitting() ? 'Signing in…' : 'Sign In' }}</span>
-        <i class="bi bi-arrow-right"></i>
+        <span>{{ submitting() ? 'Signing in…' : 'Sign in' }}</span>
       </button>
     </form>
 
     <p class="login-footer-text">
-      Don't have an account? <a routerLink="/register">Register Now</a>
+      Don't have an account? <a routerLink="/register">Register now</a>
     </p>
-  </div>
+  </main>
 </div>
