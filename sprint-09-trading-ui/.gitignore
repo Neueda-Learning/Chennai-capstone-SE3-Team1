@@ -43,6 +43,17 @@ testem.log
 /typings
 __screenshots__/
 
+# E2E Testing
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/e2e/.auth/
+
+# Environment configuration (local overrides, never commit)
+.env.local
+.env.*.local
+.env.test
+
 # System files
 .DS_Store
 Thumbs.db

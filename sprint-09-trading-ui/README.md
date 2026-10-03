@@ -41,6 +41,7 @@ src/app/
   app.routes.ts                                Top-level route table, one entry per feature
   app.config.ts                                Application-wide providers (router, error listeners)
   features/
+    landing/         landing-page.ts           Public landing/home page (/) 
     auth/            login-page.ts             Credentials form against the auth service
     dashboard/       dashboard-page.ts         Landing page: balance and positions summary
     orders/           order-ticket-page.ts     Place an order against the Trade API
@@ -57,33 +58,65 @@ whole feature, no hunting across parallel `components/` and `tests/` trees.
 Every route in `app.routes.ts` lazy-loads its page component
 (`loadComponent`), so the initial bundle stays just the shell and each
 feature ships as its own chunk — confirmed in the `npm run build` output,
-where `login-page`, `dashboard-page`, `order-ticket-page` and `blotter-page`
-each land in a separate lazy chunk under a kilobyte.
+where `landing-page`, `login-page`, `dashboard-page`, `order-ticket-page` and
+`blotter-page` each land in a separate lazy chunk under a kilobyte.
 
-This story only stands the workspace up and stakes out where each feature
-lives; the pages above are placeholders (a heading and a one-line note on
-what belongs there) with a passing spec each, established now so later
-stories add real behaviour to an already-agreed location instead of
-negotiating structure mid-feature.
+### UI Improvements (Current Session)
 
-**Not created yet, on purpose:** `core/` (singleton services — auth session
-state, the HTTP interceptor that attaches the bearer token, error handling)
-and `shared/` (reusable presentational components/pipes used by more than one
-feature). Both belong in this tree once a story actually needs them; an empty
-folder tracked in git for a directory that doesn't exist yet would just be
-noise. The Playwright e2e suite is likewise a separate, later story.
+- **New Landing Page**: Professional public-facing landing page at `/` with features, hero section, and CTA
+- **Redesigned Login Page**: Full-screen two-column layout with hero section on left, login form on right
+- **Modern Styling**: Updated to follow the Spark Admin design system with improved spacing and visual hierarchy
+- **Form Optimization**: Login form fits screen height properly with improved input styling and button design
+- **Responsive Design**: All pages responsive and mobile-friendly
 
-The typed API clients generated from `sprint-06-api/contracts/` now exist
-under `src/app/generated/` (see the README there) and are wired into
-`app.config.ts` via `provideHttpClient()` and each client's `provideApi()`.
-No feature page calls them yet — that's still later stories; this one only
-stands the generated clients up and makes them injectable.
+## E2E Testing with Playwright
 
-## Conventions
+`e2e/` drives the real screens against the real services — no mocked network, no stubbed
+auth. Start the stack first (`.\run-local.ps1` from the repo root: auth `:3000`, Trade API
+`:8081`, executor `:8083`, Postgres, Kafka), then:
 
-- File naming follows the Angular 2025 style guide (the CLI default for v21):
-  `login-page.ts`, not `login-page.component.ts`; class `LoginPage`, not
-  `LoginPageComponent`.
-- Component selector prefix is `tui` (`tui-root`, `tui-login-page`, ...) to
-  keep it distinct from any other prefix used elsewhere in the monorepo.
-- Every component has its spec beside it, not in a separate test tree.
+```bash
+npm install
+npx playwright install          # one-time browser download
+npm run test:e2e                # Chromium + Firefox, headless
+npm run test:e2e:ui             # interactive UI mode
+npm run test:e2e:debug          # Playwright Inspector
+npx playwright show-report      # open the HTML report
+```
+
+Playwright starts `npm start` itself and waits for `http://localhost:4200`, so the dev server
+does not need to be running first.
+
+### What is covered (51 tests, `e2e/`)
+
+| Spec | Covers |
+|---|---|
+| `signin.spec.ts` | The guard bounces a signed-out visitor off a protected route and keeps the destination; unknown username, empty form, successful sign-in, return-URL redirect, Remember Me in `localStorage` vs the tab only, password reveal |
+| `account.spec.ts` | Signed-in shell naming the account, sign-out re-arming the guard, dashboard cash matching the Trade API, dashboard order summary, portfolio holdings, sidebar navigation |
+| `order-ticket.spec.ts` | Market list loading and auto-selected ticker, estimate tracking quantity, quantity validation (0, negative, fractional, empty) blocked before any `POST /orders`, insufficient-cash and oversell refusals, a one-unit buy accepted, appearing in the blotter and debiting the wallet |
+| `blotter.spec.ts` | Every order the Trade API holds, search narrowing the list, an empty search result, the status filter options, opening an order for detail |
+
+`auth.setup.ts` signs in once and writes `e2e/.auth/user.json`; the Chromium and Firefox
+projects reuse it, and the sign-in specs opt out of it to start from a clean session. The
+order-placement test places one real order per run, so the account's cash and blotter move
+between runs — the assertions compare a before/after read rather than fixed values.
+
+### Configuration
+
+`playwright.config.ts` reads `.env.test` (copy `.env.test.example`, which is ignored by git
+along with `e2e/.auth/`):
+
+| Variable | Meaning |
+|---|---|
+| `BASE_URL` | UI under test, default `http://localhost:4200` |
+| `AUTH_API_BASE` | Auth service, read directly to confirm a session was refused |
+| `TRADE_API_BASE` | Trade API base, without the `/api/v1` prefix |
+| `TEST_USERNAME` / `TEST_PASSWORD` | An existing account on the local auth service |
+
+The Trade API account id is not configured: `e2e/api.ts` reads it out of the session token the
+UI itself is holding, so the API cross-checks cannot drift from the account on screen.
+
+Registration is not covered: it needs a live email OTP, and the OTP-verification endpoint is
+deliberately not stubbed for tests. Sign in with an account that already exists. The auth
+service locks a username after five failed attempts in 15 minutes, so the invalid-credential
+test uses a username that does not exist rather than a wrong password.

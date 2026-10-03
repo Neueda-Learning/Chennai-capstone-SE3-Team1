@@ -4,6 +4,12 @@ import { authGuard, authGuardChild } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
+    // Landing page - accessible to everyone
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/landing/landing-page').then((m) => m.LandingPage)
+  },
+  {
     // Deliberately unguarded: this is the one route a signed-out visitor is
     // allowed to reach, because it is the one that lets them fix that.
     path: 'login',
@@ -36,7 +42,7 @@ export const routes: Routes = [
       import('./features/auth/reset-password-page').then((m) => m.ResetPasswordPage)
   },
   {
-    path: '',
+    path: 'app',
     canActivate: [authGuard],
     canActivateChild: [authGuardChild],
     loadComponent: () => import('./core/layout/shell').then((m) => m.Shell),
@@ -77,10 +83,38 @@ export const routes: Routes = [
     ]
   },
   {
+    // Redirect old /dashboard access to new structure
+    path: 'dashboard',
+    redirectTo: 'app/dashboard'
+  },
+  {
+    path: 'portfolio',
+    redirectTo: 'app/portfolio'
+  },
+  {
+    path: 'orders',
+    redirectTo: 'app/orders'
+  },
+  {
+    path: 'blotter',
+    redirectTo: 'app/blotter'
+  },
+  {
+    path: 'account',
+    redirectTo: 'app/account'
+  },
+  {
+    path: 'settings',
+    redirectTo: 'app/settings'
+  },
+  {
+    path: 'bank-accounts',
+    redirectTo: 'app/bank-accounts'
+  },
+  {
     // An unknown URL would otherwise leave the outlet empty — a blank page with
     // no explanation, which is the outcome the ticket warns about. Hand it to
-    // the guarded root, so it either lands on the dashboard or gets bounced to
-    // sign-in with somewhere to come back to.
+    // the landing page.
     path: '**',
     redirectTo: ''
   }

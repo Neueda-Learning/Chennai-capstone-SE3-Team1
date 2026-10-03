@@ -1,15 +1,53 @@
 <div class="login-wrapper">
   <tui-theme-toggle class="theme-toggle-floating" />
+  
+  <!-- Animated background elements -->
   <div class="login-bg-shape login-bg-shape-1"></div>
   <div class="login-bg-shape login-bg-shape-2"></div>
+  
+  <!-- Hero Section -->
+  <div class="login-hero">
+    <div class="login-hero-content">
+      <div class="login-hero-badge">
+        <i class="bi bi-lightning-charge-fill"></i>
+        Smart Trading Platform
+      </div>
+      <h1 class="login-hero-title">Trading Platform</h1>
+      <p class="login-hero-subtitle">Execute orders, track your portfolio, and manage investments all in one place</p>
+      <div class="login-hero-stats">
+        <div class="stat-item">
+          <div class="stat-value">Live</div>
+          <div class="stat-label">Market Data</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">Real-Time</div>
+          <div class="stat-label">Execution</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">Advanced</div>
+          <div class="stat-label">Analytics</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="login-card">
+<<<<<<< HEAD
     <span class="login-brand">
       <i class="bi bi-graph-up-arrow"></i>
       <span>YRVTrading</span>
     </span>
 
     <p class="login-subtitle">Sign in to place orders and view your portfolio</p>
+=======
+    <div class="login-header">
+      <span class="login-brand">
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>Login</span>
+      </span>
+      <p class="login-subtitle">Sign in to your account</p>
+    </div>
+>>>>>>> 406f391 (backup of work)
 
     @if (registered()) {
       <div class="alert alert-success login-alert" role="status" data-testid="login-registered-banner">
