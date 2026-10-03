@@ -80,23 +80,24 @@
 
 <div class="main-wrapper">
   <header class="navbar-custom">
-    <div class="navbar-left">
-      <button
-        class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
-        type="button"
-        aria-label="Minimize sidebar"
-        (click)="toggleSidebarMinimized()"
-      >
-        <i class="bi" [class.bi-chevron-bar-left]="!sidebarMinimized()" [class.bi-chevron-bar-right]="sidebarMinimized()"></i>
-      </button>
-      <button class="sidebar-toggle-btn me-2" type="button" aria-label="Toggle navigation" (click)="toggleMobileNav()">
-        <i class="bi bi-list"></i>
-      </button>
-    </div>
+    <div class="navbar-inner">
+      <div class="navbar-left">
+        <button
+          class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
+          type="button"
+          aria-label="Minimize sidebar"
+          (click)="toggleSidebarMinimized()"
+        >
+          <i class="bi" [class.bi-chevron-bar-left]="!sidebarMinimized()" [class.bi-chevron-bar-right]="sidebarMinimized()"></i>
+        </button>
+        <button class="sidebar-toggle-btn me-2" type="button" aria-label="Toggle navigation" (click)="toggleMobileNav()">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
 
-    <tui-navbar-search />
+      <tui-navbar-search />
 
-    <div class="navbar-actions">
+      <div class="navbar-actions">
       <tui-theme-toggle class="me-1" />
 
       <button class="navbar-action-btn me-1" type="button" aria-label="Toggle fullscreen" (click)="toggleFullscreen()">
@@ -196,10 +197,13 @@
           </li>
         </ul>
       </div>
+      </div>
     </div>
   </header>
 
-  <router-outlet />
+  <div class="page-container">
+    <router-outlet />
+  </div>
 
   <footer class="footer-custom">
     <div class="footer-left">

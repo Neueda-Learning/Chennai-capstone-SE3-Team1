@@ -44,35 +44,35 @@
   }
 
   <div class="row g-4 mb-4">
-    <div class="col-md-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
       <div class="card card-stat mb-0">
         <span class="stat-label">Total Value</span>
-        <div class="stat-value stat-value-md" data-testid="total-value">{{ state() === 'ready' ? formatMoney(summary().totalValue) : '—' }}</div>
+        <div class="stat-value stat-value-md" data-testid="total-value">{{ state() === 'ready' ? formatMoney(summary().totalValue) : 'â€”' }}</div>
         <div class="stat-footnote"><span>Cash plus investments</span></div>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
       <div class="card card-stat mb-0">
         <span class="stat-label">Invested</span>
-        <div class="stat-value stat-value-md" data-testid="invested">{{ state() === 'ready' ? formatMoney(summary().investedValue) : '—' }}</div>
-        <div class="stat-footnote"><span>Cost <strong>{{ state() === 'ready' ? formatMoney(summary().cost) : '—' }}</strong></span></div>
+        <div class="stat-value stat-value-md" data-testid="invested">{{ state() === 'ready' ? formatMoney(summary().investedValue) : 'â€”' }}</div>
+        <div class="stat-footnote"><span>Cost <strong>{{ state() === 'ready' ? formatMoney(summary().cost) : 'â€”' }}</strong></span></div>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
       <div class="card card-stat mb-0">
         <span class="stat-label">Unrealised P&amp;L</span>
         <div class="stat-value" [class]="'stat-value stat-value-md ' + tone(state() === 'ready' ? summary().unrealised : null)" data-testid="unrealised">
-          {{ state() === 'ready' ? formatSignedMoney(summary().unrealised) : '—' }}
+          {{ state() === 'ready' ? formatSignedMoney(summary().unrealised) : 'â€”' }}
         </div>
         <div class="stat-footnote">
-          <span>{{ state() === 'ready' ? formatSignedPercent(summary().unrealisedPercent) : '—' }} on cost</span>
+          <span>{{ state() === 'ready' ? formatSignedPercent(summary().unrealisedPercent) : 'â€”' }} on cost</span>
         </div>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
       <div class="card card-stat mb-0">
         <span class="stat-label">Cash</span>
-        <div class="stat-value stat-value-md" data-testid="cash">{{ state() === 'ready' ? formatMoney(summary().cash) : '—' }}</div>
+        <div class="stat-value stat-value-md" data-testid="cash">{{ state() === 'ready' ? formatMoney(summary().cash) : 'â€”' }}</div>
         <div class="stat-footnote"><span>Available to trade</span></div>
       </div>
     </div>

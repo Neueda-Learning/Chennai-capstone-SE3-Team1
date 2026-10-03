@@ -1,4 +1,26 @@
-/* Landing Page Styles */
+/* Landing Page Styles
+   ---------------------------------------------------------------------------
+   Everything that has to change between light and dark is a custom property
+   declared here on :host and overridden in one :host-context block at the
+   bottom. A component stylesheet is scoped by Angular and cannot be outranked
+   from the global sheet, so the theme has to be answered in here - the same
+   escape hatch the blotter uses. */
+
+:host {
+    --landing-max-width: 1280px;
+    --landing-navbar-h: 74px;
+    --landing-navbar-bg: rgba(244, 246, 245, 0.92);
+
+    /* Lime on white is about 1.9:1, which is a highlight colour, not a text
+       colour. Anything that carries words uses these two instead. */
+    --landing-accent-text: var(--brand-forest-medium);
+    --landing-gradient-from: var(--brand-forest-dark);
+    --landing-gradient-to: var(--brand-forest-medium);
+
+    /* The one place the overlay tint lives, so the backdrop and the bar behind
+       it cannot disagree. */
+    --landing-scrim: rgba(11, 19, 15, 0.45);
+}
 
 .landing-wrapper {
     background-color: var(--bs-body-bg);
@@ -6,24 +28,34 @@
     overflow: hidden;
 }
 
+/* One measure for the whole page, so the navbar, the feature grid, the about
+   block and the footer all start on the same vertical line at any window size. */
+.section-container {
+    width: 100%;
+    max-width: var(--landing-max-width);
+    margin-inline: auto;
+}
+
 /* Navigation Bar */
 .landing-navbar {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(244, 246, 245, 0.95);
+    background: var(--landing-navbar-bg);
     backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-light);
     padding: 1rem 0;
 }
 
 .navbar-container {
-    max-width: 1280px;
+    max-width: var(--landing-max-width);
     margin: 0 auto;
     padding: 0 2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
 }
 
 .navbar-logo {
@@ -44,7 +76,7 @@
 .navbar-links {
     display: flex;
     align-items: center;
-    gap: 2rem;
+    gap: 1.5rem;
 }
 
 .nav-link {
@@ -55,39 +87,68 @@
 }
 
 .nav-link:hover {
-    color: var(--brand-lime);
+    color: var(--landing-accent-text);
 }
 
 .btn-nav-login {
     background-color: var(--brand-forest-medium);
-    color: white;
+    color: #FFFFFF;
     padding: 0.5rem 1.25rem;
     border-radius: var(--radius-lg);
     font-weight: 600;
-    transition: all 0.3s ease;
+    white-space: nowrap;
+    transition: background-color 0.3s ease;
 }
 
 .btn-nav-login:hover {
     background-color: var(--brand-forest-dark);
 }
 
-/* Hero Section */
+/* Sits beside Sign In rather than replacing it: the drawer holds detail, the
+   link is the action. */
+.btn-nav-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    background-color: transparent;
+    color: var(--text-main);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-nav-details:hover {
+    border-color: var(--landing-accent-text);
+    color: var(--landing-accent-text);
+}
+
+.btn-nav-details:focus-visible {
+    outline: 2px solid var(--landing-accent-text);
+    outline-offset: 2px;
+}
+
+/* Hero Section
+   The navbar is sticky and already takes a screen's worth of vertical space, so
+   the hero is sized against what is left. `100vh` here is what used to force a
+   scroll before the visitor had seen anything below the fold. */
 .landing-hero {
     position: relative;
-    min-height: 100vh;
+    min-height: calc(100vh - var(--landing-navbar-h));
+    min-height: calc(100svh - var(--landing-navbar-h));
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: 3rem 2rem;
     overflow: hidden;
 }
 
 .hero-background {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 0;
 }
 
@@ -124,7 +185,7 @@
     align-items: center;
     gap: 0.5rem;
     background: var(--brand-lime-translucent);
-    color: var(--brand-forest-medium);
+    color: var(--landing-accent-text);
     padding: 0.6rem 1.25rem;
     border-radius: 50px;
     font-size: 0.85rem;
@@ -146,7 +207,7 @@
 }
 
 .gradient-text {
-    background: linear-gradient(135deg, var(--brand-forest-medium), var(--brand-lime));
+    background: linear-gradient(135deg, var(--landing-gradient-from), var(--landing-gradient-to));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -173,12 +234,15 @@
 .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
     border-radius: var(--radius-lg);
     font-weight: 700;
     text-decoration: none;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: none;
     cursor: pointer;
     font-size: 1rem;
@@ -186,7 +250,7 @@
 
 .btn-primary {
     background-color: var(--brand-forest-medium);
-    color: white;
+    color: #FFFFFF;
     box-shadow: 0 4px 12px rgba(7, 47, 31, 0.15);
 }
 
@@ -197,15 +261,25 @@
 }
 
 .btn-secondary {
-    background-color: white;
+    background-color: var(--card-background);
     color: var(--brand-forest-medium);
     border: 2px solid var(--border-light);
 }
 
 .btn-secondary:hover {
     border-color: var(--brand-forest-medium);
-    background-color: var(--bs-body-bg);
     transform: translateY(-2px);
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: var(--landing-accent-text);
+    border: 1px solid var(--border-light);
+    font-weight: 600;
+}
+
+.btn-ghost:hover {
+    border-color: var(--landing-accent-text);
 }
 
 .btn-lg {
@@ -227,7 +301,7 @@
 .stat-number {
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--brand-lime);
+    color: var(--landing-accent-text);
     margin-bottom: 0.5rem;
 }
 
@@ -237,46 +311,49 @@
     font-weight: 500;
 }
 
-/* Features Section */
+/* Features Section
+   A 320px minimum means two columns at 1280px and three only once the window is
+   wide enough to keep the text readable; the page shows one line per card and
+   the drawer carries the paragraph. */
 .landing-features {
-    padding: 6rem 2rem;
+    padding: 3.5rem 2rem;
     background: linear-gradient(180deg, transparent 0%, rgba(180, 241, 5, 0.05) 100%);
 }
 
 .features-header {
     text-align: center;
-    margin-bottom: 4rem;
+    margin-bottom: 2.5rem;
     max-width: 600px;
     margin-left: auto;
     margin-right: auto;
 }
 
 .features-header h2 {
-    font-size: clamp(2rem, 5vw, 3rem);
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
     font-weight: 800;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .features-header p {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: var(--text-muted-green);
 }
 
 .features-grid {
-    max-width: 1280px;
-    margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 1.5rem;
 }
 
 .feature-card {
-    background: white;
-    padding: 2rem;
+    background: var(--card-background);
+    padding: 1.5rem;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border-light);
-    text-align: center;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-sm);
 }
 
@@ -287,16 +364,16 @@
 }
 
 .feature-icon {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 1.5rem;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--brand-lime-translucent);
     border-radius: var(--radius-lg);
-    color: var(--brand-forest-medium);
-    font-size: 1.75rem;
+    color: var(--landing-accent-text);
+    font-size: 1.4rem;
     transition: transform 0.3s ease;
 }
 
@@ -305,77 +382,83 @@
 }
 
 .feature-card h3 {
-    font-size: 1.2rem;
-    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
     color: var(--text-main);
 }
 
 .feature-card p {
-    font-size: 0.95rem;
+    font-size: 0.925rem;
     color: var(--text-muted-green);
     line-height: 1.6;
+    margin: 0;
+}
+
+.features-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
 }
 
 /* About Section */
 .landing-about {
-    padding: 6rem 2rem;
-    background-color: white;
+    padding: 3.5rem 2rem;
+    background-color: var(--card-background);
 }
 
 .about-container {
-    max-width: 1280px;
-    margin: 0 auto;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 3rem;
     align-items: center;
 }
 
 .about-content h2 {
-    font-size: clamp(2rem, 5vw, 3rem);
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
     font-weight: 800;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .about-content p {
     font-size: 1.05rem;
     color: var(--text-muted-green);
-    line-height: 1.8;
-    margin-bottom: 2rem;
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
 }
 
 .about-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1.5rem;
 }
 
 .about-item {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    font-size: 1rem;
+    gap: 0.75rem;
+    font-size: 0.95rem;
     color: var(--text-main);
     font-weight: 500;
 }
 
 .about-item i {
-    color: var(--brand-lime);
-    font-size: 1.25rem;
+    color: var(--landing-accent-text);
+    font-size: 1.1rem;
+    flex-shrink: 0;
 }
 
 .about-image {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 400px;
+    height: 300px;
 }
 
 .about-card {
     background: linear-gradient(135deg, var(--brand-forest-medium), var(--brand-forest-light));
-    color: white;
+    color: #FFFFFF;
     border-radius: var(--radius-xxl);
-    padding: 3rem;
+    padding: 2rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -404,21 +487,21 @@
 
 /* CTA Section */
 .landing-cta {
-    padding: 6rem 2rem;
+    padding: 3.5rem 2rem;
     background: linear-gradient(135deg, var(--brand-forest-medium), var(--brand-forest-dark));
-    color: white;
+    color: #FFFFFF;
     text-align: center;
 }
 
 .cta-content h2 {
-    font-size: clamp(2rem, 5vw, 3rem);
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
     font-weight: 800;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .cta-content p {
-    font-size: 1.1rem;
-    margin-bottom: 2rem;
+    font-size: 1.05rem;
+    margin-bottom: 1.5rem;
     opacity: 0.9;
 }
 
@@ -442,14 +525,13 @@
 /* Footer */
 .landing-footer {
     background-color: var(--brand-forest-dark);
-    color: white;
+    color: #FFFFFF;
     padding: 2rem;
-    text-align: center;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .footer-container {
-    max-width: 1280px;
+    max-width: var(--landing-max-width);
     margin: 0 auto;
 }
 
@@ -467,13 +549,161 @@
 }
 
 .footer-links a {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.75);
     text-decoration: none;
     transition: color 0.3s ease;
 }
 
 .footer-links a:hover {
     color: var(--brand-lime);
+}
+
+/* Details drawer
+   Off the right edge, full height, and out of the document flow so opening it
+   never reflows the page behind it. Width is capped so the text inside keeps a
+   readable measure on a wide monitor. */
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background-color: var(--landing-scrim);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.drawer-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.details-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1050;
+    width: min(440px, 100vw);
+    display: flex;
+    flex-direction: column;
+    background-color: var(--card-background);
+    border-left: 1px solid var(--border-light);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s ease;
+}
+
+.details-drawer.show {
+    transform: translateX(0);
+    visibility: visible;
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.drawer-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-main);
+}
+
+.drawer-close {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    background-color: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.drawer-close:hover {
+    border-color: var(--landing-accent-text);
+    color: var(--landing-accent-text);
+}
+
+.drawer-close:focus-visible {
+    outline: 2px solid var(--landing-accent-text);
+    outline-offset: 2px;
+}
+
+.drawer-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.drawer-item {
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.drawer-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.drawer-item-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.drawer-item-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--brand-lime-translucent);
+    color: var(--landing-accent-text);
+}
+
+.drawer-item h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-main);
+}
+
+.drawer-item p {
+    font-size: 0.925rem;
+    line-height: 1.65;
+    color: var(--text-muted-green);
+    margin: 0;
+}
+
+.drawer-highlights {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.925rem;
+    line-height: 1.65;
+    color: var(--text-muted-green);
+}
+
+.drawer-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-light);
+    flex-shrink: 0;
 }
 
 /* Animations */
@@ -483,9 +713,26 @@
 }
 
 /* Responsive Design */
+@media (max-width: 992px) {
+    .about-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .about-image {
+        height: 220px;
+    }
+}
+
 @media (max-width: 768px) {
     .navbar-links {
-        gap: 1rem;
+        gap: 0.75rem;
+    }
+
+    /* The two text links are the first thing to go: the drawer holds the same
+       detail, and the Sign In button is the one thing that must stay reachable. */
+    .nav-link {
+        display: none;
     }
 
     .hero-actions {
@@ -497,13 +744,8 @@
         gap: 1rem;
     }
 
-    .about-container {
+    .about-list {
         grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-
-    .about-image {
-        height: 300px;
     }
 
     .footer-content {
@@ -515,4 +757,17 @@
         flex-wrap: wrap;
         justify-content: center;
     }
+}
+
+/* Dark mode
+   One block, because every themed value on this page is a custom property set
+   in :host above. Lime is the accent that actually reads on a dark surface, and
+   the navbar has to tint toward the dark body colour to stay glassy rather than
+   flashing a pale bar over a dark page. */
+:host-context([data-bs-theme="dark"]) {
+    --landing-accent-text: var(--brand-lime);
+    --landing-gradient-from: var(--brand-lime);
+    --landing-gradient-to: var(--brand-lime-hover);
+    --landing-navbar-bg: rgba(17, 27, 21, 0.92);
+    --landing-scrim: rgba(0, 0, 0, 0.6);
 }

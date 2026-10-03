@@ -65,7 +65,11 @@
     --brand-lime-translucent: rgba(180, 241, 5, 0.15);
     
     --text-main: #0B130F;             /* Dark headers, main labels */
-    --text-muted-green: #6C7E75;      /* Secondary labels, muted details */
+    /* Secondary labels, muted details. Darkened from the template's #6C7E75, which is only
+       3.97:1 on the off-white body background and so failed AA for body copy everywhere it
+       was used. This is 5.06:1 on the same background, still clearly a muted grey-green.
+       The dark theme redefines it separately below. */
+    --text-muted-green: #5C6D64;
     --text-sidebar-muted: #879A91;    /* Sidebar inactive link labels */
     
     --card-background: #FFFFFF;
@@ -83,6 +87,10 @@
     /* Layout Configurations */
     --sidebar-width: 280px;
     --navbar-height: 80px;
+    /* Widest a page's content is allowed to get before it stops growing. Without a
+       ceiling, a 2560px monitor stretches one table row across the whole screen. */
+    --page-max-width: 1600px;
+    --page-gutter-x: 2.5rem;
     
     /* Border Radii */
     --radius-xxl: 24px;
@@ -156,7 +164,8 @@ a:hover {
     flex-direction: column;
     padding: 2rem 1.5rem;
     border-right: 1px solid var(--border-dark-green);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-brand {
@@ -394,11 +403,29 @@ body.sidebar-minimized .sidebar-profile {
 --------------------------------------------------------------------- */
 .main-wrapper {
     margin-left: var(--sidebar-width);
-    padding: 2rem 2.5rem;
+    padding: 2rem var(--page-gutter-x);
     min-height: 100vh;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
+}
+
+/* Every routed page sits in one of these, so page width is decided in exactly one
+   place instead of per template. Fluid until the ceiling, then centred: the gutters
+   come from .main-wrapper, so this only has to cap the measure and centre it.
+   `flex: 1 0 auto` keeps the footer at the bottom of a short page - the footer is
+   pushed down by `margin-top: auto`, which needs this box to be the one that grows. */
+.page-container {
+    width: 100%;
+    max-width: var(--page-max-width);
+    margin-inline: auto;
+    flex: 1 0 auto;
+}
+
+/* Pages whose content is genuinely a wide table or a multi-pane chart can opt up to
+   the ceiling plus a little, but still stop growing. */
+.page-container-wide {
+    max-width: calc(var(--page-max-width) + 240px);
 }
 
 /* ---------------------------------------------------------------------
@@ -412,15 +439,23 @@ body.sidebar-minimized .sidebar-profile {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     margin-top: -2rem;
-    margin-left: -2.5rem;
-    margin-right: -2.5rem;
-    padding: 1.25rem 2.5rem;
+    margin-left: calc(var(--page-gutter-x) * -1);
+    margin-right: calc(var(--page-gutter-x) * -1);
+    padding: 1.25rem var(--page-gutter-x);
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    display: grid !important;
-    grid-template-columns: 1fr 480px 1fr !important;
-    align-items: center;
     margin-bottom: 2rem;
+}
+
+/* The bar itself bleeds edge to edge; its contents do not. Same measure as
+   .page-container, so the search box and the page heading below it share a left
+   edge on a wide monitor instead of drifting apart. */
+.navbar-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);
+    align-items: center;
     gap: 1.5rem;
+    max-width: var(--page-max-width);
+    margin-inline: auto;
 }
 
 .navbar-left {
@@ -875,6 +910,13 @@ body.sidebar-minimized .sidebar-profile {
     padding: 0 !important;
 }
 
+/* `.card` already carries the padding, so Bootstrap's nested 1rem only made
+   `.card-body` pages (bank accounts) sit 1rem deeper than the pages that write
+   their content straight into the card. Zero it and every card insets the same. */
+.card > .card-body {
+    padding: 0;
+}
+
 .card-title {
     font-size: 1.1rem;
     font-weight: 700;
@@ -1281,7 +1323,7 @@ body.sidebar-minimized .sidebar-profile {
 /* ---------------------------------------------------------------------
    12. Responsive Adjustments
 --------------------------------------------------------------------- */
-@media (max-width: 1200px) {
+@media (max-width: 1199.98px) {
     .sidebar-wrapper {
         transform: translateX(-100%);
     }
@@ -1299,6 +1341,12 @@ body.sidebar-minimized .sidebar-profile {
     .sidebar-toggle-btn {
         display: flex;
     }
+
+    /* Locked only while the drawer is genuinely off-canvas; on desktop the class is never set
+       because the sidebar is permanent there. */
+    body.nav-open {
+        overflow: hidden;
+    }
     
     .navbar-search-wrapper {
         order: 3;
@@ -1308,13 +1356,22 @@ body.sidebar-minimized .sidebar-profile {
     }
     
     .navbar-custom {
-        display: flex !important;
         margin-top: -1.5rem;
         margin-left: -1.5rem;
         margin-right: -1.5rem;
         padding: 1rem 1.5rem;
+    }
+    
+    /* Below the desktop breakpoint the search drops to its own full-width row
+       instead of fighting the action cluster for the middle grid column. */
+    .navbar-inner {
+        display: flex;
         flex-wrap: wrap;
         gap: 0.75rem;
+    }
+    
+    .navbar-actions {
+        margin-left: auto;
     }
 }
 

@@ -604,13 +604,69 @@
   .filter-footer { flex-direction: column; gap: 0.75rem; padding-top: 0.75rem; }
   .results-info { width: 100%; text-align: center; }
   .refresh-section { width: 100%; justify-content: center; }
-  .table-custom th, .table-custom td { padding: 0.75rem 0.5rem; font-size: 0.75rem; }
   .btn-action { width: 32px; height: 32px; font-size: 0.8rem; }
   .modal-dialog { width: 95%; }
   .details-grid { grid-template-columns: 1fr; gap: 0.75rem; }
   .modal-header, .modal-body, .modal-footer { padding: 1rem; }
   .modal-footer { gap: 0.5rem; flex-wrap: wrap; }
   .page-selector { display: none; }
+
+  /* Below this width eight columns cannot be read side by side, and a table that
+     has to be dragged sideways is worse than no table. Each row becomes a card
+     and every cell carries its own label, so the same information fits the
+     window instead of being cut off. */
+  .table-custom,
+  .table-custom tbody,
+  .table-custom tr,
+  .table-custom td {
+    display: block;
+    width: auto;
+  }
+
+  .table-custom thead {
+    display: none;
+  }
+
+  .table-custom tr {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .table-custom td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    font-size: 0.85rem;
+    text-align: right;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .table-custom td:last-child {
+    border-bottom: none;
+  }
+
+  /* The label comes from the data-label the template puts on each cell, so the
+     two cannot fall out of step. */
+  .table-custom td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text-muted-green);
+    text-align: left;
+  }
+
+  .col-actions {
+    text-align: right;
+  }
+
+  .col-actions .action-buttons {
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 576px) {

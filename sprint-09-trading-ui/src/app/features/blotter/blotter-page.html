@@ -139,19 +139,19 @@
           <tbody>
             @for (row of paginatedRows(); track row.orderId) {
               <tr class="table-row" [class.working-row]="row.status === OrderStatus.New">
-                <td class="col-order-id">
+                <td class="col-order-id" data-label="Order ID">
                   <span class="order-id-badge">{{ row.orderId }}</span>
                 </td>
-                <td class="col-symbol">
+                <td class="col-symbol" data-label="Symbol">
                   <span class="symbol-badge">{{ row.symbol }}</span>
                 </td>
-                <td class="col-side">
+                <td class="col-side" data-label="Side">
                   <span class="badge-table" [ngClass]="{ 'success': row.side === 'BUY', 'pending': row.side === 'SELL' }">
                     {{ row.side }}
                   </span>
                 </td>
-                <td class="col-quantity">{{ row.quantity }}</td>
-                <td class="col-price" data-testid="price-cell">
+                <td class="col-quantity" data-label="Quantity">{{ row.quantity }}</td>
+                <td class="col-price" data-label="Price" data-testid="price-cell">
                   @if (row.executedPrice) {
                     <span data-testid="executed-price">{{ row.executedPrice }}</span>
                     <span class="price-note">filled · limit {{ row.price }}</span>
@@ -160,8 +160,8 @@
                     <span class="price-note">limit</span>
                   }
                 </td>
-                <td class="col-date">{{ row.date }}</td>
-                <td class="col-status">
+                <td class="col-date" data-label="Date">{{ row.date }}</td>
+                <td class="col-status" data-label="Status">
                   <span class="badge-table" [ngClass]="getStatusClass(row.status)">
                     {{ getStatusDisplay(row.status) }}
                   </span>
@@ -169,7 +169,7 @@
                     <span class="working-indicator">still working</span>
                   }
                 </td>
-                <td class="col-actions">
+                <td class="col-actions" data-label="Actions">
                   <div class="action-buttons">
                     <button 
                       class="btn-action" 
