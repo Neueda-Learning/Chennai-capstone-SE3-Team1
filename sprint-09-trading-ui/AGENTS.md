@@ -8,10 +8,10 @@ and extension guidance.
 
 ## Status in one line
 
-The visual UI for all four screens is built and styled. **Nothing is wired to
-a backend.** No `HttpClient`, no auth, no real form submission, no live data
-anywhere. Every number, row, and list item you see is a hardcoded literal in
-a component file.
+The screens are wired to the real services: sign-in, registration with email OTP, the
+dashboard, the portfolio, the market and order screen, the blotter, bank account linking and
+funding, the shell's profile and notifications. What is still a placeholder is listed under
+"What is still fake" below; read that before assuming a button does something.
 
 ## What exists
 
@@ -29,19 +29,38 @@ a component file.
   `src/styles/spark-admin.css` (3187 lines, global, unscoped — this is
   intentional, see below). Avatar/user images live in `public/images/`.
 
-## Where the mock data lives (replace these, not the markup around them)
+## Where the data comes from
 
-| Page | File | What's fake |
-|---|---|---|
-| Login | `features/auth/login-page.ts` | `onSubmit()` just calls `preventDefault()` and flips a `submitted` signal for Bootstrap's validation CSS. No `HttpClient`, no call to the auth service's `/auth/login`. |
-| Dashboard | `features/dashboard/dashboard-page.ts` + `.html` | Portfolio value, P&L, order-flow chart series, allocation donut, "Recent Orders" list, "Order Summary" progress bars — all literals in the `.ts`/`.html`. |
-| Order ticket | `features/orders/order-ticket-page.ts` | `onSubmit()` is a no-op (`preventDefault()`). Buy/Sell and Market/Limit are local UI state (signals), not sent anywhere. Wallet balance card is a literal. |
-| Blotter | `features/blotter/blotter-page.ts` | `const MOCK_ROWS` — five hardcoded rows. |
-| Shell | `core/layout/shell.ts` / `.html` | "Demo Trader" name/avatar/email is static markup, not a session. Notification dropdown items are static. |
+| Screen | Source |
+|---|---|
+| Dashboard (`features/dashboard`) | `GET /accounts/{id}/balance`, `/portfolio`, `/orders` and `GET /market/quotes`, refreshed every minute. Valuation maths is in `core/portfolio/portfolio-metrics.ts`. |
+| Portfolio (`features/portfolio`) | Same balance, portfolio and quotes calls. |
+| Market & Trade (`features/orders`, class `OrderTicketPage`) | `GET /market/quotes` every 30s, `/market/quotes/{symbol}/history` for the chart, `POST /orders`. Orders carry no typed price: they go in at the current market price (see `PRICE_PROTECTION` in `order-ticket-page.ts`). |
+| Blotter | `GET /accounts/{id}/orders`. |
+| Navbar search (`core/search`) | Quotes and the account's orders, fetched on first use and matched locally; opens `/orders?symbol=` or `/blotter?q=`. |
+| My Account / Settings | `UserProfileStore`; settings are browser-local (theme, notification pop-ups). |
+| Shell | `GET /auth/me` and `GET /accounts/{id}` for the name and email (`core/user/user-profile.store.ts`); `GET /accounts/{id}/notifications` polled every 10s (`core/notifications/notification.store.ts`). |
 
-There is no service layer (`core/services/` or similar doesn't exist yet). No
-page calls a backend — the typed clients exist and are provided, but nothing
-consumes them yet.
+`/market/**`, `/accounts/{id}/portfolio` and `/accounts/{id}/notifications` are not in
+`contracts/trade-api.yaml`, so their clients are hand-written in `core/services/` (the same
+approach as `bank-account-reader.service.ts`). If the contract grows them, regenerate and
+delete the hand-written services.
+
+## What is still fake
+
+- "My Account" is read-only: neither service has an edit-profile call yet.
+- No user has a profile picture; `UserProfileStore.avatarUrl` is always `null` and the avatar
+  component draws initials.
+
+## Theme
+
+Light/dark is `data-bs-theme` on `<html>`, owned by `core/theme/theme.service.ts` and applied
+early by an inline script in `index.html`. Dark rules are section 26 of `spark-admin.css`
+(redefined variables plus overrides for the template's hard-coded whites), prefixed
+`html[data-bs-theme="dark"]` so they outrank it. A component stylesheet's selectors are scoped by
+Angular and cannot be outranked from outside, so a component that hard-codes colours (the
+blotter) carries its own `:host-context([data-bs-theme="dark"])` block. Charts take their colours
+from `core/charts/chart-theme.ts` and redraw when the theme flips.
 
 `HttpClient` is provided (`provideHttpClient()` in `app.config.ts`), and
 typed clients generated from both contracts live under `src/app/generated/`
@@ -87,22 +106,17 @@ since both clients export a same-named `provideApi`/`Configuration`.
    not `.component.ts`; class `OrderTicketPage`, not `...Component`),
    selector prefix `tui-`, spec file beside every component.
 
-## Wiring up real functionality — where things should go
+## Adding to it
 
-- Add a `core/services/` (or similar) folder for services that call the
-  generated clients (`AuthService`, `AccountsService`, `OrdersService`, ...
-  from `src/app/generated/{auth,trade}-client`) once real API calls start.
-  Inject the generated service directly; only add a wrapper around it if its
-  generated shape is genuinely awkward to consume — don't wrap by default.
-- An auth/session store (likely a signal-based service holding the current
-  user + token) doesn't exist yet. The `Shell`'s hardcoded "Demo Trader"
-  block and the profile dropdown's "Logout" link (`routerLink="/login"`)
-  are the two spots that will need to read real session state.
-- Request/response shapes now come from the generated model types in
-  `src/app/generated/{auth,trade}-client/model/` — use those types, don't
-  hand-declare interfaces that duplicate them. If a contract changes, rerun
-  `npm run generate:clients`; anything that used a renamed field stops
-  compiling, which is the point.
+- Services that call the generated clients go in `core/services/` or beside the feature. Inject
+  the generated service directly; wrap it only when its generated shape is genuinely awkward.
+- Sign-in state is `core/auth/session.store.ts`. The signed-in person is
+  `core/user/user-profile.store.ts`. Both are signal-based, root-provided services.
+- Request/response shapes come from the generated model types in
+  `src/app/generated/{auth,trade}-client/model/`; do not hand-declare interfaces that duplicate
+  them. If a contract changes, rerun `npm run generate:clients`.
+- Component specs that talk to the API use `testing/fake-api.ts`: register what each URL answers,
+  then `flush()`. Anything polled on a timer needs `vi.useFakeTimers()`.
 
 ## Commands
 

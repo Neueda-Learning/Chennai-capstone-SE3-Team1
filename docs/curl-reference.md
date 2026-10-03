@@ -164,6 +164,29 @@ curl -s "http://localhost:8081/api/v1/accounts/1/orders?status=FILLED" -H "Autho
 curl -s "http://localhost:8081/api/v1/accounts/1/orders?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59" -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
+### Notifications
+
+What has happened to the account lately, newest first: orders placed, filled, rejected or
+cancelled, and money moved to or from the bank. There is no notifications table; each entry is
+read from the order and transfer records themselves. `limit` is 1 to 100 (default 30). The `id`
+is stable for an event, so a client can tell new from already-seen.
+
+```bash
+curl -s "http://localhost:8081/api/v1/accounts/1/notifications?limit=10" -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
+### Market data
+
+The quotes the market-data poller publishes, as the Trade API keeps them (`market_quotes`).
+Any valid token works; the data is not tied to an account. An instrument the poller has not
+priced yet is still listed, with a null `price`. History is the newest `limit` points, 1 to 500
+(default 120), oldest first; an unknown or delisted symbol is `INS-404`.
+
+```bash
+curl -s http://localhost:8081/api/v1/market/quotes -H "Authorization: Bearer <ACCESS_TOKEN>"
+curl -s "http://localhost:8081/api/v1/market/quotes/RELIANCE/history?limit=60" -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
 ### Bank account linking (self-service onboarding)
 The one account route a token *without* an `accountId` claim is meant for — links a bank
 account to the authenticated user and creates their trading account. `accountNumber` must

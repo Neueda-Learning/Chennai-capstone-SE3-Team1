@@ -2,6 +2,8 @@ package com.team1.trading.api.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.team1.eventbus.Envelope;
+import com.team1.trading.api.mapper.MarketQuoteMapper;
+import com.team1.trading.api.mapper.MarketQuoteMapper.QuoteInsert;
 import com.team1.trading.api.mapper.PositionMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -11,9 +13,12 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 
 /**
- * Keeps {@code portfolio_holding.overall_gains} current from the {@code market-data} stream.
+ * Keeps {@code portfolio_holding.overall_gains} current from the {@code market-data} stream, and
+ * records every quote in {@code market_quotes} so the market screen has a latest price and a chart.
  *
  * <p>Unrealised gain needs a market price, and the holding row has only what the stock cost.
  * The poller inside the Trade Executor already publishes a quote per symbol on every cycle,
@@ -31,10 +36,15 @@ public class MarketDataListener {
     private static final Logger log = LoggerFactory.getLogger(MarketDataListener.class);
     private static final String QUOTE = "QUOTE";
 
-    private final PositionMapper positionMapper;
+    /** How long a symbol's quotes are kept; older rows are trimmed as new ones arrive. */
+    static final int RETENTION_DAYS = 3;
 
-    public MarketDataListener(PositionMapper positionMapper) {
+    private final PositionMapper positionMapper;
+    private final MarketQuoteMapper marketQuoteMapper;
+
+    public MarketDataListener(PositionMapper positionMapper, MarketQuoteMapper marketQuoteMapper) {
         this.positionMapper = positionMapper;
+        this.marketQuoteMapper = marketQuoteMapper;
     }
 
     @KafkaListener(topics = "market-data", groupId = "portfolio-service")
@@ -59,6 +69,10 @@ public class MarketDataListener {
                 log.debug("Marked {} holding(s) and {} position(s) of {} to {}",
                         holdings, positions, symbol, price);
             }
+
+            // After the mark, so a failure to record the quote can never stop gains refreshing.
+            marketQuoteMapper.insert(toInsert(symbol, price, payload));
+            marketQuoteMapper.deleteOlderThan(symbol, RETENTION_DAYS);
         } catch (Exception e) {
             // A quote is worth less than the stream. Failing here would stop the partition
             // and block every later quote for this symbol, so the price is dropped and the
@@ -67,6 +81,36 @@ public class MarketDataListener {
                     record.topic(), record.partition(), record.offset(), e);
         } finally {
             ack.acknowledge();
+        }
+    }
+
+    private static QuoteInsert toInsert(String symbol, BigDecimal price, JsonNode payload) {
+        QuoteInsert insert = new QuoteInsert();
+        insert.setSymbol(symbol);
+        insert.setPrice(price);
+        insert.setBid(decimal(payload, "bid"));
+        insert.setAsk(decimal(payload, "ask"));
+        insert.setCurrency(text(payload, "currency"));
+        insert.setChange(decimal(payload, "change"));
+        insert.setChangePercent(decimal(payload, "changePercent"));
+        insert.setPreviousClose(decimal(payload, "previousClose"));
+        insert.setMarketState(text(payload, "marketState"));
+        JsonNode stale = payload.get("stale");
+        insert.setStale(stale != null && stale.asBoolean(false));
+        insert.setQuoteAsOf(instant(payload, "quoteAsOf"));
+        return insert;
+    }
+
+    /** The upstream timestamp, or null when it is absent or not an RFC 3339 string. */
+    private static OffsetDateTime instant(JsonNode payload, String field) {
+        String value = text(payload, field);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value);
+        } catch (DateTimeParseException e) {
+            return null;
         }
     }
 

@@ -2,11 +2,13 @@ package com.team1.trading.api.service;
 
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
 import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
+import com.team1.trading.api.mapper.NotificationMapper;
 import com.team1.trading.api.mapper.OrderMapper;
 import com.team1.trading.api.mapper.OrderMapper.OrderHistoryFilter;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
@@ -39,14 +41,16 @@ public class AccountService {
     private final AccountMapper accountMapper;
     private final OrderMapper orderMapper;
     private final PositionMapper positionMapper;
+    private final NotificationMapper notificationMapper;
     private final String currency;
 
     public AccountService(AccountMapper accountMapper, OrderMapper orderMapper,
-                          PositionMapper positionMapper,
-                          @Value("${trade.currency:USD}") String currency) {
+                          PositionMapper positionMapper, NotificationMapper notificationMapper,
+                          @Value("${trade.currency:INR}") String currency) {
         this.accountMapper = accountMapper;
         this.orderMapper = orderMapper;
         this.positionMapper = positionMapper;
+        this.notificationMapper = notificationMapper;
         this.currency = currency;
     }
 
@@ -95,6 +99,40 @@ public class AccountService {
         filter.setFrom(from);
         filter.setTo(to);
         return orderMapper.listByAccount(filter).stream().map(row -> toHistoryEntry(row)).toList();
+    }
+
+    static final int DEFAULT_NOTIFICATIONS = 30;
+    static final int MAX_NOTIFICATIONS = 100;
+
+    /**
+     * What has happened to the account lately - orders placed, filled, rejected or cancelled and
+     * money moved to or from the bank - newest first. Derived from the order and transfer
+     * records themselves, so it cannot drift from them. {@code limit} is clamped to 1..100.
+     */
+    public List<NotificationResponse> getNotifications(Long accountId, Long tokenAccountId, Integer limit) {
+        resolve(accountId, tokenAccountId);
+        int size = limit == null ? DEFAULT_NOTIFICATIONS : Math.max(1, Math.min(limit, MAX_NOTIFICATIONS));
+        List<NotificationResponse> notifications = notificationMapper.listForAccount(accountId, size);
+        notifications.forEach(n -> n.setMessage(describe(n)));
+        return notifications;
+    }
+
+    private String describe(NotificationResponse n) {
+        String order = n.getSide() + " " + n.getQuantity() + " " + n.getSymbol();
+        return switch (n.getKind()) {
+            case "ORDER_PLACED" -> "Order placed: " + order;
+            case "ORDER_FILLED" -> "Order filled: " + order + " @ " + money(n.getExecutedPrice());
+            case "ORDER_REJECTED" -> "Order rejected: " + order
+                    + (n.getReason() == null ? "" : " (" + n.getReason() + ")");
+            case "ORDER_CANCELLED" -> "Order cancelled: " + order;
+            case "TRANSFER_IN" -> "Wallet funded: +" + money(n.getAmount()) + " " + currency;
+            case "TRANSFER_OUT" -> "Withdrawn to bank: -" + money(n.getAmount()) + " " + currency;
+            default -> n.getKind();
+        };
+    }
+
+    private static String money(java.math.BigDecimal value) {
+        return value == null ? "-" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
     /**

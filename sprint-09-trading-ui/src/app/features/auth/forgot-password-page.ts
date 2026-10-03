@@ -4,10 +4,11 @@ import { Router, RouterLink } from '@angular/router';
 
 import { ErrorCatalog } from '../../core/errors/error-catalog';
 import { VerificationService } from '../../generated/auth-client';
+import { ThemeToggle } from '../../core/theme/theme-toggle';
 
 @Component({
   selector: 'tui-forgot-password-page',
-  imports: [RouterLink],
+  imports: [RouterLink, ThemeToggle],
   templateUrl: './forgot-password-page.html',
   styleUrl: './forgot-password-page.css'
 })

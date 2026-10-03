@@ -54,7 +54,9 @@ CLIENTS = [
 ]
 
 
-_PLACEHOLDER_HASH = "$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+# argon2id (the auth service's parameters) of the seed password "Pass@word123456", so every seeded
+# user can sign in. Test data only.
+_SEED_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
 
 
 def _local_part(name):
@@ -66,7 +68,7 @@ def _local_part(name):
 # fits users' username rule; email/phone live only on users now (migration 021) - clients
 # carries neither.
 USERS = [
-    (_local_part(client[1]), _local_part(client[1]) + "@example.com", client[0], _PLACEHOLDER_HASH)
+    (_local_part(client[1]), _local_part(client[1]) + "@example.com", client[0], _SEED_PASSWORD_HASH)
     for client in CLIENTS
 ]
 

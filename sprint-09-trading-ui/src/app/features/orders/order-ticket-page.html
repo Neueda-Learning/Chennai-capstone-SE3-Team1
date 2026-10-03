@@ -1,224 +1,312 @@
 <div class="page-header">
   <div>
-    <h1 class="page-title">Order Ticket</h1>
-    <p class="page-subtitle">Buy or sell an instrument against your wallet balance.</p>
+    <h1 class="page-title">Market &amp; Trade</h1>
+    <p class="page-subtitle">Pick a ticker to see its price history, then buy or sell at the current price.</p>
   </div>
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-7">
-    <div class="card">
+  <div class="col-lg-4">
+    <div class="card mb-0">
       <div class="card-header">
-        <h2 class="card-title">New Order</h2>
+        <h2 class="card-title">Tickers</h2>
+        <span class="small text-muted-green">Updated about every minute</span>
       </div>
 
-      <form [formGroup]="form" (submit)="onSubmit($event)" novalidate>
-        <div class="mb-3 d-flex gap-2">
-          <button
-            type="button"
-            class="btn-custom flex-grow-1"
-            [class.btn-custom-primary]="side() === 'BUY'"
-            [class.btn-custom-outline-primary]="side() !== 'BUY'"
-            (click)="selectSide('BUY')"
-          >
-            <i class="bi bi-arrow-up-circle"></i> Buy
-          </button>
-          <button
-            type="button"
-            class="btn-custom flex-grow-1"
-            [class.btn-custom-danger]="side() === 'SELL'"
-            [class.btn-custom-outline-danger]="side() !== 'SELL'"
-            (click)="selectSide('SELL')"
-          >
-            <i class="bi bi-arrow-down-circle"></i> Sell
-          </button>
-        </div>
-
-        <div class="mb-3">
-          <label for="symbol" class="form-label-custom">Symbol</label>
-          <select
-            id="symbol"
-            class="form-select-custom"
-            formControlName="symbol"
-            [class.is-invalid-custom]="fieldInvalid('symbol')"
-          >
-            <option value="" disabled>Select an instrument</option>
-            @for (instrument of instruments; track instrument.symbol) {
-              <option [value]="instrument.symbol">
-                {{ instrument.symbol }} — {{ instrument.name }}
-              </option>
-            }
-          </select>
-          @if (messageFor('symbol'); as symbolMessage) {
-            <span class="form-feedback-custom invalid-custom">{{ symbolMessage }}</span>
-          }
-        </div>
-
-        <div class="mb-3">
-          <span class="form-label-custom d-block">Order Type</span>
-          <div class="d-flex gap-4">
-            <label class="form-check-custom mb-0">
-              <input
-                type="radio"
-                name="orderType"
-                class="form-check-input-custom"
-                [checked]="orderType() === 'MARKET'"
-                (change)="selectOrderType('MARKET')"
-              />
-              <span>Market</span>
-            </label>
-            <label class="form-check-custom mb-0">
-              <input
-                type="radio"
-                name="orderType"
-                class="form-check-input-custom"
-                [checked]="orderType() === 'LIMIT'"
-                (change)="selectOrderType('LIMIT')"
-              />
-              <span>Limit</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="col-6 mb-3">
-            <label for="quantity" class="form-label-custom">Quantity</label>
-            <input
-              type="number"
-              id="quantity"
-              class="form-control-custom"
-              formControlName="quantity"
-              placeholder="10"
-              min="1"
-              step="1"
-              [class.is-invalid-custom]="fieldInvalid('quantity')"
-            />
-            @if (messageFor('quantity'); as quantityMessage) {
-              <span class="form-feedback-custom invalid-custom">{{ quantityMessage }}</span>
-            }
-          </div>
-          <div class="col-6 mb-3">
-            <label for="price" class="form-label-custom">Price</label>
-            <input
-              type="number"
-              id="price"
-              class="form-control-custom"
-              formControlName="price"
-              placeholder="1450.00"
-              step="0.01"
-              [class.is-invalid-custom]="fieldInvalid('price')"
-            />
-            @if (messageFor('price'); as priceMessage) {
-              <span class="form-feedback-custom invalid-custom">{{ priceMessage }}</span>
-            }
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          class="btn-custom btn-custom-primary btn-custom-lg w-100"
-          [disabled]="submitting()"
-        >
-          @if (submitting()) {
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-            Placing order…
-          } @else {
-            Place Order
-          }
-        </button>
-      </form>
-    </div>
-
-    @if (outcome(); as result) {
-      @if (result.kind === 'accepted') {
-        <div class="alert alert-success d-flex align-items-start gap-2" role="status">
-          <i class="bi bi-check-circle-fill"></i>
-          <div>
-            <div class="fw-semibold">
-              Order {{ result.order.orderId }} accepted
-              <span [class]="'badge-table ' + statusTone(result.order.status)">
-                {{ result.order.status }}
-              </span>
-            </div>
-            <div class="small">
-              {{ result.order.side }} {{ result.order.quantity }} {{ result.order.symbol }} at
-              {{ result.order.price }} — {{ result.order.message }}
-            </div>
-            @if (result.order.status === 'NEW') {
-              <div class="small">
-                Working. It will fill or be rejected; the blotter updates as it resolves.
-              </div>
-            }
-          </div>
-        </div>
-      } @else {
-        <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
-          <i class="bi bi-exclamation-triangle-fill"></i>
-          <div>
-            <div class="fw-semibold">Order not placed</div>
-            <div class="small">{{ result.message }}</div>
-          </div>
-        </div>
-      }
-    }
-  </div>
-
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header">
-        <h2 class="card-title">Wallet</h2>
-      </div>
-      <div class="stat-label">Linked Bank</div>
-      <div class="stat-value" data-testid="account-id">
-        @switch (accountState()) {
-          @case ('loading') {
-            <span class="text-muted">Loading…</span>
-          }
-          @case ('ready') {
-            @if (account()!.bankName) {
-              <span data-testid="bank-name">{{ account()!.bankName }}</span>
-              <div class="stat-label">
-                {{ account()!.holderName }}
-                @if (account()!.accountId) {
-                  <span>· {{ account()!.accountId }}</span>
-                }
-              </div>
-            } @else {
-              <span class="text-muted" data-testid="bank-name">No bank linked</span>
-              <div class="stat-label">{{ account()!.holderName }}</div>
-            }
-          }
-          @case ('failed') {
-            <span class="text-muted">Could not load account</span>
-          }
-          @default {
-            @if (hasAccount()) {
-              <span class="text-muted">Account {{ accountId() }}</span>
-            } @else {
-              <span class="text-muted">Not linked</span>
-            }
-          }
-        }
-      </div>
-
-      <div class="stat-label mt-3">Wallet Balance</div>
-      @switch (balanceState()) {
-        @case ('loading') {
-          <div class="stat-value text-muted" data-testid="balance">Loading…</div>
+      @switch (quotesState()) {
+        @case ('failed') {
+          <p class="empty-note" data-testid="quotes-failed">Could not load market prices. They will be retried automatically.</p>
         }
         @case ('ready') {
-          <div class="stat-value" data-testid="balance">
-            {{ balance()!.cashBalance | currency: balance()!.currency : 'symbol' : '1.2-2' }}
-          </div>
-          <div class="stat-label">As of {{ balance()!.asOf }}</div>
-        }
-        @case ('failed') {
-          <div class="stat-value text-muted" data-testid="balance">Could not load balance</div>
+          @if (quotes().length === 0) {
+            <p class="empty-note" data-testid="quotes-empty">No tradable instruments are available.</p>
+          }
         }
         @default {
-          <div class="stat-value text-muted" data-testid="balance">—</div>
+          <p class="empty-note" data-testid="quotes-loading">Loading prices…</p>
         }
       }
+
+      <ul class="ticker-list" data-testid="ticker-list">
+        @for (quote of quotes(); track quote.symbol) {
+          <li>
+            <button
+              type="button"
+              class="ticker-item"
+              data-testid="ticker"
+              [class.active]="quote.symbol === selectedSymbol()"
+              [attr.aria-pressed]="quote.symbol === selectedSymbol()"
+              (click)="select(quote.symbol)"
+            >
+              <span class="ticker-main">
+                <span class="ticker-symbol">{{ quote.symbol }}</span>
+                <span class="ticker-name">{{ quote.name }}</span>
+              </span>
+              <span class="ticker-quote">
+                @if (quote.price !== null) {
+                  <span class="ticker-price">{{ formatMoney(quote.price) }}</span>
+                  <span [class]="'ticker-change ticker-' + changeTone(quote)">
+                    @if (quote.changePercent !== null) {
+                      <i class="bi" [class.bi-caret-up-fill]="changeTone(quote) === 'up'" [class.bi-caret-down-fill]="changeTone(quote) === 'down'"></i>
+                      {{ formatSignedPercent(quote.changePercent) }}
+                    } @else {
+                      —
+                    }
+                  </span>
+                } @else {
+                  <span class="ticker-price text-muted-green">Waiting for price</span>
+                }
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          @if (selected(); as quote) {
+            <h2 class="card-title" data-testid="selected-symbol">{{ quote.symbol }} <span class="ticker-name">{{ quote.name }}</span></h2>
+          } @else {
+            <h2 class="card-title">Select a ticker</h2>
+          }
+        </div>
+        <div class="range-switch" role="group" aria-label="Chart range">
+          @for (option of ranges; track option.label) {
+            <button
+              type="button"
+              class="range-btn"
+              [class.active]="range().label === option.label"
+              (click)="selectRange(option)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (selected(); as quote) {
+        <div class="price-headline">
+          <div class="price-now" data-testid="current-price">{{ quote.price !== null ? formatMoney(quote.price) : '—' }}</div>
+          @if (quote.price !== null) {
+            <div [class]="'ticker-change ticker-' + changeTone(quote)" data-testid="price-change">
+              {{ formatSignedPercent(quote.changePercent) }}
+            </div>
+            @if (quote.bid !== null && quote.ask !== null) {
+              <div class="price-spread small text-muted-green">Bid {{ formatMoney(quote.bid) }} · Ask {{ formatMoney(quote.ask) }}</div>
+            }
+            @if (quote.stale) {
+              <span class="badge-table pending" data-testid="stale-badge">Delayed</span>
+            }
+            @if (quote.marketState) {
+              <span class="small text-muted-green">{{ quote.marketState }}</span>
+            }
+          }
+        </div>
+      }
+
+      <div [hidden]="selected() === null">
+        <div #priceChart></div>
+      </div>
+      @switch (historyState()) {
+        @case ('failed') {
+          <p class="empty-note" data-testid="history-failed">Could not load the price history.</p>
+        }
+        @case ('ready') {
+          @if (history().length === 0) {
+            <p class="empty-note" data-testid="history-empty">No price history has been recorded for this ticker yet.</p>
+          }
+        }
+      }
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-7">
+        <div class="card mb-0">
+          <div class="card-header">
+            <h2 class="card-title">Place an order</h2>
+          </div>
+
+          <form [formGroup]="form" (submit)="onSubmit($event)" novalidate>
+            <div class="mb-3 d-flex gap-2">
+              <button
+                type="button"
+                class="btn-custom flex-grow-1"
+                data-testid="side-buy"
+                [class.btn-custom-primary]="side() === 'BUY'"
+                [class.btn-custom-outline-primary]="side() !== 'BUY'"
+                (click)="selectSide('BUY')"
+              >
+                <i class="bi bi-arrow-up-circle"></i> Buy
+              </button>
+              <button
+                type="button"
+                class="btn-custom flex-grow-1"
+                data-testid="side-sell"
+                [class.btn-custom-danger]="side() === 'SELL'"
+                [class.btn-custom-outline-danger]="side() !== 'SELL'"
+                (click)="selectSide('SELL')"
+              >
+                <i class="bi bi-arrow-down-circle"></i> Sell
+              </button>
+            </div>
+
+            <div class="order-facts mb-3">
+              <div class="order-fact">
+                <span class="stat-label">Current price</span>
+                <span class="order-fact-value" data-testid="ticket-price">
+                  {{ currentPrice() !== null ? formatMoney(currentPrice()) : '—' }}
+                </span>
+              </div>
+              @if (side() === 'SELL') {
+                <div class="order-fact">
+                  <span class="stat-label">Units available to sell</span>
+                  <span class="order-fact-value" data-testid="units-available">
+                    {{ unitsAvailable() }}
+                    @if (unitsAvailable() > 0) {
+                      <button type="button" class="btn-link-inline" data-testid="sell-all" (click)="sellAll()">Sell all</button>
+                    }
+                  </span>
+                </div>
+              }
+            </div>
+
+            <div class="mb-3">
+              <label for="quantity" class="form-label-custom">Quantity</label>
+              <input
+                type="number"
+                id="quantity"
+                class="form-control-custom"
+                formControlName="quantity"
+                placeholder="10"
+                min="1"
+                step="1"
+                [class.is-invalid-custom]="quantityInvalid()"
+              />
+              @if (quantityMessage() ?? blocker(); as message) {
+                <span class="form-feedback-custom invalid-custom" data-testid="ticket-error">{{ message }}</span>
+              }
+            </div>
+
+            <div class="order-facts mb-3">
+              <div class="order-fact">
+                <span class="stat-label">Estimated {{ side() === 'BUY' ? 'cost' : 'proceeds' }}</span>
+                <span class="order-fact-value" data-testid="estimated-total">
+                  {{ estimatedTotal() !== null ? formatMoney(estimatedTotal()) : '—' }}
+                </span>
+              </div>
+            </div>
+            <p class="small text-muted-green mb-3">
+              Executes at the current market price when it reaches the market; buys fill at the ask and sells at the bid.
+              The price may move slightly before then, so the order is protected to within {{ protectionPercent }}% of it.
+            </p>
+
+            <button
+              type="submit"
+              class="btn-custom btn-custom-lg w-100"
+              data-testid="place-order"
+              [class.btn-custom-primary]="side() === 'BUY'"
+              [class.btn-custom-danger]="side() === 'SELL'"
+              [disabled]="submitting() || selected() === null"
+            >
+              @if (submitting()) {
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                Placing order…
+              } @else {
+                {{ side() === 'BUY' ? 'Buy' : 'Sell' }} {{ selectedSymbol() ?? '' }} at market
+              }
+            </button>
+          </form>
+        </div>
+
+        @if (outcome(); as result) {
+          @if (result.kind === 'accepted') {
+            <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status" data-testid="outcome-accepted">
+              <i class="bi bi-check-circle-fill"></i>
+              <div>
+                <div class="fw-semibold">
+                  Order {{ result.order.orderId }} accepted
+                  <span [class]="'badge-table ' + statusTone(result.order.status)">
+                    {{ result.order.status }}
+                  </span>
+                </div>
+                <div class="small">{{ result.summary }}</div>
+                @if (result.order.status === 'NEW') {
+                  <div class="small">Working. It will fill or be rejected; the blotter and your notifications update as it resolves.</div>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="alert alert-danger d-flex align-items-start gap-2 mt-3" role="alert" data-testid="outcome-refused">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                <div class="fw-semibold">Order not placed</div>
+                <div class="small">{{ result.message }}</div>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <div class="col-md-5">
+        <div class="card mb-0">
+          <div class="card-header">
+            <h2 class="card-title">Wallet</h2>
+          </div>
+          <div class="stat-label">Linked Bank</div>
+          <div class="stat-value" data-testid="account-id">
+            @switch (accountState()) {
+              @case ('loading') {
+                <span class="text-muted">Loading…</span>
+              }
+              @case ('ready') {
+                @if (account()!.bankName) {
+                  <span data-testid="bank-name">{{ account()!.bankName }}</span>
+                  <div class="stat-label">
+                    {{ account()!.holderName }}
+                    @if (account()!.accountId) {
+                      <span>· {{ account()!.accountId }}</span>
+                    }
+                  </div>
+                } @else {
+                  <span class="text-muted" data-testid="bank-name">No bank linked</span>
+                  <div class="stat-label">{{ account()!.holderName }}</div>
+                }
+              }
+              @case ('failed') {
+                <span class="text-muted">Could not load account</span>
+              }
+              @default {
+                @if (hasAccount()) {
+                  <span class="text-muted">Account {{ accountId() }}</span>
+                } @else {
+                  <span class="text-muted">Not linked</span>
+                }
+              }
+            }
+          </div>
+
+          <div class="stat-label mt-3">Wallet Balance</div>
+          @switch (balanceState()) {
+            @case ('loading') {
+              <div class="stat-value text-muted" data-testid="balance">Loading…</div>
+            }
+            @case ('ready') {
+              <div class="stat-value" data-testid="balance">{{ formatMoney(balance()!.cashBalance) }}</div>
+              <div class="stat-label">As of {{ balance()!.asOf }}</div>
+            }
+            @case ('failed') {
+              <div class="stat-value text-muted" data-testid="balance">Could not load balance</div>
+            }
+            @default {
+              <div class="stat-value text-muted" data-testid="balance">—</div>
+            }
+          }
+        </div>
+      </div>
     </div>
   </div>
 </div>

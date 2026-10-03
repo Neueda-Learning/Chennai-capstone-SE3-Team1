@@ -46,7 +46,7 @@ services:
       # Shared with the auth service; keep the same value in .env for test tokens.
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-auth-service}
-      TRADE_CURRENCY: ${TRADE_CURRENCY:-USD}
+      TRADE_CURRENCY: ${TRADE_CURRENCY:-INR}
     ports:
       - "${TRADE_API_PORT:-8080}:8080"
     networks:

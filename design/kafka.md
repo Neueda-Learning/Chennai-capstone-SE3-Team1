@@ -185,12 +185,14 @@ the two share is the quota ledger.
 
 ## Symbol universe
 
-The poller polls only what somebody holds: active instruments with a non-zero
-row in `portfolio_holding` or `portfolio_positions`. Against the seeded data
-that is 4 symbols (`ICICIBANK`, `INFY`, `ITC`, `RELIANCE`). `LEGACYCORP` is held
-but inactive and is excluded; a zero-quantity holding is excluded.
+The poller polls every active (tradable) instrument. Against the seeded data that
+is 7 symbols (`RELIANCE`, `TCS`, `INFY`, `HDFCBANK`, `ICICIBANK`, `ITC`,
+`TATAMOTORS`); `LEGACYCORP` is inactive and excluded.
 
-Polling the whole instrument table instead would spend quota on prices no
-consumer wants. `SymbolUniverse` is the seam where the Sprint 10 watchlist joins
-this set — one more `EXISTS` clause in `SymbolMapper.xml` — and the "or watches"
-half of the rule lands there when that table exists.
+This used to be "only what somebody holds", which kept the quota down but left
+the UI's market screen with no price for any ticker nobody owned yet. The
+tradable universe fits in one batch, so the wider set costs the same single
+request per cycle: 1440 requests/day at 60s, inside the 1500 poller budget.
+`SymbolUniverse` remains the seam for narrowing it again (a watchlist, or only
+what is held) — one clause in `SymbolMapper.xml` — if the instrument table ever
+outgrows one batch.

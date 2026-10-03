@@ -6,10 +6,11 @@ import { ErrorCatalog } from '../../core/errors/error-catalog';
 import { ReturnUrlStore } from '../../core/auth/return-url.store';
 import { SessionStore } from '../../core/auth/session.store';
 import { AuthService, LoginRequest, TokenResponse } from '../../generated/auth-client';
+import { ThemeToggle } from '../../core/theme/theme-toggle';
 
 @Component({
   selector: 'tui-login-page',
-  imports: [RouterLink],
+  imports: [RouterLink, ThemeToggle],
   templateUrl: './login-page.html',
   styleUrl: './login-page.css'
 })

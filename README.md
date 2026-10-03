@@ -38,7 +38,7 @@ put your own in `.env`, never in a source file, a test or a fixture.
 ```
 migrations/      numbered .sql files, the only definition of the schema
 seed/            CSV data, loaded in filename order
-scripts/         apply_db.py, verify_db.py, make_seed.py, db_config.py
+scripts/         apply_db.py, verify_db.py, make_seed.py, create_test_account.py, db_config.py
 tests/           pytest suite over the migrations, seed and schema parity
 docs/            ERD and order lifecycle diagrams
 infra/postgres/  docker compose setup
@@ -73,6 +73,8 @@ The number is the order.
 | `019_bank_account_drop_contact.sql` | drops `bank_account.phone` and `.email`: an unclaimed or claimed bank account is never a contact record |
 | `020_bank_account_drop_name.sql` | drops `bank_account.name`: `client_id` is the only identity a bank account needs, joining to `clients` gets the name once one is linked |
 | `021_users_owns_email_and_phone.sql` | adds `users.phone`; drops `clients.email` and `.phone` — `auth_db.users` becomes the single stored copy of both contact fields |
+| `022_otp_verification.sql` | `users.status` (PENDING/ACTIVE) and `auth_db.otp_codes`: emailed one-time codes for registration and password reset |
+| `023_market_quotes.sql` | `market_quotes`: a rolling window of the polled quotes the Trade API keeps for the market screen and its charts |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.
@@ -110,6 +112,26 @@ python scripts/apply_db.py --dry-run
 Seed files are named `NNN_<table>.csv`. The header row is the column list, so a
 file only supplies the columns it has and the rest take their defaults. An
 unquoted empty field is `NULL`.
+
+Every seeded user (`aarav.mehta`, `diya.sharma`, ...) signs in with the password
+`Pass@word123456`; `seed/030_users.csv` carries its argon2id hash. Test data only.
+
+## scripts/create_test_account.py
+
+Writes a ready-to-sign-in account straight to the database, so nothing is emailed and no
+one-time code is needed. Test data only.
+
+```
+python scripts/create_test_account.py                   # test.trader / TestTrader#2026!
+python scripts/create_test_account.py --no-sample-data  # just the login, account and bank
+python scripts/create_test_account.py --seed-quotes     # also a synthetic 3 hour price history
+```
+
+It is idempotent: running it again resets that account's activity and password. Connection
+settings resolve as in `apply_db.py`. The password is hashed with the auth service's own argon2
+parameters (it calls node from `services/team1-nestjs`, so run `npm ci` there first).
+`--seed-quotes` replaces everything in `market_quotes`, so use it only where the poller is not
+running.
 
 ## scripts/verify_db.py
 

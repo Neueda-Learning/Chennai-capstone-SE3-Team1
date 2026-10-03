@@ -2,6 +2,7 @@ package com.team1.trading.api.controller;
 
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
 import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.security.TokenAccountIdResolver;
@@ -70,5 +71,18 @@ public class AccountController {
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         return ResponseEntity.ok(accountService.getOrderHistory(
                 id, tokenAccountIdResolver.resolve(authorization), status, from, to));
+    }
+
+    /**
+     * Recent account events (orders and wallet transfers), newest first, for the notification
+     * bell and its pop-ups.
+     */
+    @GetMapping("/{id}/notifications")
+    public ResponseEntity<List<NotificationResponse>> getNotifications(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "limit", required = false) Integer limit,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        return ResponseEntity.ok(accountService.getNotifications(
+                id, tokenAccountIdResolver.resolve(authorization), limit));
     }
 }

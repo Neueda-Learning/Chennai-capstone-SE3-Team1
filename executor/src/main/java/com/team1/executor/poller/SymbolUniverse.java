@@ -6,11 +6,12 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * The symbols worth spending quota on: the ones somebody holds or is watching.
+ * The symbols worth spending quota on: every active (tradable) instrument.
  *
- * <p>The watching half does not exist yet — there is no watchlist table until the Sprint 10
- * extension adds one. This class is the seam where it joins, so that when it arrives the change
- * is one {@code EXISTS} clause in {@code SymbolMapper.xml} and nothing in the poller moves.
+ * <p>It was "held or watched" until the market screen needed a price for every ticker a trader
+ * can pick, held or not. The set is small enough for one Fauxnance batch request per cycle, so
+ * widening it costs no extra quota. This class stays the seam for narrowing it again (a
+ * watchlist, or only what is held) without the poller changing.
  */
 @Component
 public class SymbolUniverse {

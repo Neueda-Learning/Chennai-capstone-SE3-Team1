@@ -48,6 +48,11 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard-page').then((m) => m.DashboardPage)
       },
       {
+        path: 'portfolio',
+        loadComponent: () =>
+          import('./features/portfolio/portfolio-page').then((m) => m.PortfolioPage)
+      },
+      {
         path: 'orders',
         loadComponent: () =>
           import('./features/orders/order-ticket-page').then((m) => m.OrderTicketPage)
@@ -55,6 +60,14 @@ export const routes: Routes = [
       {
         path: 'blotter',
         loadComponent: () => import('./features/blotter/blotter-page').then((m) => m.BlotterPage)
+      },
+      {
+        path: 'account',
+        loadComponent: () => import('./features/account/account-page').then((m) => m.AccountPage)
+      },
+      {
+        path: 'settings',
+        loadComponent: () => import('./features/settings/settings-page').then((m) => m.SettingsPage)
       },
       {
         path: 'bank-accounts',

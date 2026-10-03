@@ -2,11 +2,13 @@ package com.team1.trading.api.service;
 
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
 import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
+import com.team1.trading.api.mapper.NotificationMapper;
 import com.team1.trading.api.mapper.OrderMapper;
 import com.team1.trading.api.mapper.OrderMapper.OrderHistoryFilter;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
@@ -52,12 +54,14 @@ class AccountServiceTest {
     private OrderMapper orderMapper;
     @Mock
     private PositionMapper positionMapper;
+    @Mock
+    private NotificationMapper notificationMapper;
 
     private AccountService accountService;
 
     @BeforeEach
     void setUp() {
-        accountService = new AccountService(accountMapper, orderMapper, positionMapper, "USD");
+        accountService = new AccountService(accountMapper, orderMapper, positionMapper, notificationMapper, "USD");
     }
 
     private AccountRow activeAccount() {
@@ -228,6 +232,71 @@ class AccountServiceTest {
                     .isInstanceOf(InvalidOrderException.class)
                     .hasMessage("Invalid input");
             verify(orderMapper, org.mockito.Mockito.never()).listByAccount(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Notifications")
+    class NotificationTests {
+
+        private NotificationResponse n(String kind) {
+            NotificationResponse n = new NotificationResponse();
+            n.setId("x-" + kind);
+            n.setKind(kind);
+            n.setSymbol("RELIANCE");
+            n.setSide("BUY");
+            n.setQuantity(10);
+            return n;
+        }
+
+        @Test
+        @DisplayName("Entries keep the mapper's newest-first order, each with a readable message")
+        void describesEveryKind() {
+            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+            NotificationResponse filled = n("ORDER_FILLED");
+            filled.setExecutedPrice(new BigDecimal("1300"));
+            NotificationResponse rejected = n("ORDER_REJECTED");
+            rejected.setReason("BUY_LIMIT_BELOW_ASK");
+            NotificationResponse funded = n("TRANSFER_IN");
+            funded.setAmount(new BigDecimal("10000"));
+            NotificationResponse withdrawn = n("TRANSFER_OUT");
+            withdrawn.setAmount(new BigDecimal("250.5"));
+            given(notificationMapper.listForAccount(ACCOUNT_ID, 30)).willReturn(List.of(
+                    filled, rejected, n("ORDER_PLACED"), n("ORDER_CANCELLED"), funded, withdrawn));
+
+            List<NotificationResponse> result = accountService.getNotifications(ACCOUNT_ID, ACCOUNT_ID, null);
+
+            assertThat(result).extracting(NotificationResponse::getMessage).containsExactly(
+                    "Order filled: BUY 10 RELIANCE @ 1300.00",
+                    "Order rejected: BUY 10 RELIANCE (BUY_LIMIT_BELOW_ASK)",
+                    "Order placed: BUY 10 RELIANCE",
+                    "Order cancelled: BUY 10 RELIANCE",
+                    "Wallet funded: +10000.00 USD",
+                    "Withdrawn to bank: -250.50 USD");
+        }
+
+        @Test
+        @DisplayName("The limit is clamped to 1..100")
+        void limitIsClamped() {
+            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+            given(notificationMapper.listForAccount(any(), org.mockito.ArgumentMatchers.anyInt())).willReturn(List.of());
+
+            accountService.getNotifications(ACCOUNT_ID, ACCOUNT_ID, 5000);
+            accountService.getNotifications(ACCOUNT_ID, ACCOUNT_ID, 0);
+
+            verify(notificationMapper).listForAccount(ACCOUNT_ID, 100);
+            verify(notificationMapper).listForAccount(ACCOUNT_ID, 1);
+        }
+
+        @Test
+        @DisplayName("A token that cannot reach the account is ACC-403 and nothing is read")
+        void gated() {
+            given(accountMapper.findRow(ACCOUNT_ID)).willReturn(Optional.of(activeAccount()));
+
+            assertThatThrownBy(() -> accountService.getNotifications(ACCOUNT_ID, 9L, null))
+                    .isInstanceOf(AccountNotActiveException.class);
+            verify(notificationMapper, org.mockito.Mockito.never())
+                    .listForAccount(any(), org.mockito.ArgumentMatchers.anyInt());
         }
     }
 }

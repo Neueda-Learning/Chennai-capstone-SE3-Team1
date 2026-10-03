@@ -11,10 +11,11 @@ import {
   ResetPasswordRequest,
   VerificationService
 } from '../../generated/auth-client';
+import { ThemeToggle } from '../../core/theme/theme-toggle';
 
 @Component({
   selector: 'tui-reset-password-page',
-  imports: [RouterLink],
+  imports: [RouterLink, ThemeToggle],
   templateUrl: './reset-password-page.html',
   styleUrl: './reset-password-page.css'
 })

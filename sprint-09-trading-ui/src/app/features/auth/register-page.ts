@@ -8,10 +8,11 @@ import {
   passwordRequirements as rulesForPassword
 } from '../../core/auth/password-rules';
 import { AuthService, RegisterRequest } from '../../generated/auth-client';
+import { ThemeToggle } from '../../core/theme/theme-toggle';
 
 @Component({
   selector: 'tui-register-page',
-  imports: [RouterLink],
+  imports: [RouterLink, ThemeToggle],
   templateUrl: './register-page.html',
   styleUrl: './register-page.css'
 })

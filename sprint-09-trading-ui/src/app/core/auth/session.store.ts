@@ -141,10 +141,20 @@ export class SessionStore {
     }
   }
 
+  /**
+   * The session this browser should come back as: the remembered one if there is one, else the
+   * one this tab already held. sessionStorage survives a reload of the same tab and dies with the
+   * tab, which is exactly the lifetime an unticked "Remember Me" promises, so reading it here
+   * keeps a reload from signing someone out without letting a closed tab's session return later.
+   */
   private readPersisted(): PersistedSession | null {
+    return this.readFrom(this.rememberedStore, true) ?? this.readFrom(this.tabStore, false);
+  }
+
+  private readFrom(store: Storage, remembered: boolean): PersistedSession | null {
     let raw: string | null;
     try {
-      raw = this.rememberedStore.getItem(SESSION_KEY);
+      raw = store.getItem(SESSION_KEY);
     } catch {
       return null;
     }
@@ -160,7 +170,7 @@ export class SessionStore {
         accessToken: parsed.accessToken,
         refreshToken: typeof parsed.refreshToken === 'string' ? parsed.refreshToken : null,
         accountId: typeof parsed.accountId === 'number' ? parsed.accountId : null,
-        remembered: true
+        remembered
       };
     } catch {
       return null;
@@ -201,7 +211,7 @@ function readJwtPayload(accessToken: string): string | null {
     return null;
   }
   try {
-    const base64 = segments[1].replace(/-/g, '+').replace(/_/g, '');
+    const base64 = segments[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
     // The payload is base64url-encoded UTF-8; atob gives a binary string, so
     // decode it back to text byte by byte.

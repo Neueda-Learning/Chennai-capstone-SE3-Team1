@@ -1,4 +1,6 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { BlotterService, BlotterRow } from './blotter.service';
@@ -49,6 +51,16 @@ export class BlotterPage implements OnInit, OnDestroy {
   private readonly blotterService = inject(BlotterService);
   private readonly ordersService = inject(OrdersService);
   private readonly errorCatalog = inject(ErrorCatalog);
+  private readonly route = inject(ActivatedRoute, { optional: true });
+
+  // The navbar search sends you here with ?q=<order id>; show just that order.
+  private readonly queryFilter = this.route?.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+    const q = params.get('q');
+    if (q !== null) {
+      this.searchText.set(q);
+      this.currentPage.set(1);
+    }
+  });
 
   // Computed signal for filtered rows
   filteredRows = computed(() => {

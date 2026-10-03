@@ -2,18 +2,22 @@ package com.team1.trading.api.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.team1.eventbus.Envelope;
+import com.team1.trading.api.mapper.MarketQuoteMapper;
+import com.team1.trading.api.mapper.MarketQuoteMapper.QuoteInsert;
 import com.team1.trading.api.mapper.PositionMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.Acknowledgment;
 
 import java.math.BigDecimal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -32,13 +36,15 @@ class MarketDataListenerTest {
     @Mock
     private PositionMapper positionMapper;
     @Mock
+    private MarketQuoteMapper marketQuoteMapper;
+    @Mock
     private Acknowledgment ack;
 
     private MarketDataListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new MarketDataListener(positionMapper);
+        listener = new MarketDataListener(positionMapper, marketQuoteMapper);
     }
 
     private ConsumerRecord<String, Envelope> record(String eventType, String payloadJson) {
@@ -105,6 +111,62 @@ class MarketDataListenerTest {
 
         // the next cycle republishes a fresher price a minute later, so dropping this one
         // costs less than blocking every later quote for the symbol
+        verify(ack).acknowledge();
+    }
+
+    @Test
+    @DisplayName("Every usable quote is also recorded for the market screen, with its full detail")
+    void quoteIsRecorded() {
+        listener.onQuote(record("QUOTE", """
+                {"symbol":"RELIANCE","price":1244.09,"bid":1244.0,"ask":1244.2,"currency":"INR",
+                 "change":3.5,"changePercent":0.28,"previousClose":1240.59,"marketState":"REGULAR",
+                 "stale":false,"quoteAsOf":"2026-09-28T09:15:00Z"}"""), ack);
+
+        ArgumentCaptor<QuoteInsert> captor = ArgumentCaptor.forClass(QuoteInsert.class);
+        verify(marketQuoteMapper).insert(captor.capture());
+        QuoteInsert saved = captor.getValue();
+        assertThat(saved.getSymbol()).isEqualTo("RELIANCE");
+        assertThat(saved.getPrice()).isEqualByComparingTo("1244.09");
+        assertThat(saved.getBid()).isEqualByComparingTo("1244.0");
+        assertThat(saved.getAsk()).isEqualByComparingTo("1244.2");
+        assertThat(saved.getMarketState()).isEqualTo("REGULAR");
+        assertThat(saved.isStale()).isFalse();
+        assertThat(saved.getQuoteAsOf().toInstant()).isEqualTo(java.time.Instant.parse("2026-09-28T09:15:00Z"));
+        verify(marketQuoteMapper).deleteOlderThan("RELIANCE", MarketDataListener.RETENTION_DAYS);
+        verify(ack).acknowledge();
+    }
+
+    @Test
+    @DisplayName("A quote with only a price is still recorded; the optional fields are simply null")
+    void minimalQuoteIsRecorded() {
+        listener.onQuote(record("QUOTE", """
+                {"symbol":"TCS","price":3300.5,"quoteAsOf":"not-a-date"}"""), ack);
+
+        ArgumentCaptor<QuoteInsert> captor = ArgumentCaptor.forClass(QuoteInsert.class);
+        verify(marketQuoteMapper).insert(captor.capture());
+        assertThat(captor.getValue().getBid()).isNull();
+        assertThat(captor.getValue().getQuoteAsOf()).isNull();
+        verify(ack).acknowledge();
+    }
+
+    @Test
+    @DisplayName("Dropped quotes are not recorded")
+    void droppedQuoteIsNotRecorded() {
+        listener.onQuote(record("QUOTE", """
+                {"symbol":"RELIANCE","price":0}"""), ack);
+
+        verify(marketQuoteMapper, never()).insert(any());
+    }
+
+    @Test
+    @DisplayName("A failure recording the quote never stops gains being marked, and still commits")
+    void recordFailureDoesNotStopMarking() {
+        willThrow(new RuntimeException("fk violation")).given(marketQuoteMapper).insert(any());
+
+        listener.onQuote(record("QUOTE", """
+                {"symbol":"RELIANCE","price":1244.09}"""), ack);
+
+        verify(positionMapper).markToMarket("RELIANCE", new BigDecimal("1244.09"));
         verify(ack).acknowledge();
     }
 }

@@ -620,3 +620,58 @@
   .btn-pagination { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 }
 
+/* ---------------------------------------------------------------------
+   Dark theme. These live here, not in spark-admin.css, because Angular scopes this file's
+   selectors with an attribute that a global rule cannot outrank.
+--------------------------------------------------------------------- */
+:host-context([data-bs-theme="dark"]) .filter-section,
+:host-context([data-bs-theme="dark"]) .table-wrapper,
+:host-context([data-bs-theme="dark"]) .pagination-section,
+:host-context([data-bs-theme="dark"]) .modal-content,
+:host-context([data-bs-theme="dark"]) .search-input,
+:host-context([data-bs-theme="dark"]) .filter-select,
+:host-context([data-bs-theme="dark"]) .btn-clear-filters,
+:host-context([data-bs-theme="dark"]) .btn-refresh,
+:host-context([data-bs-theme="dark"]) .btn-action,
+:host-context([data-bs-theme="dark"]) .btn-pagination,
+:host-context([data-bs-theme="dark"]) .btn-page {
+  background-color: var(--card-background);
+  border-color: var(--border-light);
+  color: var(--text-main);
+}
+
+:host-context([data-bs-theme="dark"]) .table-custom thead,
+:host-context([data-bs-theme="dark"]) .detail-item,
+:host-context([data-bs-theme="dark"]) .empty-state,
+:host-context([data-bs-theme="dark"]) .table-custom tbody tr:hover,
+:host-context([data-bs-theme="dark"]) .btn-clear-filters:hover,
+:host-context([data-bs-theme="dark"]) .btn-refresh:hover:not(:disabled),
+:host-context([data-bs-theme="dark"]) .btn-pagination:hover:not(:disabled),
+:host-context([data-bs-theme="dark"]) .btn-page:hover:not(.active),
+:host-context([data-bs-theme="dark"]) .btn-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:host-context([data-bs-theme="dark"]) .table-custom thead,
+:host-context([data-bs-theme="dark"]) .table-custom tbody tr,
+:host-context([data-bs-theme="dark"]) .filter-footer,
+:host-context([data-bs-theme="dark"]) .modal-header,
+:host-context([data-bs-theme="dark"]) .modal-footer,
+:host-context([data-bs-theme="dark"]) .detail-item {
+  border-color: var(--border-light);
+}
+
+:host-context([data-bs-theme="dark"]) .order-id-badge,
+:host-context([data-bs-theme="dark"]) .symbol-badge {
+  color: var(--brand-lime);
+}
+
+:host-context([data-bs-theme="dark"]) .btn-page.active {
+  background-color: var(--brand-lime);
+  border-color: var(--brand-lime);
+  color: #051C12;
+}
+
+:host-context([data-bs-theme="dark"]) .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.6);
+}

@@ -80,7 +80,7 @@ public class MarketDataPoller {
         try {
             List<String> symbols = symbolUniverse.symbolsToPoll();
             if (symbols.isEmpty()) {
-                log.debug("Nothing held or watched; no quotes to poll and no quota spent");
+                log.debug("No active instruments; no quotes to poll and no quota spent");
                 return;
             }
 

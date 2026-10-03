@@ -1,7 +1,7 @@
 username,email,account_id,password_hash
-aarav.mehta,aarav.mehta@example.com,1,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-diya.sharma,diya.sharma@example.com,2,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-rohan.iyer,rohan.iyer@example.com,3,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-meera.nair,meera.nair@example.com,4,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-vikram.rao,vikram.rao@example.com,5,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-sanya.kapoor,sanya.kapoor@example.com,6,$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+aarav.mehta,aarav.mehta@example.com,1,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
+diya.sharma,diya.sharma@example.com,2,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
+rohan.iyer,rohan.iyer@example.com,3,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
+meera.nair,meera.nair@example.com,4,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
+vikram.rao,vikram.rao@example.com,5,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
+sanya.kapoor,sanya.kapoor@example.com,6,"$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"

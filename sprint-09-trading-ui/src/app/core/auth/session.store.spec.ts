@@ -147,6 +147,17 @@ describe('SessionStore', () => {
     expect(session.getItem(KEY)).toContain('token-two');
   });
 
+  it('reads the accountId from a token whose payload encodes to base64url with an underscore', () => {
+    // {"accountId":42,"n":"???"} is standard base64 with a "/" in it, which base64url writes as "_".
+    const token = jwt({ accountId: 42, n: '???' });
+    expect(token.split('.')[1]).toContain('_');
+
+    const store = createStore();
+    store.signIn(token);
+
+    expect(store.accountId()).toBe(42);
+  });
+
   it('restores only the remembered session on a future boot', () => {
     const local = new MemoryStorage();
     local.setItem(
@@ -167,17 +178,56 @@ describe('SessionStore', () => {
     expect(store.accountId()).toBe(5);
   });
 
-  it('ignores anything in sessionStorage at boot: only remembered sessions return', () => {
+  it('keeps a tab-only session across a reload of that tab', () => {
     const session = new MemoryStorage();
     session.setItem(
       KEY,
-      JSON.stringify({ accessToken: 'stray-tab-token', refreshToken: null, accountId: 3, remembered: false })
+      JSON.stringify({ accessToken: 'tab-token', refreshToken: 'tab-refresh', accountId: 3, remembered: false })
     );
 
     const store = createStore({ session });
 
-    expect(store.isSignedIn()).toBe(false);
-    expect(store.accessToken()).toBeNull();
+    expect(store.isSignedIn()).toBe(true);
+    expect(store.accessToken()).toBe('tab-token');
+    expect(store.refreshToken()).toBe('tab-refresh');
+    expect(store.accountId()).toBe(3);
+  });
+
+  it('prefers the remembered session when both stores hold one', () => {
+    const local = new MemoryStorage();
+    const session = new MemoryStorage();
+    local.setItem(KEY, JSON.stringify({ accessToken: 'remembered', refreshToken: null, accountId: 1, remembered: true }));
+    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: null, accountId: 2, remembered: false }));
+
+    expect(createStore({ local, session }).accessToken()).toBe('remembered');
+  });
+
+  it('falls back to the tab session when the remembered one is unreadable', () => {
+    const local = new MemoryStorage();
+    const session = new MemoryStorage();
+    local.setItem(KEY, 'not-json');
+    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: null, accountId: 2, remembered: false }));
+
+    expect(createStore({ local, session }).accessToken()).toBe('tab');
+  });
+
+  it('a tab-only session reloaded still re-persists as tab-only, never promoted to remembered', () => {
+    const local = new MemoryStorage();
+    const session = new MemoryStorage();
+    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: 'r', accountId: 2, remembered: false }));
+
+    const store = createStore({ local, session });
+    store.adoptTokens('tab-2', 2, 'r2'); // re-persists using whichever store held the session
+
+    expect(local.getItem(KEY)).toBeNull();
+    expect(JSON.parse(session.getItem(KEY)!).accessToken).toBe('tab-2');
+  });
+
+  it('ignores a tab session with no token', () => {
+    const session = new MemoryStorage();
+    session.setItem(KEY, JSON.stringify({ accessToken: '', refreshToken: null, accountId: 3 }));
+
+    expect(createStore({ session }).isSignedIn()).toBe(false);
   });
 
   it('ignores unreadable storage content without throwing', () => {

@@ -39,6 +39,8 @@
    22. Keyframe Animations & Overlays
    23. Reusable Helper & Utility Classes (Zero Inline Style Policy)
    24. Transaction List Component
+   25. Live-data screens: dashboard, portfolio, market & trade, notifications
+   26. Dark theme
 --------------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------------
@@ -3183,5 +3185,800 @@ span.flatpickr-weekday {
     color: var(--brand-lime) !important;
 }
 
+/* ---------------------------------------------------------------------
+   25. Live-data screens: dashboard, portfolio, market & trade, notifications
+   Added after the template was imported; the template itself is untouched above.
+--------------------------------------------------------------------- */
 
+/* Dashboard range picker: the pill is a label wrapping a native select */
+.range-select {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    padding-right: 0.25rem;
+    cursor: pointer;
+    outline: none;
+}
 
+.range-select option {
+    color: #0B130F;
+    background: #FFFFFF;
+}
+
+.btn-link-inline {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: 0.35rem;
+    font: inherit;
+    font-weight: 700;
+    color: var(--brand-forest-medium);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.btn-link-inline:hover {
+    color: var(--brand-lime-hover);
+}
+
+.stat-footnote {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin-top: 0.75rem;
+    font-size: 0.785rem;
+    color: var(--text-muted-green);
+}
+
+.stat-footnote strong {
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.empty-note {
+    color: var(--text-muted-green);
+    font-size: 0.875rem;
+    margin: 0.5rem 0 0;
+}
+
+.card-link-small {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.trend-flat {
+    color: var(--text-muted-green);
+}
+
+.text-gain {
+    color: var(--sys-green) !important;
+}
+
+.text-loss {
+    color: var(--sys-red) !important;
+}
+
+.order-status {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.order-status-filled {
+    color: var(--sys-green);
+}
+
+.order-status-rejected {
+    color: var(--sys-red);
+}
+
+.order-status-new {
+    color: var(--sys-orange);
+}
+
+.order-status-cancelled {
+    color: var(--text-muted-green);
+}
+
+/* Market & trade: ticker list */
+.ticker-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ticker-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    background-color: var(--card-background);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ticker-item:hover {
+    background-color: var(--bs-body-bg);
+}
+
+.ticker-item.active {
+    border-color: var(--brand-forest-medium);
+    box-shadow: 0 0 0 2px var(--brand-lime-translucent);
+    background-color: var(--bs-body-bg);
+}
+
+.ticker-main,
+.ticker-quote {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ticker-quote {
+    align-items: flex-end;
+}
+
+.ticker-symbol {
+    font-weight: 800;
+    font-size: 0.95rem;
+}
+
+.ticker-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted-green);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ticker-price {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.ticker-change {
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.ticker-up {
+    color: var(--sys-green);
+}
+
+.ticker-down {
+    color: var(--sys-red);
+}
+
+.ticker-flat {
+    color: var(--text-muted-green);
+}
+
+.price-headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.price-now {
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.range-switch {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border-radius: 50rem;
+    background-color: var(--bs-body-bg);
+}
+
+.range-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted-green);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.3rem 0.8rem;
+    border-radius: 50rem;
+    cursor: pointer;
+}
+
+.range-btn.active {
+    background-color: var(--brand-forest-medium);
+    color: #FFFFFF;
+}
+
+.order-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+}
+
+.order-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.order-fact-value {
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+/* Notifications: items are buttons now, and have an empty state and tones */
+.dropdown-header-sub {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    word-break: break-all;
+}
+
+button.notification-item {
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+    color: inherit;
+}
+
+.notification-count {
+    display: inline-block;
+    min-width: 1.35rem;
+    padding: 0.05rem 0.4rem;
+    margin-left: 0.35rem;
+    border-radius: 50rem;
+    background-color: var(--brand-lime);
+    color: #051C12;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.btn-clear-all:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.notification-empty {
+    padding: 1.5rem 1.25rem;
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted-green);
+    text-align: center;
+}
+
+.notification-tone-success {
+    background-color: var(--sys-green);
+    color: #FFFFFF;
+}
+
+.notification-tone-danger {
+    background-color: var(--sys-red);
+    color: #FFFFFF;
+}
+
+.notification-tone-warning {
+    background-color: var(--sys-orange);
+    color: #FFFFFF;
+}
+
+.notification-tone-info {
+    background-color: #3B82F6;
+    color: #FFFFFF;
+}
+
+/* In-app pop-ups, bottom right */
+.toast-stack {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: min(360px, calc(100vw - 2.5rem));
+    pointer-events: none;
+}
+
+.toast-item {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem;
+    border-radius: var(--radius-lg);
+    background-color: var(--card-background);
+    color: var(--text-main);
+    border: 1px solid var(--border-light);
+    border-left-width: 4px;
+    box-shadow: var(--shadow-lg);
+    animation: toastIn 0.25s ease;
+}
+
+.toast-success {
+    border-left-color: var(--sys-green);
+}
+
+.toast-danger {
+    border-left-color: var(--sys-red);
+}
+
+.toast-warning {
+    border-left-color: var(--sys-orange);
+}
+
+.toast-info {
+    border-left-color: #3B82F6;
+}
+
+.toast-icon {
+    font-size: 1.15rem;
+    line-height: 1.2;
+}
+
+.toast-success .toast-icon {
+    color: var(--sys-green);
+}
+
+.toast-danger .toast-icon {
+    color: var(--sys-red);
+}
+
+.toast-warning .toast-icon {
+    color: var(--sys-orange);
+}
+
+.toast-info .toast-icon {
+    color: #3B82F6;
+}
+
+.toast-body {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    padding: 0.1rem;
+    color: var(--text-muted-green);
+    cursor: pointer;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-value-md {
+    font-size: 1.55rem;
+}
+
+.chart-legends-container {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.4rem;
+}
+
+/* Stand-in for a profile picture: initials on the brand colour, same box as the image it replaces */
+.avatar-placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background-color: var(--brand-lime);
+    color: #051C12;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+.avatar-placeholder.sidebar-profile-img {
+    font-size: 1rem;
+}
+
+/* Legend dots for the order-flow chart; the chart's own colours flip with the theme, so these do too */
+.legend-dot-buys {
+    background-color: #072F1F;
+}
+
+.legend-dot-sells {
+    background-color: #B4F105;
+}
+
+html[data-bs-theme="dark"] .legend-dot-buys {
+    background-color: #B4F105;
+}
+
+html[data-bs-theme="dark"] .legend-dot-sells {
+    background-color: #F97316;
+}
+
+/* Navbar search results */
+tui-navbar-search {
+    display: contents;
+}
+
+.search-results {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: 0;
+    z-index: 1100;
+    max-height: 340px;
+    overflow-y: auto;
+    padding: 0.4rem;
+    border-radius: var(--radius-xl);
+    background-color: var(--card-background);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-lg);
+}
+
+.search-group {
+    padding: 0.5rem 0.75rem 0.25rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted-green);
+}
+
+.search-hit {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.55rem 0.75rem;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+}
+
+.search-hit:hover,
+.search-hit.active {
+    background-color: var(--bs-body-bg);
+}
+
+.search-hit-main {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.search-hit-detail {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-muted-green);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-empty {
+    margin: 0;
+    padding: 0.9rem 0.75rem;
+    font-size: 0.82rem;
+    color: var(--text-muted-green);
+}
+
+/* My Account */
+.profile-head {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.profile-name {
+    font-size: 1.4rem;
+    margin-bottom: 0.15rem;
+}
+
+.account-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-xl);
+    font-size: 1.4rem;
+    object-fit: cover;
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.6rem 1.5rem;
+    margin: 0 0 1rem;
+}
+
+.detail-list dt {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted-green);
+}
+
+.detail-list dd {
+    margin: 0;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+html[data-bs-theme="dark"] .search-hit:hover,
+html[data-bs-theme="dark"] .search-hit.active {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* The theme switch on pages that have no navbar to hold it */
+.theme-toggle-floating {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+}
+
+/* ---------------------------------------------------------------------
+   26. Dark theme
+   Applied by ThemeService as data-bs-theme="dark" on <html>. The template colours most
+   things through the variables below, so redefining them does most of the work; the rules
+   after that cover the template's hard-coded white and near-white surfaces.
+   `html[data-bs-theme="dark"]` is used as the prefix so these win over the template's own
+   rules and over component stylesheets without needing !important everywhere.
+--------------------------------------------------------------------- */
+html[data-bs-theme="dark"] {
+    color-scheme: dark;
+    --bs-body-bg: #0A110D;
+    --bs-body-color: #E6EEE9;
+    --card-background: #111B15;
+    --border-light: #223029;
+    --border-dark-green: rgba(255, 255, 255, 0.1);
+
+    --text-main: #E6EEE9;
+    --text-muted-green: #93A89C;
+    --text-sidebar-muted: #879A91;
+
+    --brand-forest-dark: #040E09;
+    --brand-forest-medium: #0D3A27;
+    --sys-green-bg: rgba(34, 197, 94, 0.16);
+    --sys-red-bg: rgba(239, 68, 68, 0.16);
+    --sys-orange-bg: rgba(249, 115, 22, 0.16);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+:where(html[data-bs-theme="dark"]) a {
+    color: var(--brand-lime);
+}
+
+html[data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #2E4037;
+}
+
+html[data-bs-theme="dark"] .navbar-custom {
+    background-color: rgba(10, 17, 13, 0.85);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Surfaces that were hard-coded white */
+html[data-bs-theme="dark"] .navbar-search-input,
+html[data-bs-theme="dark"] .navbar-action-btn,
+html[data-bs-theme="dark"] .sidebar-toggle-btn,
+html[data-bs-theme="dark"] .btn-desktop-toggle,
+html[data-bs-theme="dark"] .btn-date-picker,
+html[data-bs-theme="dark"] .custom-list-item,
+html[data-bs-theme="dark"] .table-card-custom,
+html[data-bs-theme="dark"] .table-header-control,
+html[data-bs-theme="dark"] .table-footer-control,
+html[data-bs-theme="dark"] .btn-table-action,
+html[data-bs-theme="dark"] .table-btn-action,
+html[data-bs-theme="dark"] .btn-social,
+html[data-bs-theme="dark"] .error-card-custom,
+html[data-bs-theme="dark"] .form-control-custom,
+html[data-bs-theme="dark"] .form-select-custom,
+html[data-bs-theme="dark"] .form-check-input-custom,
+html[data-bs-theme="dark"] .input-group-custom {
+    background-color: var(--card-background);
+    border-color: var(--border-light);
+    color: var(--text-main);
+}
+
+html[data-bs-theme="dark"] .navbar-action-btn:hover,
+html[data-bs-theme="dark"] .btn-desktop-toggle:hover,
+html[data-bs-theme="dark"] .btn-date-picker:hover {
+    background-color: var(--border-light);
+}
+
+html[data-bs-theme="dark"] .navbar-search-input:focus,
+html[data-bs-theme="dark"] .form-control-custom:focus,
+html[data-bs-theme="dark"] .login-input:focus {
+    background-color: var(--card-background);
+    border-color: rgba(180, 241, 5, 0.45);
+    box-shadow: 0 0 0 3px rgba(180, 241, 5, 0.12);
+}
+
+html[data-bs-theme="dark"] .form-control-custom:disabled,
+html[data-bs-theme="dark"] .form-control-custom[readonly],
+html[data-bs-theme="dark"] .form-select-custom:disabled,
+html[data-bs-theme="dark"] .input-group-text-custom {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: var(--border-light);
+    color: var(--text-muted-green);
+}
+
+html[data-bs-theme="dark"] .form-select-custom,
+html[data-bs-theme="dark"] .range-select {
+    color-scheme: dark;
+}
+
+html[data-bs-theme="dark"] .range-select option {
+    color: #E6EEE9;
+    background: #111B15;
+}
+
+html[data-bs-theme="dark"] .navbar-action-badge {
+    border-color: var(--bs-body-bg);
+}
+
+/* Dropdowns */
+html[data-bs-theme="dark"] .dropdown-menu-profile,
+html[data-bs-theme="dark"] .dropdown-menu-notification,
+html[data-bs-theme="dark"] .dropdown-menu-custom,
+html[data-bs-theme="dark"] .dropdown-menu-quick-action {
+    background-color: var(--card-background) !important;
+    border: 1px solid var(--border-light) !important;
+}
+
+html[data-bs-theme="dark"] .dropdown-menu-profile .dropdown-item,
+html[data-bs-theme="dark"] .dropdown-menu-custom .dropdown-item {
+    color: var(--text-main) !important;
+}
+
+html[data-bs-theme="dark"] .dropdown-menu-profile .dropdown-item.text-danger {
+    color: var(--sys-red) !important;
+}
+
+html[data-bs-theme="dark"] .dropdown-menu-profile .dropdown-item:hover,
+html[data-bs-theme="dark"] .dropdown-menu-custom .dropdown-item:hover,
+html[data-bs-theme="dark"] .notification-item:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Tables */
+html[data-bs-theme="dark"] .table-custom th {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-bottom-color: var(--border-light);
+}
+
+html[data-bs-theme="dark"] .table-custom td {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-bs-theme="dark"] .table-custom tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+html[data-bs-theme="dark"] .footer-custom {
+    border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Custom alerts and Bootstrap alerts inherit Bootstrap's own dark palette; only the template's are fixed here */
+html[data-bs-theme="dark"] .alert-custom-success {
+    background-color: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #86EFAC;
+}
+
+html[data-bs-theme="dark"] .alert-custom-danger {
+    background-color: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #FCA5A5;
+}
+
+html[data-bs-theme="dark"] .alert-custom-warning {
+    background-color: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #FCD34D;
+}
+
+html[data-bs-theme="dark"] .alert-custom-info {
+    background-color: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #93C5FD;
+}
+
+html[data-bs-theme="dark"] .alert-custom-primary {
+    background-color: rgba(180, 241, 5, 0.06);
+    border-color: rgba(180, 241, 5, 0.15);
+}
+
+/* Buttons: the forest-green fill disappears on a dark card, so use the lime accent */
+html[data-bs-theme="dark"] .btn-custom-primary {
+    background-color: var(--brand-lime);
+    border-color: var(--brand-lime);
+    color: #051C12;
+}
+
+html[data-bs-theme="dark"] .btn-custom-primary:hover {
+    background-color: var(--brand-lime-hover);
+    border-color: var(--brand-lime-hover);
+    color: #051C12;
+}
+
+html[data-bs-theme="dark"] .btn-custom-outline-primary {
+    border-color: var(--brand-lime);
+    color: var(--brand-lime);
+}
+
+html[data-bs-theme="dark"] .btn-custom-outline-primary:hover {
+    background-color: var(--brand-lime);
+    color: #051C12;
+}
+
+html[data-bs-theme="dark"] .btn-custom-light {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-light);
+    color: var(--text-main);
+}
+
+html[data-bs-theme="dark"] .btn-custom-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-bs-theme="dark"] .range-btn.active {
+    background-color: var(--brand-lime);
+    color: #051C12;
+}
+
+html[data-bs-theme="dark"] .ticker-item.active {
+    border-color: var(--brand-lime);
+}
+
+html[data-bs-theme="dark"] .btn-link-inline {
+    color: var(--brand-lime);
+}
+
+html[data-bs-theme="dark"] .notification-count {
+    color: #051C12;
+}
+
+/* Login family */
+html[data-bs-theme="dark"] .login-card:hover {
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+}
+
+html[data-bs-theme="dark"] .login-input {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: var(--border-light);
+    color: var(--text-main);
+}
+
+html[data-bs-theme="dark"] .sidebar-overlay {
+    background-color: rgba(0, 0, 0, 0.6);
+}

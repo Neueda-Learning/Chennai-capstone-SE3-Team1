@@ -116,7 +116,7 @@ credential and the quota ledger with the fill path above, and nothing else.
     v
 MarketDataPoller.pollOnce()
     |
-    +-- SymbolUniverse: active instruments somebody holds (4 in seeded data)
+    +-- SymbolUniverse: every active instrument (7 in seeded data)
     +-- Split into batches of 25            <- one batch is one HTTP request
     +-- QuotaLedger.pollerMaySpend(batches) <- skip the cycle rather than eat
     |                                          the fill path's 500 reserve

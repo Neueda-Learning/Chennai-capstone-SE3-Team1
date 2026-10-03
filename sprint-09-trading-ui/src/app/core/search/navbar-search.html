@@ -1,0 +1,60 @@
+<div class="navbar-search-wrapper navbar-search-live">
+  <input
+    type="text"
+    class="navbar-search-input"
+    placeholder="Search symbols, orders..."
+    aria-label="Search symbols and orders"
+    autocomplete="off"
+    data-testid="search-input"
+    [value]="query()"
+    (focus)="onFocus()"
+    (blur)="onBlur()"
+    (input)="onInput($any($event.target).value)"
+    (keydown)="onKeydown($event)"
+  />
+  <button class="navbar-search-btn" type="button" aria-label="Search" tabindex="-1">
+    <i class="bi bi-search"></i>
+  </button>
+
+  @if (open() && query().trim() !== '') {
+    <div class="search-results" role="listbox" data-testid="search-results">
+      @if (tickers().length > 0) {
+        <div class="search-group">Tickers</div>
+        @for (hit of tickers(); track hit.symbol; let i = $index) {
+          <button
+            type="button"
+            role="option"
+            class="search-hit"
+            data-testid="search-hit"
+            [class.active]="i === active()"
+            (mousedown)="choose(hit)"
+          >
+            <i class="bi bi-bar-chart-line"></i>
+            <span class="search-hit-main">{{ hit.label }}</span>
+            <span class="search-hit-detail">{{ hit.detail }}</span>
+          </button>
+        }
+      }
+      @if (orderHits().length > 0) {
+        <div class="search-group">Your orders</div>
+        @for (hit of orderHits(); track hit.orderId; let i = $index) {
+          <button
+            type="button"
+            role="option"
+            class="search-hit"
+            data-testid="search-hit"
+            [class.active]="tickers().length + i === active()"
+            (mousedown)="choose(hit)"
+          >
+            <i class="bi bi-receipt"></i>
+            <span class="search-hit-main">{{ hit.label }}</span>
+            <span class="search-hit-detail">{{ hit.detail }}</span>
+          </button>
+        }
+      }
+      @if (hits().length === 0) {
+        <p class="search-empty" data-testid="search-empty">No tickers or orders match “{{ query().trim() }}”.</p>
+      }
+    </div>
+  }
+</div>

@@ -21,13 +21,24 @@
         </li>
         <li class="sidebar-menu-item">
           <a
+            routerLink="/portfolio"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Portfolio"
+          >
+            <i class="bi bi-pie-chart-fill"></i>
+            <span>Portfolio</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
             routerLink="/orders"
             routerLinkActive="active"
             class="sidebar-menu-link"
-            title="Order ticket"
+            title="Market and trading"
           >
-            <i class="bi bi-receipt"></i>
-            <span>Order Ticket</span>
+            <i class="bi bi-bar-chart-line-fill"></i>
+            <span>Market &amp; Trade</span>
           </a>
         </li>
         <li class="sidebar-menu-item">
@@ -57,10 +68,10 @@
   </div>
 
   <div class="sidebar-profile">
-    <img src="/images/avatar.png" alt="Signed-in trader" class="sidebar-profile-img" />
+    <tui-avatar [src]="profile.avatarUrl()" [initials]="profile.initials()" imgClass="sidebar-profile-img" />
     <div class="sidebar-profile-info">
-      <div class="sidebar-profile-name">Demo Trader</div>
-      <div class="sidebar-profile-email">trader&#64;example.com</div>
+      <div class="sidebar-profile-name" data-testid="sidebar-name">{{ profile.displayName() ?? 'Trader' }}</div>
+      <div class="sidebar-profile-email" data-testid="sidebar-email">{{ profile.email() ?? '' }}</div>
     </div>
   </div>
 </div>
@@ -83,14 +94,11 @@
       </button>
     </div>
 
-    <div class="navbar-search-wrapper">
-      <input type="text" class="navbar-search-input" placeholder="Search symbols, orders...">
-      <button class="navbar-search-btn" type="button" aria-label="Search">
-        <i class="bi bi-search"></i>
-      </button>
-    </div>
+    <tui-navbar-search />
 
     <div class="navbar-actions">
+      <tui-theme-toggle class="me-1" />
+
       <button class="navbar-action-btn me-1" type="button" aria-label="Toggle fullscreen" (click)="toggleFullscreen()">
         <i class="bi" [class.bi-arrows-fullscreen]="!isFullscreen()" [class.bi-fullscreen-exit]="isFullscreen()"></i>
       </button>
@@ -104,58 +112,77 @@
           aria-expanded="false"
         >
           <i class="bi bi-bell"></i>
-          <span class="navbar-action-badge"></span>
+          @if (notifications.unreadCount() > 0) {
+            <span class="navbar-action-badge" data-testid="notification-badge"></span>
+          }
         </button>
         <div class="dropdown-menu dropdown-menu-end dropdown-menu-notification p-0">
           <div class="notification-header">
-            <h6 class="notification-title">Notifications</h6>
-            <button class="btn-clear-all" type="button">Mark all read</button>
+            <h6 class="notification-title">
+              Notifications
+              @if (notifications.unreadCount() > 0) {
+                <span class="notification-count" data-testid="notification-count">{{ notifications.unreadCount() }}</span>
+              }
+            </h6>
+            <button
+              class="btn-clear-all"
+              type="button"
+              data-testid="mark-all-read"
+              [disabled]="notifications.unreadCount() === 0"
+              (click)="notifications.markAllRead()"
+            >
+              Mark all read
+            </button>
           </div>
           <div class="notification-list">
-            <a href="javascript:void(0)" class="notification-item">
-              <div class="notification-icon bg-success text-white">
-                <i class="bi bi-check2-circle"></i>
-              </div>
-              <div class="notification-content">
-                <p class="notification-text">Order filled: <strong>BUY 10 RELIANCE @ 1300.00</strong></p>
-                <span class="notification-time">2 mins ago</span>
-              </div>
-              <span class="notification-unread-dot"></span>
-            </a>
-            <a href="javascript:void(0)" class="notification-item">
-              <div class="notification-icon bg-primary text-white">
-                <i class="bi bi-arrow-left-right"></i>
-              </div>
-              <div class="notification-content">
-                <p class="notification-text">Wallet funded: <strong>+10,000.00</strong></p>
-                <span class="notification-time">1 hour ago</span>
-              </div>
-              <span class="notification-unread-dot"></span>
-            </a>
-            <a href="javascript:void(0)" class="notification-item">
-              <div class="notification-icon bg-warning text-dark">
-                <i class="bi bi-hourglass-split"></i>
-              </div>
-              <div class="notification-content">
-                <p class="notification-text">Order pending: <strong>SELL 5 INFY</strong></p>
-                <span class="notification-time">3 hours ago</span>
-              </div>
-            </a>
+            @for (item of notifications.items(); track item.id) {
+              <button
+                type="button"
+                class="notification-item"
+                data-testid="notification-item"
+                (click)="notifications.markRead(item.id)"
+              >
+                <div class="notification-icon" [class]="'notification-icon notification-tone-' + notificationStyle(item.kind).tone">
+                  <i class="bi" [class]="'bi ' + notificationStyle(item.kind).icon"></i>
+                </div>
+                <div class="notification-content">
+                  <p class="notification-text">{{ item.message }}</p>
+                  <span class="notification-time">{{ timeAgo(item.occurredAt, notifications.now()) }}</span>
+                </div>
+                @if (!notifications.isRead(item.id)) {
+                  <span class="notification-unread-dot"></span>
+                }
+              </button>
+            } @empty {
+              <p class="notification-empty" data-testid="notification-empty">
+                @if (notifications.failed()) {
+                  Could not load notifications right now.
+                } @else if (session.accountId() === null) {
+                  Link a bank account to start receiving account notifications.
+                } @else {
+                  Nothing yet. Orders and wallet transfers will show up here.
+                }
+              </p>
+            }
           </div>
-          <a href="javascript:void(0)" class="notification-footer">View all notifications</a>
         </div>
       </div>
 
       <div class="dropdown ms-2">
         <button class="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          <img src="/images/avatar.png" alt="Profile" class="navbar-profile-img">
-          <span class="navbar-profile-name d-none d-md-inline">Demo Trader</span>
+          <tui-avatar [src]="profile.avatarUrl()" [initials]="profile.initials()" imgClass="navbar-profile-img" />
+          <span class="navbar-profile-name d-none d-md-inline" data-testid="navbar-name">{{ profile.displayName() ?? 'Trader' }}</span>
           <i class="bi bi-chevron-down navbar-profile-caret"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end dropdown-menu-profile">
-          <li class="dropdown-header">Welcome!</li>
-          <li><a class="dropdown-item" href="javascript:void(0)"><i class="bi bi-person"></i> My Account</a></li>
-          <li><a class="dropdown-item" href="javascript:void(0)"><i class="bi bi-gear"></i> Settings</a></li>
+          <li class="dropdown-header">
+            Welcome{{ profile.displayName() ? ', ' + profile.displayName() : '' }}!
+            @if (profile.email()) {
+              <div class="dropdown-header-sub">{{ profile.email() }}</div>
+            }
+          </li>
+          <li><a class="dropdown-item" routerLink="/account" data-testid="menu-account"><i class="bi bi-person"></i> My Account</a></li>
+          <li><a class="dropdown-item" routerLink="/settings" data-testid="menu-settings"><i class="bi bi-gear"></i> Settings</a></li>
           <li><hr class="dropdown-divider"></li>
           <li>
             <button
@@ -180,7 +207,9 @@
         <i class="bi bi-graph-up-arrow"></i> Trading UI
       </span>
       <span class="footer-separator">|</span>
-      <span class="footer-copy">Sprint 9 &mdash; UI shell only, no live data</span>
+      <span class="footer-copy">Prices are polled about once a minute and may be delayed</span>
     </div>
   </footer>
 </div>
+
+<tui-toast-container />

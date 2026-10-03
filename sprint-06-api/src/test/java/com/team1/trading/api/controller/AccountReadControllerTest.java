@@ -2,6 +2,7 @@ package com.team1.trading.api.controller;
 
 import com.team1.trading.api.dto.AccountResponse;
 import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
 import com.team1.trading.api.dto.OrderHistoryEntry;
 import com.team1.trading.api.dto.PortfolioResponse;
 import com.team1.trading.api.dto.PositionResponse;
@@ -143,5 +144,35 @@ class AccountReadControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode", is("ACC-403")))
                 .andExpect(jsonPath("$.message", is("Account not active")));
+    }
+
+    @Test
+    @DisplayName("Notifications are returned newest-first with their message")
+    void testNotifications() throws Exception {
+        NotificationResponse n = new NotificationResponse();
+        n.setId("order-abc-FILLED");
+        n.setKind("ORDER_FILLED");
+        n.setMessage("Order filled: BUY 10 RELIANCE @ 1300.00");
+        n.setOccurredAt(java.time.OffsetDateTime.parse("2026-09-28T09:14:22+05:30"));
+        given(accountService.getNotifications(eq(ACCOUNT_ID), any(), eq(10))).willReturn(List.of(n));
+
+        mockMvc.perform(get("/api/v1/accounts/1/notifications").param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is("order-abc-FILLED")))
+                .andExpect(jsonPath("$[0].kind", is("ORDER_FILLED")))
+                .andExpect(jsonPath("$[0].message", is("Order filled: BUY 10 RELIANCE @ 1300.00")))
+                .andExpect(jsonPath("$[0].occurredAt", org.hamcrest.Matchers.matchesPattern(".*(Z|[+-]\\d\\d:\\d\\d)$")));
+    }
+
+    @Test
+    @DisplayName("Notifications for someone else's account are ACC-403")
+    void testNotificationsForbidden() throws Exception {
+        given(accountService.getNotifications(eq(ACCOUNT_ID), any(), any()))
+                .willThrow(new AccountNotActiveException(ACCOUNT_ID, "TOKEN"));
+
+        mockMvc.perform(get("/api/v1/accounts/1/notifications"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", is("ACC-403")));
     }
 }
