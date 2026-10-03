@@ -47,6 +47,8 @@ describe('theme toggle on the pages without a navbar', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
 
+    expect(root.querySelector('.login-brand, .login-logo, .login-wrapper span')?.textContent ?? root.textContent).toContain('YRVTrading');
+
     const toggle = root.querySelector<HTMLButtonElement>('.theme-toggle-floating [data-testid="theme-toggle"]');
     expect(toggle).not.toBeNull();
 

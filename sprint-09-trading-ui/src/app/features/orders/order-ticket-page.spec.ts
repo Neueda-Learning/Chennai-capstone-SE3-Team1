@@ -40,6 +40,11 @@ function quote(overrides: Record<string, unknown>) {
   };
 }
 
+const CANDLES = [
+  { time: '2026-02-14T10:00:00Z', open: 100, high: 102, low: 99, close: 101, volume: null },
+  { time: '2026-02-14T10:05:00Z', open: 101, high: 103, low: 100, close: 102, volume: null }
+];
+
 const QUOTES = [
   quote({ symbol: 'RELIANCE', name: 'Reliance Industries', price: 1300.1, bid: 1299.9, ask: 1300.3, change: 12.4, changePercent: 0.96 }),
   quote({ symbol: 'TCS', name: 'Tata Consultancy Services', price: 3300.5, bid: 3300.1, ask: 3300.9, change: -20, changePercent: -0.6 }),
@@ -86,7 +91,7 @@ describe('OrderTicketPage', () => {
   let account: object;
   let portfolio: object;
   let failing: Set<string>;
-  let historyRequests: string[];
+  let candleRequests: string[];
 
   function setUp(accountId: number | null = ACCOUNT_ID, symbolInUrl: string | null = null, params?: BehaviorSubject<ParamMap>): void {
     quotes = QUOTES;
@@ -98,7 +103,7 @@ describe('OrderTicketPage', () => {
       positions: []
     };
     failing = new Set();
-    historyRequests = [];
+    candleRequests = [];
 
     TestBed.configureTestingModule({
       imports: [OrderTicketPage],
@@ -128,9 +133,9 @@ describe('OrderTicketPage', () => {
 
     if (url === QUOTES_URL) {
       fail('quotes') ? refuse() : request.flush(quotes);
-    } else if (url.startsWith(`${QUOTES_URL}/`) && url.includes('/history')) {
-      historyRequests.push(url);
-      fail('history') ? refuse() : request.flush([{ at: '2026-02-14T10:00:00Z', price: 100 }, { at: '2026-02-14T10:01:00Z', price: 101 }]);
+    } else if (url.startsWith(`${QUOTES_URL}/`) && url.includes('/candles')) {
+      candleRequests.push(url);
+      fail('candles') ? refuse() : request.flush(CANDLES);
     } else if (url === BALANCE_URL) {
       fail('balance') ? refuse() : request.flush(balance);
     } else if (url === ACCOUNT_URL) {
@@ -181,6 +186,13 @@ describe('OrderTicketPage', () => {
 
   function pick(fixture: TicketFixture, symbol: string): void {
     tickers(fixture).find((button) => button.textContent?.includes(symbol))!.click();
+    fixture.detectChanges();
+    settle(fixture);
+  }
+
+  /** Clicks a chart control and lets the candles it triggers load. */
+  function click(fixture: TicketFixture, testId: string): void {
+    root(fixture).querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click();
     fixture.detectChanges();
     settle(fixture);
   }
@@ -244,7 +256,7 @@ describe('OrderTicketPage', () => {
 
       expect(textOf(fixture, '[data-testid="selected-symbol"]')).toContain('RELIANCE');
       expect(textOf(fixture, '[data-testid="current-price"]')).toContain('1,300.10');
-      expect(historyRequests.some((url) => url.includes('/RELIANCE/history'))).toBe(true);
+      expect(candleRequests.some((url) => url.includes('/RELIANCE/candles?interval=5m&range=1d'))).toBe(true);
       expect(tickers(fixture)[0].classList.contains('active')).toBe(true);
     });
 
@@ -276,20 +288,32 @@ describe('OrderTicketPage', () => {
 
       expect(textOf(fixture, '[data-testid="selected-symbol"]')).toContain('TCS');
       expect(textOf(fixture, '[data-testid="current-price"]')).toContain('3,300.50');
-      expect(historyRequests.some((url) => url.includes('/TCS/history'))).toBe(true);
+      expect(candleRequests.some((url) => url.includes('/TCS/candles'))).toBe(true);
     });
 
-    it('re-reads the history for a longer range when one is picked', () => {
+    it('says so when the chart data cannot be loaded', () => {
+      setUp();
+      failing.add('candles');
+      const fixture = create();
+
+      expect(textOf(fixture, '[data-testid="history-failed"]')).toContain('Could not load the chart data');
+    });
+
+    it('says why a chart is empty, differently for short candles and daily ones', () => {
       setUp();
       const fixture = create();
-      historyRequests.length = 0;
+      const empty = () => root(fixture).querySelector('[data-testid="history-empty"]')?.textContent?.replace(/\s+/g, ' ');
+      expect(empty()).toBeUndefined();
 
-      const eightHours = Array.from(root(fixture).querySelectorAll<HTMLButtonElement>('.range-btn')).find((b) => b.textContent?.includes('8H'))!;
-      eightHours.click();
-      fixture.detectChanges();
-      settle(fixture);
-
-      expect(historyRequests.some((url) => url.includes('limit=480'))).toBe(true);
+      const original = CANDLES.splice(0, CANDLES.length);
+      try {
+        click(fixture, 'range-1h');
+        expect(empty()).toContain('fill in as the minute-by-minute quotes arrive');
+        click(fixture, 'range-1y');
+        expect(empty()).toContain('No daily history is available');
+      } finally {
+        CANDLES.push(...original);
+      }
     });
 
     it('says so when the prices cannot be loaded', () => {
@@ -318,6 +342,182 @@ describe('OrderTicketPage', () => {
       const fixture = create();
 
       expect(textOf(fixture, '[data-testid="stale-badge"]')).toContain('Delayed');
+    });
+  });
+
+  describe('the chart controls', () => {
+    const labels = (fixture: TicketFixture, prefix: string) =>
+      Array.from(root(fixture).querySelectorAll(`[data-testid^="${prefix}"]`)).map((b) => b.textContent?.trim());
+
+    it('starts on 5-minute candles over one day', () => {
+      setUp();
+      const fixture = create();
+
+      expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
+      expect(root(fixture).querySelector('[data-testid="interval-5m"]')?.classList.contains('active')).toBe(true);
+      expect(candleRequests.some((url) => url.includes('interval=5m&range=1d'))).toBe(true);
+    });
+
+    it('offers short ranges, daily ranges, and finer candles than just 1H and 8H', () => {
+      setUp();
+      const fixture = create();
+
+      expect(labels(fixture, 'range-')).toEqual(['1H', '3H', '8H', '1D', '3D', '1W', '1M', '3M', '6M', 'YTD', '1Y']);
+      expect(labels(fixture, 'interval-')).toEqual(['1m', '5m', '15m', '30m', '1h']);
+    });
+
+    it('only offers candle sizes that fit the chosen range', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'range-1w');
+      expect(labels(fixture, 'interval-')).toEqual(['15m', '30m', '1h']);
+      click(fixture, 'range-ytd');
+      expect(labels(fixture, 'interval-')).toEqual(['1D', '1W', '1M']);
+    });
+
+    it('asks the API for the candle size and range chosen', () => {
+      setUp();
+      const fixture = create();
+      candleRequests.length = 0;
+
+      click(fixture, 'interval-15m');
+      click(fixture, 'range-3mo');
+
+      expect(candleRequests.some((url) => url.includes('interval=15m&range=1d'))).toBe(true);
+      expect(candleRequests.some((url) => url.includes('interval=1d&range=3mo'))).toBe(true);
+    });
+
+    it('keeps the candle size when it still fits a new range, else takes that range default', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'interval-15m');
+      click(fixture, 'range-3d');
+      expect(root(fixture).querySelector('[data-testid="interval-15m"]')?.classList.contains('active')).toBe(true);
+
+      click(fixture, 'range-1y');
+      expect(root(fixture).querySelector('[data-testid="interval-1w"]')?.classList.contains('active')).toBe(true);
+    });
+
+    it('re-reads the candles of the next ticker, with the same setup', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'interval-15m');
+      candleRequests.length = 0;
+
+      pick(fixture, 'TCS');
+
+      expect(candleRequests.some((url) => url.includes('/TCS/candles?interval=15m&range=1d'))).toBe(true);
+    });
+
+    it('switches between candles and a line', () => {
+      setUp();
+      const fixture = create();
+      expect(root(fixture).querySelector('[data-testid="style-candles"]')?.classList.contains('active')).toBe(true);
+
+      click(fixture, 'style-line');
+
+      expect(root(fixture).querySelector('[data-testid="style-line"]')?.classList.contains('active')).toBe(true);
+      expect(root(fixture).querySelector('[data-testid="style-candles"]')?.classList.contains('active')).toBe(false);
+    });
+
+    it('lists every indicator, and turning one on or off is a checkbox', () => {
+      setUp();
+      const fixture = create();
+      const box = (id: string) => root(fixture).querySelector<HTMLInputElement>(`[data-testid="indicator-${id}"]`)!;
+
+      expect(Array.from(root(fixture).querySelectorAll('.indicator-item')).map((e) => e.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        'SMA 20', 'SMA 50', 'EMA 20', 'Bollinger', 'Volumedaily candles', 'RSI 14', 'MACD'
+      ]);
+      expect(box('sma20').checked).toBe(true); // the default
+      expect(box('macd').checked).toBe(false);
+
+      box('macd').click();
+      box('bollinger').click();
+      fixture.detectChanges();
+      expect(box('macd').checked).toBe(true);
+      expect(textOf(fixture, '[data-testid="indicator-count"]')).toBe('3');
+
+      box('sma20').click();
+      fixture.detectChanges();
+      expect(box('sma20').checked).toBe(false);
+      expect(textOf(fixture, '[data-testid="indicator-count"]')).toBe('2');
+    });
+
+    it('volume is unavailable for short candles and available for daily ones', () => {
+      setUp();
+      const fixture = create();
+      const volume = () => root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-volume"]')!;
+
+      expect(volume().disabled).toBe(true);
+      click(fixture, 'range-ytd');
+      expect(volume().disabled).toBe(false);
+    });
+
+    it('draws a pane for each pane-style indicator that is on', () => {
+      setUp();
+      const fixture = create();
+      const shown = (pane: string) => !root(fixture).querySelector<HTMLElement>(`[data-testid="pane-${pane}"]`)!.hidden;
+
+      expect([shown('volume'), shown('rsi'), shown('macd')]).toEqual([false, false, false]);
+
+      click(fixture, 'range-ytd');
+      for (const id of ['volume', 'rsi', 'macd']) {
+        root(fixture).querySelector<HTMLInputElement>(`[data-testid="indicator-${id}"]`)!.click();
+      }
+      fixture.detectChanges();
+
+      expect([shown('volume'), shown('rsi'), shown('macd')]).toEqual([true, true, true]);
+    });
+
+    it('remembers the setup for the next visit', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'range-3mo');
+      click(fixture, 'style-line');
+      root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-rsi"]')!.click();
+      fixture.detectChanges();
+      TestBed.tick();
+
+      expect(JSON.parse(localStorage.getItem('trading-ui.chart')!)).toEqual({
+        range: '3mo', interval: '1d', style: 'line', indicators: ['sma20', 'rsi']
+      });
+    });
+
+    it('restores a saved setup, and ignores anything in it that is not valid', () => {
+      localStorage.setItem('trading-ui.chart', JSON.stringify({ range: '1w', interval: '1m', style: 'line', indicators: ['macd', 'bogus'] }));
+      setUp();
+      const fixture = create();
+
+      expect(root(fixture).querySelector('[data-testid="range-1w"]')?.classList.contains('active')).toBe(true);
+      // 1m over a week is more candles than allowed, so the range's default is used instead
+      expect(root(fixture).querySelector('[data-testid="interval-30m"]')?.classList.contains('active')).toBe(true);
+      expect(root(fixture).querySelector('[data-testid="style-line"]')?.classList.contains('active')).toBe(true);
+      expect(root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-macd"]')!.checked).toBe(true);
+      expect(root(fixture).querySelector('[data-testid="indicator-bogus"]')).toBeNull();
+    });
+
+    it('survives a corrupt saved setup', () => {
+      localStorage.setItem('trading-ui.chart', '{not json');
+      setUp();
+      const fixture = create();
+
+      expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
+    });
+
+    it('resets to the default setup', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'range-ytd');
+      click(fixture, 'style-line');
+
+      root(fixture).querySelector<HTMLButtonElement>('[data-testid="chart-reset"]')!.click();
+      fixture.detectChanges();
+      settle(fixture);
+
+      expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
+      expect(root(fixture).querySelector('[data-testid="style-candles"]')?.classList.contains('active')).toBe(true);
     });
   });
 

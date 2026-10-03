@@ -151,7 +151,15 @@
                   </span>
                 </td>
                 <td class="col-quantity">{{ row.quantity }}</td>
-                <td class="col-price">{{ row.price }}</td>
+                <td class="col-price" data-testid="price-cell">
+                  @if (row.executedPrice) {
+                    <span data-testid="executed-price">{{ row.executedPrice }}</span>
+                    <span class="price-note">filled · limit {{ row.price }}</span>
+                  } @else {
+                    <span data-testid="limit-price">{{ row.price }}</span>
+                    <span class="price-note">limit</span>
+                  }
+                </td>
                 <td class="col-date">{{ row.date }}</td>
                 <td class="col-status">
                   <span class="badge-table" [ngClass]="getStatusClass(row.status)">
@@ -280,7 +288,7 @@
             <span class="detail-value">{{ selectedOrderForDetails()!.quantity }}</span>
           </div>
           <div class="detail-item">
-            <label class="detail-label">Price</label>
+            <label class="detail-label">Limit Price</label>
             <span class="detail-value">{{ selectedOrderForDetails()!.price }}</span>
           </div>
           @if (selectedOrderForDetails()!.executedPrice) {

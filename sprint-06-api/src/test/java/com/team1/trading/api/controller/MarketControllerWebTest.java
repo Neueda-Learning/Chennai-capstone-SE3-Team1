@@ -1,7 +1,9 @@
 package com.team1.trading.api.controller;
 
+import com.team1.trading.api.dto.CandleResponse;
 import com.team1.trading.api.dto.MarketPoint;
 import com.team1.trading.api.dto.MarketQuoteResponse;
+import com.team1.trading.api.market.CandleService;
 import com.team1.trading.api.security.JwtVerificationFilter;
 import com.team1.trading.api.service.MarketService;
 import com.team1.trading.domain.exception.InstrumentNotFoundException;
@@ -40,6 +42,9 @@ class MarketControllerWebTest {
 
     @MockitoBean
     private MarketService marketService;
+
+    @MockitoBean
+    private CandleService candleService;
 
     @Test
     @DisplayName("GET /quotes lists the latest quote per instrument")
@@ -80,5 +85,43 @@ class MarketControllerWebTest {
         mockMvc.perform(get("/api/v1/market/quotes/NOPE/history"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode", is("INS-404")));
+    }
+
+    @Test
+    @DisplayName("GET /candles passes the interval and range through and returns OHLC")
+    void candles() throws Exception {
+        CandleResponse c = new CandleResponse();
+        c.setTime(OffsetDateTime.parse("2026-10-03T10:00:00+05:30"));
+        c.setOpen(new BigDecimal("1300.00"));
+        c.setHigh(new BigDecimal("1305.50"));
+        c.setLow(new BigDecimal("1299.00"));
+        c.setClose(new BigDecimal("1304.25"));
+        given(candleService.candles("RELIANCE", "15m", "1d")).willReturn(List.of(c));
+
+        mockMvc.perform(get("/api/v1/market/quotes/RELIANCE/candles").param("interval", "15m").param("range", "1d"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].open", is(1300.00)))
+                .andExpect(jsonPath("$[0].high", is(1305.50)))
+                .andExpect(jsonPath("$[0].low", is(1299.00)))
+                .andExpect(jsonPath("$[0].close", is(1304.25)));
+    }
+
+    @Test
+    @DisplayName("GET /candles defaults to 5-minute candles over a day")
+    void candlesDefaults() throws Exception {
+        given(candleService.candles("RELIANCE", "5m", "1d")).willReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/market/quotes/RELIANCE/candles")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("A nonsense interval is VAL-422")
+    void candlesInvalid() throws Exception {
+        given(candleService.candles("RELIANCE", "7m", "1d")).willThrow(new com.team1.trading.domain.exception.InvalidOrderException("interval/range", "7m/1d"));
+
+        mockMvc.perform(get("/api/v1/market/quotes/RELIANCE/candles").param("interval", "7m"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errorCode", is("VAL-422")));
     }
 }

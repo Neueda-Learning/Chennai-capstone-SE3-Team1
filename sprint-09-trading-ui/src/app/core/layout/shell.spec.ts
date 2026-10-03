@@ -109,6 +109,15 @@ describe('Shell', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
+  it('is branded YRVTrading in the sidebar and the footer', () => {
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+
+    expect(textOf(fixture, '.sidebar-brand')).toBe('YRVTrading');
+    expect(textOf(fixture, '.footer-logo')).toBe('YRVTrading');
+    expect(root(fixture).textContent).not.toContain('Trading UI');
+  });
+
   it('should render the five navigation links', () => {
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();

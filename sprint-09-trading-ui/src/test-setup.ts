@@ -7,3 +7,13 @@ beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
 });
+
+// jsdom has no ResizeObserver, which ApexCharts uses to redraw when its container resizes. Real
+// browsers all have one; without a stand-in the charts never finish rendering under test.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  } as unknown as typeof ResizeObserver;
+}

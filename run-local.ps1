@@ -246,9 +246,24 @@ if ($KafkaHosted) {
             $id = (java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool random-uuid 2>$null | Select-Object -Last 1).Trim()
             java "-Dlog4j.configuration=$toolsLog4j" -cp $kafkaLibs kafka.tools.StorageTool format -t $id -c $kafkaCfg | Out-Null
         }
+        # Kafka on Windows cannot rename a log file another handle still has open, and its log
+        # cleaner (which compacts __consumer_offsets) renames files constantly. One failed rename
+        # marks the whole log directory failed and the broker shuts itself down - and the half-
+        # finished .cleaned/.swap file it leaves behind makes the NEXT start fail the same way,
+        # so a crashed broker never comes back and orders sit at NEW with nothing to execute them.
+        # Retention does the same thing: deleting an expired segment renames it to *.deleted. After
+        # a few days of downtime every old segment is expired at once and the first sweep kills the
+        # broker. Clear the cleaner's leftovers (they are only scratch files) and switch both the
+        # cleaner and retention-based deletion off for this local broker: nothing here needs
+        # compaction, and a dev broker may keep its few megabytes forever.
+        if (Test-Path $kafkaDataDir) {
+            Get-ChildItem -Path $kafkaDataDir -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Extension -in ".cleaned", ".swap" } |
+                ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+        }
         $kp = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir "kafka.log") -RedirectStandardError (Join-Path $LogDir "kafka.err") `
-            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg)
+            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg, "--override", "log.cleaner.enable=false", "--override", "log.retention.hours=876000")
         $kafkaPid = $kp.Id
         Write-Host "    broker starting (pid $kafkaPid)"
         if (-not (Wait-Until "kafka :$KafkaPort" { Test-Port $KafkaPort } 90)) { Fail "see $LogDir\kafka.log" }

@@ -35,7 +35,7 @@ funding, the shell's profile and notifications. What is still a placeholder is l
 |---|---|
 | Dashboard (`features/dashboard`) | `GET /accounts/{id}/balance`, `/portfolio`, `/orders` and `GET /market/quotes`, refreshed every minute. Valuation maths is in `core/portfolio/portfolio-metrics.ts`. |
 | Portfolio (`features/portfolio`) | Same balance, portfolio and quotes calls. |
-| Market & Trade (`features/orders`, class `OrderTicketPage`) | `GET /market/quotes` every 30s, `/market/quotes/{symbol}/history` for the chart, `POST /orders`. Orders carry no typed price: they go in at the current market price (see `PRICE_PROTECTION` in `order-ticket-page.ts`). |
+| Market & Trade (`features/orders`, class `OrderTicketPage`) | `GET /market/quotes` every 30s, `/market/quotes/{symbol}/candles` for the chart (candles at 1m...1mo over 1H...1Y, with SMA/EMA/Bollinger/Volume/RSI/MACD toggles computed client-side in `core/charts/indicators.ts`; the setup is remembered in `localStorage`), `POST /orders`. Orders carry no typed price: they go in at the current market price (see `PRICE_PROTECTION` in `order-ticket-page.ts`). |
 | Blotter | `GET /accounts/{id}/orders`. |
 | Navbar search (`core/search`) | Quotes and the account's orders, fetched on first use and matched locally; opens `/orders?symbol=` or `/blotter?q=`. |
 | My Account / Settings | `UserProfileStore`; settings are browser-local (theme, notification pop-ups). |

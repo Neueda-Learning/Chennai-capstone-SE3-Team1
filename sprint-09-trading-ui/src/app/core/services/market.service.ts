@@ -36,6 +36,19 @@ export interface MarketPoint {
 }
 
 /**
+ * One OHLC candle. `time` is when the period it covers starts. `volume` is `null` for the
+ * intraday candles, which are built from polled prices and so carry no traded volume.
+ */
+export interface Candle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+/**
  * Reads the market data the Trade API keeps from the market-data poller.
  *
  * Hand-written rather than generated, like `BankAccountReaderService`: `/api/v1/market/**` is
@@ -59,6 +72,19 @@ export class MarketService {
     return this.http.get<MarketPoint[]>(
       `${this.tradeConfig.basePath}/api/v1/market/quotes/${encodeURIComponent(symbol)}/history`,
       { params }
+    );
+  }
+
+  /**
+   * Candles for the price chart. `interval` is `1m 5m 15m 30m 1h` over a `range` of `1h 3h 8h 1d 3d 1w`
+   * (built from the minute quotes the API stores) or `1d 1w 1mo` over `1mo 3mo 6mo ytd 1y` (from a
+   * year of end-of-day history the API fetches from Fauxnance once a day). The API refuses any
+   * other combination; `core/charts/chart-options.ts` only offers valid ones.
+   */
+  getCandles(symbol: string, interval: string, range: string): Observable<Candle[]> {
+    return this.http.get<Candle[]>(
+      `${this.tradeConfig.basePath}/api/v1/market/quotes/${encodeURIComponent(symbol)}/candles`,
+      { params: new HttpParams().set('interval', interval).set('range', range) }
     );
   }
 }

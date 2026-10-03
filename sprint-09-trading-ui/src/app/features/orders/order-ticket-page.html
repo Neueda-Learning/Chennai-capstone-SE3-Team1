@@ -1,7 +1,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Market &amp; Trade</h1>
-    <p class="page-subtitle">Pick a ticker to see its price history, then buy or sell at the current price.</p>
+    <p class="page-subtitle">Pick a ticker to chart it, then buy or sell at the current price.</p>
   </div>
 </div>
 
@@ -74,18 +74,6 @@
             <h2 class="card-title">Select a ticker</h2>
           }
         </div>
-        <div class="range-switch" role="group" aria-label="Chart range">
-          @for (option of ranges; track option.label) {
-            <button
-              type="button"
-              class="range-btn"
-              [class.active]="range().label === option.label"
-              (click)="selectRange(option)"
-            >
-              {{ option.label }}
-            </button>
-          }
-        </div>
       </div>
 
       @if (selected(); as quote) {
@@ -101,23 +89,108 @@
             @if (quote.stale) {
               <span class="badge-table pending" data-testid="stale-badge">Delayed</span>
             }
-            @if (quote.marketState) {
+            @if (quote.marketState && quote.marketState.toLowerCase() !== 'unknown') {
               <span class="small text-muted-green">{{ quote.marketState }}</span>
             }
           }
         </div>
       }
 
-      <div [hidden]="selected() === null">
-        <div #priceChart></div>
+      <div class="chart-toolbar" [hidden]="selected() === null" data-testid="chart-toolbar">
+        <div class="range-switch" role="group" aria-label="Range">
+          @for (option of ranges; track option.value) {
+            <button
+              type="button"
+              class="range-btn"
+              [attr.data-testid]="'range-' + option.value"
+              [class.active]="range().value === option.value"
+              (click)="selectRange(option)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+
+        <div class="range-switch" role="group" aria-label="Candle size">
+          <span class="range-switch-label">Candle</span>
+          @for (option of intervals(); track option.value) {
+            <button
+              type="button"
+              class="range-btn"
+              [attr.data-testid]="'interval-' + option.value"
+              [class.active]="interval().value === option.value"
+              (click)="selectInterval(option)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+
+        <div class="range-switch" role="group" aria-label="Chart type">
+          <button type="button" class="range-btn" data-testid="style-candles" [class.active]="chartStyle() === 'candles'" (click)="selectStyle('candles')">
+            <i class="bi bi-bar-chart-steps"></i> Candles
+          </button>
+          <button type="button" class="range-btn" data-testid="style-line" [class.active]="chartStyle() === 'line'" (click)="selectStyle('line')">
+            <i class="bi bi-graph-up"></i> Line
+          </button>
+        </div>
+
+        <div class="dropdown">
+          <button
+            type="button"
+            class="range-btn indicator-btn dropdown-toggle"
+            data-testid="indicators-menu"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-expanded="false"
+          >
+            <i class="bi bi-activity"></i> Indicators
+            @if (indicators().length > 0) {
+              <span class="notification-count" data-testid="indicator-count">{{ indicators().length }}</span>
+            }
+          </button>
+          <div class="dropdown-menu dropdown-menu-end indicator-menu p-2">
+            @for (option of indicatorOptions; track option.id) {
+              <label
+                class="indicator-item form-check-custom"
+                [class.disabled]="option.needsVolume && !hasVolume()"
+                [attr.title]="option.hint"
+              >
+                <input
+                  type="checkbox"
+                  class="form-check-input-custom"
+                  [attr.data-testid]="'indicator-' + option.id"
+                  [checked]="indicators().includes(option.id)"
+                  [disabled]="option.needsVolume && !hasVolume()"
+                  (change)="toggleIndicator(option.id)"
+                />
+                <span>{{ option.label }}</span>
+                @if (option.needsVolume && !hasVolume()) {
+                  <span class="indicator-note">daily candles</span>
+                }
+              </label>
+            }
+            <button type="button" class="btn-link-inline indicator-reset" data-testid="chart-reset" (click)="resetChart()">Reset chart</button>
+          </div>
+        </div>
       </div>
-      @switch (historyState()) {
+
+      <div [hidden]="selected() === null">
+        <tui-price-chart [candles]="candles()" [style]="chartStyle()" [indicators]="indicators()" [hasVolume]="hasVolume()" />
+      </div>
+      @switch (candlesState()) {
         @case ('failed') {
-          <p class="empty-note" data-testid="history-failed">Could not load the price history.</p>
+          <p class="empty-note" data-testid="history-failed">Could not load the chart data.</p>
         }
         @case ('ready') {
-          @if (history().length === 0) {
-            <p class="empty-note" data-testid="history-empty">No price history has been recorded for this ticker yet.</p>
+          @if (candles().length === 0) {
+            <p class="empty-note" data-testid="history-empty">
+              @if (interval().kind === 'daily') {
+                No daily history is available for this ticker yet.
+              } @else {
+                No prices have been recorded for this ticker in this range yet. Short candles fill in as the minute-by-minute quotes arrive.
+              }
+            </p>
           }
         }
       }

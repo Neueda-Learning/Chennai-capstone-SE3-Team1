@@ -1,19 +1,29 @@
-import { Component, ElementRef, OnDestroy, computed, effect, inject, signal, untracked, viewChild, AfterViewInit } from '@angular/core';
+import { Component, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import ApexCharts from 'apexcharts';
-import type { ApexOptions } from 'apexcharts';
 import { Subscription, forkJoin, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 
 import { SessionStore } from '../../core/auth/session.store';
-import { chartPalette } from '../../core/charts/chart-theme';
+import {
+  ChartInterval,
+  ChartPreferences,
+  ChartRange,
+  ChartStyle,
+  DEFAULT_PREFERENCES,
+  INDICATORS,
+  IndicatorId,
+  INTERVALS,
+  RANGES,
+  defaultIntervalFor,
+  intervalsFor,
+  reconcileInterval
+} from '../../core/charts/chart-options';
 import { formatMoney, formatSignedPercent, roundToPaise } from '../../core/format/money';
 import { NotificationStore } from '../../core/notifications/notification.store';
-import { MarketPoint, MarketQuote, MarketService } from '../../core/services/market.service';
+import { Candle, MarketQuote, MarketService } from '../../core/services/market.service';
 import { Portfolio, PortfolioService } from '../../core/services/portfolio.service';
-import { ThemeService } from '../../core/theme/theme.service';
 import {
   AccountResponse,
   AccountsService,
@@ -24,6 +34,7 @@ import {
   OrdersService
 } from '../../generated/trade-client';
 import { OrderErrorMessages } from './order-error-messages';
+import { PriceChart } from './price-chart';
 import { wholeQuantity } from './order-validators';
 
 /**
@@ -37,7 +48,7 @@ import { wholeQuantity } from './order-validators';
 export const PRICE_PROTECTION = 0.02;
 
 const QUOTE_REFRESH_MS = 30_000;
-const FONT = 'Plus Jakarta Sans, sans-serif';
+const CHART_PREFS_KEY = 'trading-ui.chart';
 
 type Load = 'idle' | 'loading' | 'ready' | 'failed';
 
@@ -54,11 +65,6 @@ interface OrderRefused {
 }
 
 type OrderOutcome = OrderAccepted | OrderRefused;
-
-export interface ChartRange {
-  label: string;
-  points: number;
-}
 
 /** Messages for the rules the form blocks on its own. */
 const FIELD_MESSAGES: Record<string, string> = {
@@ -81,11 +87,11 @@ const FIELD_MESSAGES: Record<string, string> = {
  */
 @Component({
   selector: 'tui-order-ticket-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, PriceChart],
   templateUrl: './order-ticket-page.html',
   styleUrl: './order-ticket-page.css'
 })
-export class OrderTicketPage implements AfterViewInit, OnDestroy {
+export class OrderTicketPage implements OnDestroy {
   private readonly formBuilder = inject(FormBuilder);
   private readonly orders = inject(OrdersService);
   private readonly accounts = inject(AccountsService);
@@ -94,10 +100,7 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
   private readonly session = inject(SessionStore);
   private readonly errorMessages = inject(OrderErrorMessages);
   private readonly notifications = inject(NotificationStore);
-  private readonly theme = inject(ThemeService);
   private readonly route = inject(ActivatedRoute, { optional: true });
-
-  private readonly chartEl = viewChild.required<ElementRef<HTMLElement>>('priceChart');
 
   protected readonly formatMoney = formatMoney;
   protected readonly formatSignedPercent = formatSignedPercent;
@@ -111,14 +114,21 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
   protected readonly quotesState = signal<Load>('idle');
   protected readonly selectedSymbol = signal<string | null>(null);
 
-  protected readonly ranges: readonly ChartRange[] = [
-    { label: '1H', points: 60 },
-    { label: '3H', points: 180 },
-    { label: '8H', points: 480 }
-  ];
-  protected readonly range = signal<ChartRange>(this.ranges[1]);
-  protected readonly history = signal<MarketPoint[]>([]);
-  protected readonly historyState = signal<Load>('idle');
+  // ---- the chart: what to draw, remembered per browser
+  protected readonly ranges = RANGES;
+  protected readonly indicatorOptions = INDICATORS;
+  private readonly savedPrefs = loadPreferences();
+  protected readonly range = signal<ChartRange>(RANGES.find((r) => r.value === this.savedPrefs.range) ?? RANGES[3]);
+  protected readonly interval = signal<ChartInterval>(
+    reconcileInterval(this.range(), INTERVALS.find((i) => i.value === this.savedPrefs.interval) ?? null)
+  );
+  protected readonly chartStyle = signal<ChartStyle>(this.savedPrefs.style);
+  protected readonly indicators = signal<readonly IndicatorId[]>(this.savedPrefs.indicators);
+  protected readonly intervals = computed(() => intervalsFor(this.range()));
+  protected readonly candles = signal<Candle[]>([]);
+  protected readonly candlesState = signal<Load>('idle');
+  /** Daily and longer candles carry volume; the intraday ones, built from polled prices, do not. */
+  protected readonly hasVolume = computed(() => this.interval().kind === 'daily');
 
   protected readonly balance = signal<BalanceResponse | null>(null);
   protected readonly balanceState = signal<Load>('idle');
@@ -211,10 +221,9 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
     return null;
   });
 
-  private chart: ApexCharts | null = null;
   private quotesSubscription: Subscription | null = null;
   private preferredSymbol: string | null = this.route?.snapshot?.queryParamMap?.get('symbol') ?? null;
-  private historyRequest: Subscription | null = null;
+  private candleRequest: Subscription | null = null;
 
   constructor() {
     // A type="number" input hands the form a number once it parses, so normalise to text.
@@ -254,28 +263,29 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
       });
     });
 
-    // The chart follows the selected ticker, the range and the theme.
+    // The candles follow the selected ticker, the range and the candle size.
     effect(() => {
       const symbol = this.selectedSymbol();
       const range = this.range();
-      untracked(() => this.loadHistory(symbol, range.points));
+      const interval = this.interval();
+      untracked(() => this.loadCandles(symbol, interval, range));
     });
-    effect(() => {
-      this.history();
-      this.theme.isDark();
-      untracked(() => this.syncChart());
-    });
-  }
 
-  ngAfterViewInit(): void {
-    this.chart = new ApexCharts(this.chartEl().nativeElement, this.chartOptions());
-    void this.chart.render();
+    // Remember the chart setup between visits.
+    effect(() => {
+      const prefs: ChartPreferences = {
+        range: this.range().value,
+        interval: this.interval().value,
+        style: this.chartStyle(),
+        indicators: [...this.indicators()]
+      };
+      untracked(() => savePreferences(prefs));
+    });
   }
 
   ngOnDestroy(): void {
     this.quotesSubscription?.unsubscribe();
-    this.historyRequest?.unsubscribe();
-    this.chart?.destroy();
+    this.candleRequest?.unsubscribe();
   }
 
   protected select(symbol: string): void {
@@ -290,6 +300,28 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
 
   protected selectRange(range: ChartRange): void {
     this.range.set(range);
+    // Keep the candle size when it still fits the new range, else take that range's default.
+    this.interval.set(reconcileInterval(range, this.interval()));
+  }
+
+  protected selectInterval(interval: ChartInterval): void {
+    this.interval.set(interval);
+  }
+
+  protected selectStyle(style: ChartStyle): void {
+    this.chartStyle.set(style);
+  }
+
+  protected toggleIndicator(id: IndicatorId): void {
+    this.indicators.update((on) => (on.includes(id) ? on.filter((x) => x !== id) : [...on, id]));
+  }
+
+  protected resetChart(): void {
+    const range = RANGES.find((r) => r.value === DEFAULT_PREFERENCES.range) ?? RANGES[3];
+    this.range.set(range);
+    this.interval.set(defaultIntervalFor(range));
+    this.chartStyle.set(DEFAULT_PREFERENCES.style);
+    this.indicators.set(DEFAULT_PREFERENCES.indicators);
   }
 
   protected sellAll(): void {
@@ -418,29 +450,29 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
           this.selectedSymbol.set((wanted ?? quotes.find((quote) => quote.price !== null) ?? quotes[0])?.symbol ?? null);
         } else {
           // A fresh quote means a fresh point on the chart.
-          this.loadHistory(current, this.range().points);
+          this.loadCandles(current, this.interval(), this.range());
         }
       });
   }
 
-  private loadHistory(symbol: string | null, points: number): void {
-    this.historyRequest?.unsubscribe();
+  private loadCandles(symbol: string | null, interval: ChartInterval, range: ChartRange): void {
+    this.candleRequest?.unsubscribe();
     if (symbol === null) {
-      this.history.set([]);
-      this.historyState.set('idle');
+      this.candles.set([]);
+      this.candlesState.set('idle');
       return;
     }
-    if (this.historyState() !== 'ready') {
-      this.historyState.set('loading');
+    if (this.candlesState() !== 'ready') {
+      this.candlesState.set('loading');
     }
-    this.historyRequest = this.marketApi.getHistory(symbol, points).subscribe({
-      next: (history) => {
-        this.history.set(history);
-        this.historyState.set('ready');
+    this.candleRequest = this.marketApi.getCandles(symbol, interval.value, range.value).subscribe({
+      next: (candles) => {
+        this.candles.set(candles);
+        this.candlesState.set('ready');
       },
       error: () => {
-        this.history.set([]);
-        this.historyState.set('failed');
+        this.candles.set([]);
+        this.candlesState.set('failed');
       }
     });
   }
@@ -473,49 +505,30 @@ export class OrderTicketPage implements AfterViewInit, OnDestroy {
       this.portfolio.set(portfolio);
     });
   }
+}
 
-  private syncChart(): void {
-    this.chart?.updateOptions(this.chartOptions(), false, false);
-  }
-
-  private chartOptions(): ApexOptions {
-    const palette = chartPalette(this.theme.isDark());
-    const points = this.history();
-    // Coloured by the day's move, the same signal the ticker list uses, so the two never disagree.
-    const change = this.selected()?.change ?? null;
-    const first = points[0]?.price;
-    const last = points[points.length - 1]?.price;
-    const down = change !== null ? change < 0 : first !== undefined && last !== undefined && last < first;
-    const color = down ? palette.down : palette.up;
-
+function loadPreferences(): ChartPreferences {
+  try {
+    const raw = localStorage.getItem(CHART_PREFS_KEY);
+    const parsed = raw === null ? null : (JSON.parse(raw) as Partial<ChartPreferences>);
+    const known = new Set<string>(INDICATORS.map((i) => i.id));
     return {
-      series: [{ name: 'Price', data: points.map((point) => [new Date(point.at).getTime(), point.price]) }],
-      chart: {
-        type: 'area',
-        height: 280,
-        toolbar: { show: false },
-        zoom: { enabled: false },
-        fontFamily: FONT,
-        foreColor: palette.fore,
-        background: 'transparent',
-        animations: { enabled: false }
-      },
-      colors: [color],
-      stroke: { curve: 'smooth', width: 2 },
-      fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.02, stops: [0, 100] } },
-      dataLabels: { enabled: false },
-      grid: { borderColor: palette.grid, strokeDashArray: 4 },
-      xaxis: {
-        type: 'datetime',
-        labels: { datetimeUTC: false, style: { colors: palette.fore, fontSize: '11px' } },
-        axisBorder: { show: false },
-        axisTicks: { show: false }
-      },
-      yaxis: {
-        labels: { formatter: (value: number) => formatMoney(value), style: { colors: palette.fore, fontSize: '11px' } }
-      },
-      noData: { text: 'No price history yet', style: { color: palette.fore } },
-      tooltip: { theme: palette.tooltip, x: { format: 'dd MMM, HH:mm' }, y: { formatter: (value: number) => formatMoney(value) } }
+      range: typeof parsed?.range === 'string' ? parsed.range : DEFAULT_PREFERENCES.range,
+      interval: typeof parsed?.interval === 'string' ? parsed.interval : DEFAULT_PREFERENCES.interval,
+      style: parsed?.style === 'line' ? 'line' : 'candles',
+      indicators: Array.isArray(parsed?.indicators)
+        ? (parsed.indicators.filter((id) => known.has(id)) as IndicatorId[])
+        : DEFAULT_PREFERENCES.indicators
     };
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+function savePreferences(prefs: ChartPreferences): void {
+  try {
+    localStorage.setItem(CHART_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // Not remembering the chart setup is harmless.
   }
 }

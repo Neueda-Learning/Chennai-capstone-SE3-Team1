@@ -75,6 +75,7 @@ The number is the order.
 | `021_users_owns_email_and_phone.sql` | adds `users.phone`; drops `clients.email` and `.phone` — `auth_db.users` becomes the single stored copy of both contact fields |
 | `022_otp_verification.sql` | `users.status` (PENDING/ACTIVE) and `auth_db.otp_codes`: emailed one-time codes for registration and password reset |
 | `023_market_quotes.sql` | `market_quotes`: a rolling window of the polled quotes the Trade API keeps for the market screen and its charts |
+| `024_daily_candles.sql` | `daily_candles` + `daily_candle_syncs`: a year of end-of-day history per instrument, fetched from Fauxnance once a day, for the long-range charts |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.

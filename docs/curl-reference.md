@@ -187,6 +187,25 @@ curl -s http://localhost:8081/api/v1/market/quotes -H "Authorization: Bearer <AC
 curl -s "http://localhost:8081/api/v1/market/quotes/RELIANCE/history?limit=60" -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
+### Candles (price chart)
+
+OHLC candles at a chosen size over a chosen range. Two sources, because Fauxnance serves daily
+candles only (and one symbol per request; only `/quotes` is batched):
+
+- **Intraday** `interval` = `1m 5m 15m 30m 1h`, `range` = `1h 3h 8h 1d 3d 1w`: built from the minute quotes
+  this API stores (kept 14 days). No quota is spent, and there is no `volume`.
+- **Daily and longer** `interval` = `1d 1w 1mo`, `range` = `1mo 3mo 6mo ytd 1y`: from a year of end-of-day
+  history, fetched from Fauxnance **once per instrument per day** (one request) and stored. A failed
+  fetch is not retried for 15 minutes and the chart is served from what is stored.
+
+More than 2,000 candles, or an interval/range that do not belong together, is `VAL-422`. The default
+is `5m` over `1d`.
+
+```bash
+curl -s "http://localhost:8081/api/v1/market/quotes/INFY/candles?interval=15m&range=1d" -H "Authorization: Bearer <ACCESS_TOKEN>"
+curl -s "http://localhost:8081/api/v1/market/quotes/INFY/candles?interval=1d&range=ytd" -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
 ### Bank account linking (self-service onboarding)
 The one account route a token *without* an `accountId` claim is meant for — links a bank
 account to the authenticated user and creates their trading account. `accountNumber` must

@@ -44,6 +44,17 @@ describe('MarketService and PortfolioService', () => {
     http.expectOne('http://trade.test/api/v1/market/quotes/A%2FB/history');
   });
 
+  it('reads candles at the chosen interval over the chosen range', () => {
+    let result: unknown;
+    TestBed.inject(MarketService).getCandles('RELIANCE', '15m', '1d').subscribe((candles) => (result = candles));
+
+    const request = http.expectOne('http://trade.test/api/v1/market/quotes/RELIANCE/candles?interval=15m&range=1d');
+    expect(request.request.method).toBe('GET');
+    request.flush([{ time: '2026-10-03T10:00:00+05:30', open: 1, high: 2, low: 0.5, close: 1.5, volume: null }]);
+
+    expect(result).toEqual([{ time: '2026-10-03T10:00:00+05:30', open: 1, high: 2, low: 0.5, close: 1.5, volume: null }]);
+  });
+
   it('reads the portfolio of the account', () => {
     let result: unknown;
     TestBed.inject(PortfolioService).getPortfolio(7).subscribe((portfolio) => (result = portfolio));

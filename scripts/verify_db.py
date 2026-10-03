@@ -22,7 +22,7 @@ ENUM_BODY_RE = re.compile(r"enum\s+\w+\s*\{(.*?)\}", re.S)
 
 EXPECTED_TABLES = [
     "bank_account", "clients", "instruments", "order_history", "orders",
-    "market_quotes", "otp_codes", "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations", "users",
+    "daily_candle_syncs", "daily_candles", "market_quotes", "otp_codes", "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations", "users",
     "wallet_transfers",
 ]
 

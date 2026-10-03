@@ -37,7 +37,7 @@ public class MarketDataListener {
     private static final String QUOTE = "QUOTE";
 
     /** How long a symbol's quotes are kept; older rows are trimmed as new ones arrive. */
-    static final int RETENTION_DAYS = 3;
+    static final int RETENTION_DAYS = 14;
 
     private final PositionMapper positionMapper;
     private final MarketQuoteMapper marketQuoteMapper;
