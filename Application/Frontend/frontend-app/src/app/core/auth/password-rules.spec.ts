@@ -7,7 +7,7 @@ import {
 
 /**
  * This module is a mirror of `PasswordPolicy` in
- * `services/team1-nestjs/src/auth/password-policy.ts`. These cases are the ones
+ * `Services/auth-service/src/auth/password-policy.ts`. These cases are the ones
  * that broke the first version of the rule, so they are the ones worth pinning.
  */
 describe('password rules', () => {

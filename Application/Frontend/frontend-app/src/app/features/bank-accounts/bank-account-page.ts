@@ -234,7 +234,7 @@ export class BankAccountPage {
   private loadExisting(accountId: number): void {
     const url = `${this.tradeBasePath}/api/v1/accounts/${accountId}`;
 
-    console.info(`[bank] GET ${url}`, { accountId, tradeBasePath: this.tradeBasePath });
+    console.info(`[bank] GET ${url}`, { accountId });
 
     this.bankState.set('checking');
 
@@ -243,12 +243,7 @@ export class BankAccountPage {
         this.existing.set(account);
         const linked = Boolean(account.bankName || account.accountId);
         this.bankState.set(linked ? 'linked' : 'unlinked');
-        console.info('[bank] existing account read', {
-          accountId,
-          bankName: account.bankName,
-          accountIdInBody: account.accountId,
-          decision: this.bankState()
-        });
+        
 
         // Only a linked account has a bank row to read. Asking for one otherwise
         // would be a guaranteed 404 on every unlinked page load.
@@ -285,11 +280,7 @@ export class BankAccountPage {
       next: (bank) => {
         this.bankAccount.set(bank);
         this.bankAmount.set(bank.balance);
-        console.info('[bank] bank account read', {
-          accountNumber: bank.accountNumber,
-          bankName: bank.bankName,
-          balance: bank.balance
-        });
+       
       },
       error: (error) => {
         this.bankAmount.set(null);
@@ -307,10 +298,6 @@ export class BankAccountPage {
       next: (balance) => {
         this.walletAmount.set(balance.cashBalance);
         this.walletCurrency.set(balance.currency);
-        console.info('[bank] wallet balance read', {
-          cashBalance: balance.cashBalance,
-          currency: balance.currency
-        });
       },
       error: (error) => {
         this.walletAmount.set(null);
@@ -499,6 +486,13 @@ export class BankAccountPage {
     this.transferForm.controls.amount.markAsDirty();
     this.transferForm.controls.amount.markAsTouched();
     this.transferError.set(null);
+  }
+
+  /** The direction switch: one flick reverses the transfer, no second button. */
+  protected toggleDirection(): void {
+    this.selectDirection(
+      this.direction() === 'BANK_TO_WALLET' ? 'WALLET_TO_BANK' : 'BANK_TO_WALLET'
+    );
   }
 
   protected fieldInvalid(formName: 'link' | 'transfer', field: string): boolean {

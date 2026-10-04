@@ -1,8 +1,8 @@
 # Sprint 9 — Trading UI
 
 Angular workspace for the trading platform's front end: login, dashboard, order
-ticket and blotter, talking to the Trade API and the auth service defined in
-`contracts/`.
+ ticket and blotter, talking to the Trade API and the auth service defined in
+`../../Contracts/api-schemas/`.
 
 ## Workspace
 
@@ -17,7 +17,7 @@ ticket and blotter, talking to the Trade API and the auth service defined in
   verified against Node 24.10.0.
 - Requires a Java runtime on `PATH` (Temurin 25 verified). `npm install`/
   `npm ci` runs `postinstall` → `generate:clients`, which regenerates the
-  typed API clients from `sprint-06-api/contracts/` via OpenAPI Generator, a
+   typed API clients from `../../Contracts/api-schemas/` via OpenAPI Generator, a
   JVM tool. No Java means the install fails outright — see
   `src/app/generated/README.md`.
 

@@ -1,6 +1,6 @@
 /**
  * The password rules, mirrored from `PasswordPolicy` in
- * `services/team1-nestjs/src/auth/password-policy.ts` so the register and reset
+ * `Services/auth-service/src/auth/password-policy.ts` so the register and reset
  * screens agree with the VAL-422 the service returns. Both screens need this:
  * the policy is enforced twice - here for the trader, and again on the server.
  */

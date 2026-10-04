@@ -9,8 +9,28 @@ from pathlib import Path
 import trustme_secrets as trustme
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS_DIR = REPO_ROOT / "migrations"
-SEED_DIR = REPO_ROOT / "seed"
+
+
+def _first_existing(*candidates):
+    """Return the first path that exists, else the first candidate.
+
+    The layout moved under Application/ (Phase 1); the old root-level
+    directories are kept as a fallback so older checkouts keep working.
+    """
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+MIGRATIONS_DIR = _first_existing(
+    REPO_ROOT / "Application" / "Databases" / "PostgreSQL" / "migrations",
+    REPO_ROOT / "migrations",
+)
+SEED_DIR = _first_existing(
+    REPO_ROOT / "Application" / "Databases" / "PostgreSQL" / "seeds",
+    REPO_ROOT / "seed",
+)
 
 DEFAULTS = {
     "host": "localhost",

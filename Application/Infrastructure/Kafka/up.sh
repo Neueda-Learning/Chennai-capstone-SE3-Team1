@@ -6,14 +6,14 @@ set -Eeuo pipefail
 # once and left alone after that unless KAFKA_ADVERTISED_HOST is still at the localhost
 # default, in which case detection is retried.
 #
-#   bash infra/kafka/up.sh   # from anywhere
+#   bash Application/Infrastructure/Kafka/up.sh   # from anywhere
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 log() { printf '[kafka] %s\n' "$*"; }
 
 if [ ! -f .env ]; then
-    cp ../../.env.example .env
+    cp ../../../../.env.example .env
     log ".env created from .env.example"
 fi
 
@@ -34,7 +34,7 @@ if ! grep -q '^KAFKA_ADVERTISED_HOST=' .env || grep -q '^KAFKA_ADVERTISED_HOST=l
         fi
         log "KAFKA_ADVERTISED_HOST set to detected address $ip"
     else
-        log "could not auto-detect this host's IP - edit KAFKA_ADVERTISED_HOST in infra/kafka/.env by hand, then re-run"
+        log "could not auto-detect this host's IP - edit KAFKA_ADVERTISED_HOST in Application/Infrastructure/Kafka/.env by hand, then re-run"
     fi
 else
     log "KAFKA_ADVERTISED_HOST already set in .env, leaving it alone"

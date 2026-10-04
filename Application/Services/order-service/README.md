@@ -77,5 +77,5 @@ key file at the repo root (`leapcapstoneteam1-720d03.TM`, overridable through
 the `TRUSTME_KEY_FILE` / `CHARACT_DB_NAME` environment variables):
 
 ```bash
-mvn -f sprint-06-api/pom.xml test
+mvn -f Application/Services/order-service/pom.xml test
 ```

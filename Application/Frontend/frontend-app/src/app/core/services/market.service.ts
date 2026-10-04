@@ -52,7 +52,7 @@ export interface Candle {
  * Reads the market data the Trade API keeps from the market-data poller.
  *
  * Hand-written rather than generated, like `BankAccountReaderService`: `/api/v1/market/**` is
- * not in `contracts/trade-api.yaml` yet. If the contract grows these routes, regenerate the
+ * not in `Contracts/api-schemas/trade-api.yaml` yet. If the contract grows these routes, regenerate the
  * client and delete this file in favour of the generated service.
  */
 @Injectable({ providedIn: 'root' })

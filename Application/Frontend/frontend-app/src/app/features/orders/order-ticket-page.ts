@@ -1,4 +1,5 @@
-import { Component, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, HostListener, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -81,7 +82,8 @@ const FIELD_MESSAGES: Record<string, string> = {
  * The market and the order ticket in one screen.
  *
  * Left: every tradable ticker with its latest polled price (the poller runs about once a
- * minute). Click one to chart its price history and trade it on the right. Orders carry no
+ * minute). The ticket sits beside the list, so buying never needs a scroll; the price
+ * history opens as a dialog from the ticket or from any ticker row. Orders carry no
  * price field and no order type: they execute at the current market price, which is shown, and
  * a sell shows how many units of the ticker can be sold.
  */
@@ -113,6 +115,8 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly quotes = signal<MarketQuote[]>([]);
   protected readonly quotesState = signal<Load>('idle');
   protected readonly selectedSymbol = signal<string | null>(null);
+  /** The trend dialog. Candles load on selection either way; this only controls the popup. */
+  protected readonly chartOpen = signal(false);
 
   // ---- the chart: what to draw, remembered per browser
   protected readonly ranges = RANGES;
@@ -293,6 +297,28 @@ export class OrderTicketPage implements OnDestroy {
     this.outcome.set(null);
   }
 
+  protected openChart(): void {
+    if (this.selected() !== null) {
+      this.chartOpen.set(true);
+    }
+  }
+
+  protected closeChart(): void {
+    this.chartOpen.set(false);
+  }
+
+  protected selectAndChart(symbol: string): void {
+    this.select(symbol);
+    this.openChart();
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  protected onWindowKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.chartOpen()) {
+      this.closeChart();
+    }
+  }
+
   protected selectSide(side: OrderSide): void {
     this.side.set(side);
     this.outcome.set(null);
@@ -381,22 +407,37 @@ export class OrderTicketPage implements OnDestroy {
     const approx = this.currentPrice();
     this.submitting.set(true);
 
+    // Full response, not just the body: the console log for a trade carries the
+    // HTTP status with it, and that only arrives on the response envelope.
     this.orders
-      .placeOrder({
-        placeOrderRequest: {
-          accountId,
-          symbol,
-          side,
-          quantity,
-          price: limit,
-          // Fresh per attempt, so a double submit is a second order rather than a replay the
-          // API would answer ORD-409 to.
-          idempotencyKey: crypto.randomUUID()
-        }
-      })
+      .placeOrder(
+        {
+          placeOrderRequest: {
+            accountId,
+            symbol,
+            side,
+            quantity,
+            price: limit,
+            // Fresh per attempt, so a double submit is a second order rather than a replay the
+            // API would answer ORD-409 to.
+            idempotencyKey: crypto.randomUUID()
+          }
+        },
+        'response'
+      )
       .subscribe({
-        next: (order) => {
+        next: (response) => {
           this.submitting.set(false);
+          const order = response.body;
+          if (order === null) {
+            const message = 'The order could not be placed. Please try again.';
+            console.warn(`[order] ${response.status} ${message}`);
+            this.outcome.set({ kind: 'refused', message });
+            return;
+          }
+          // The console carries the status and what happened, and nothing else:
+          // no account, price, token or payload may be logged here.
+          console.info(`[order] ${response.status} ${side === 'BUY' ? 'BOUGHT' : 'SOLD'} [${symbol}, ${quantity}]`);
           this.outcome.set({
             kind: 'accepted',
             order,
@@ -411,7 +452,10 @@ export class OrderTicketPage implements OnDestroy {
         },
         error: (failure) => {
           this.submitting.set(false);
-          this.outcome.set({ kind: 'refused', message: this.errorMessages.forOrderFailure(failure) });
+          const message = this.errorMessages.forOrderFailure(failure);
+          const status = failure instanceof HttpErrorResponse ? failure.status : 'unknown';
+          console.warn(`[order] ${status} ${message}`);
+          this.outcome.set({ kind: 'refused', message });
         }
       });
   }

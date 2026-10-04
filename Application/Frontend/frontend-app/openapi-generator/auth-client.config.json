@@ -1,6 +1,6 @@
 {
   "generatorName": "typescript-angular",
-  "inputSpec": "../sprint-06-api/contracts/auth-api.yaml",
+  "inputSpec": "../../Contracts/api-schemas/auth-api.yaml",
   "outputDir": "src/app/generated/auth-client",
   "validateSpec": false,
   "additionalProperties": {

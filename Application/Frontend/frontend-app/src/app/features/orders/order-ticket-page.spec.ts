@@ -197,6 +197,11 @@ describe('OrderTicketPage', () => {
     settle(fixture);
   }
 
+  /** Opens the trend dialog; the chart controls only exist while it is open. */
+  function openChart(fixture: TicketFixture): void {
+    click(fixture, 'open-chart');
+  }
+
   function setSide(fixture: TicketFixture, side: 'buy' | 'sell'): void {
     root(fixture).querySelector<HTMLButtonElement>(`[data-testid="side-${side}"]`)!.click();
     fixture.detectChanges();
@@ -295,6 +300,7 @@ describe('OrderTicketPage', () => {
       setUp();
       failing.add('candles');
       const fixture = create();
+      openChart(fixture);
 
       expect(textOf(fixture, '[data-testid="history-failed"]')).toContain('Could not load the chart data');
     });
@@ -302,6 +308,7 @@ describe('OrderTicketPage', () => {
     it('says why a chart is empty, differently for short candles and daily ones', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       const empty = () => root(fixture).querySelector('[data-testid="history-empty"]')?.textContent?.replace(/\s+/g, ' ');
       expect(empty()).toBeUndefined();
 
@@ -352,6 +359,7 @@ describe('OrderTicketPage', () => {
     it('starts on 5-minute candles over one day', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
       expect(root(fixture).querySelector('[data-testid="interval-5m"]')?.classList.contains('active')).toBe(true);
@@ -361,6 +369,7 @@ describe('OrderTicketPage', () => {
     it('offers short ranges, daily ranges, and finer candles than just 1H and 8H', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       expect(labels(fixture, 'range-')).toEqual(['1H', '3H', '8H', '1D', '3D', '1W', '1M', '3M', '6M', 'YTD', '1Y']);
       expect(labels(fixture, 'interval-')).toEqual(['1m', '5m', '15m', '30m', '1h']);
@@ -369,6 +378,7 @@ describe('OrderTicketPage', () => {
     it('only offers candle sizes that fit the chosen range', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       click(fixture, 'range-1w');
       expect(labels(fixture, 'interval-')).toEqual(['15m', '30m', '1h']);
@@ -379,6 +389,7 @@ describe('OrderTicketPage', () => {
     it('asks the API for the candle size and range chosen', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       candleRequests.length = 0;
 
       click(fixture, 'interval-15m');
@@ -391,6 +402,7 @@ describe('OrderTicketPage', () => {
     it('keeps the candle size when it still fits a new range, else takes that range default', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       click(fixture, 'interval-15m');
       click(fixture, 'range-3d');
@@ -403,6 +415,7 @@ describe('OrderTicketPage', () => {
     it('re-reads the candles of the next ticker, with the same setup', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       click(fixture, 'interval-15m');
       candleRequests.length = 0;
 
@@ -414,6 +427,7 @@ describe('OrderTicketPage', () => {
     it('switches between candles and a line', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       expect(root(fixture).querySelector('[data-testid="style-candles"]')?.classList.contains('active')).toBe(true);
 
       click(fixture, 'style-line');
@@ -425,6 +439,7 @@ describe('OrderTicketPage', () => {
     it('lists every indicator, and turning one on or off is a checkbox', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       const box = (id: string) => root(fixture).querySelector<HTMLInputElement>(`[data-testid="indicator-${id}"]`)!;
 
       expect(Array.from(root(fixture).querySelectorAll('.indicator-item')).map((e) => e.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
@@ -448,6 +463,7 @@ describe('OrderTicketPage', () => {
     it('volume is unavailable for short candles and available for daily ones', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       const volume = () => root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-volume"]')!;
 
       expect(volume().disabled).toBe(true);
@@ -458,6 +474,7 @@ describe('OrderTicketPage', () => {
     it('draws a pane for each pane-style indicator that is on', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       const shown = (pane: string) => !root(fixture).querySelector<HTMLElement>(`[data-testid="pane-${pane}"]`)!.hidden;
 
       expect([shown('volume'), shown('rsi'), shown('macd')]).toEqual([false, false, false]);
@@ -474,6 +491,7 @@ describe('OrderTicketPage', () => {
     it('remembers the setup for the next visit', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       click(fixture, 'range-3mo');
       click(fixture, 'style-line');
       root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-rsi"]')!.click();
@@ -489,6 +507,7 @@ describe('OrderTicketPage', () => {
       localStorage.setItem('trading-ui.chart', JSON.stringify({ range: '1w', interval: '1m', style: 'line', indicators: ['macd', 'bogus'] }));
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       expect(root(fixture).querySelector('[data-testid="range-1w"]')?.classList.contains('active')).toBe(true);
       // 1m over a week is more candles than allowed, so the range's default is used instead
@@ -502,6 +521,7 @@ describe('OrderTicketPage', () => {
       localStorage.setItem('trading-ui.chart', '{not json');
       setUp();
       const fixture = create();
+      openChart(fixture);
 
       expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
     });
@@ -509,6 +529,7 @@ describe('OrderTicketPage', () => {
     it('resets to the default setup', () => {
       setUp();
       const fixture = create();
+      openChart(fixture);
       click(fixture, 'range-ytd');
       click(fixture, 'style-line');
 
@@ -518,6 +539,45 @@ describe('OrderTicketPage', () => {
 
       expect(root(fixture).querySelector('[data-testid="range-1d"]')?.classList.contains('active')).toBe(true);
       expect(root(fixture).querySelector('[data-testid="style-candles"]')?.classList.contains('active')).toBe(true);
+    });
+  });
+
+  describe('the trend dialog', () => {
+    it('stays shut until asked, then shows the chart for the selected ticker', () => {
+      setUp();
+      const fixture = create();
+
+      expect(root(fixture).querySelector('[data-testid="chart-dialog"]')).toBeNull();
+
+      openChart(fixture);
+
+      expect(textOf(fixture, '[data-testid="chart-dialog-title"]')).toContain('RELIANCE');
+      expect(root(fixture).querySelector('[data-testid="chart-toolbar"]')).not.toBeNull();
+    });
+
+    it('closes again from its close button', () => {
+      setUp();
+      const fixture = create();
+      openChart(fixture);
+
+      click(fixture, 'close-chart');
+
+      expect(root(fixture).querySelector('[data-testid="chart-dialog"]')).toBeNull();
+    });
+
+    it('opens straight from a ticker row, selecting that ticker', () => {
+      setUp();
+      const fixture = create();
+
+      const buttons = Array.from(
+        root(fixture).querySelectorAll<HTMLButtonElement>('[data-testid="ticker-chart"]')
+      );
+      buttons[1].click();
+      fixture.detectChanges();
+      settle(fixture);
+
+      expect(textOf(fixture, '[data-testid="selected-symbol"]')).toContain('TCS');
+      expect(textOf(fixture, '[data-testid="chart-dialog-title"]')).toContain('TCS');
     });
   });
 
@@ -619,6 +679,46 @@ describe('OrderTicketPage', () => {
       expect(outcome).toContain('current market price');
       // The protective limit is plumbing; it is never presented as the price paid.
       expect(outcome).not.toContain('1,326.31');
+    });
+
+    it('logs only the status and what happened on accept, nothing sensitive', () => {
+      const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      try {
+        setUp();
+        const fixture = create();
+        setQuantity(fixture, '10');
+        submit(fixture);
+
+        http.expectOne(ORDERS_URL).flush(acceptedOrder());
+        fixture.detectChanges();
+        settle(fixture);
+
+        expect(info).toHaveBeenCalledTimes(1);
+        expect(info).toHaveBeenCalledWith('[order] 200 BOUGHT [RELIANCE, 10]');
+      } finally {
+        info.mockRestore();
+      }
+    });
+
+    it('logs only the status and the message on refusal', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      try {
+        setUp();
+        const fixture = create();
+        setQuantity(fixture, '2');
+        submit(fixture);
+
+        http
+          .expectOne(ORDERS_URL)
+          .flush({ errorCode: 'ORD-400', message: 'Insufficient funds in the account.' }, { status: 400, statusText: 'Bad Request' });
+        fixture.detectChanges();
+        settle(fixture);
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith('[order] 400 Insufficient funds in the account.');
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it('sells at the market: a limit just below the bid', () => {

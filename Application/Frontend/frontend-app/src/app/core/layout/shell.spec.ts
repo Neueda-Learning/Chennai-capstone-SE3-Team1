@@ -160,6 +160,15 @@ describe('Shell', () => {
       expect(textOf(fixture, '.dropdown-menu-profile .dropdown-header')).toContain('priya.menon@example.com');
     });
 
+    it('keeps a long single-token name inside the profile menu instead of spilling past it', () => {
+      api.set('/auth/me', { ...USER, username: 'sharma.singhania' });
+      api.set(`/accounts/${ACCOUNT_ID}`, { ...ACCOUNT, holderName: 'Sharma.Singhania' });
+      const fixture = signInAndCreate();
+
+      expect(textOf(fixture, '[data-testid="navbar-name"]')).toBe('Sharma.Singhania');
+      expect(textOf(fixture, '.dropdown-menu-profile .dropdown-header')).toContain('Welcome, Sharma.Singhania!');
+    });
+
     it('falls back to the username when no bank account is linked, so there is no holder name', () => {
       const fixture = signInAndCreate(null);
 

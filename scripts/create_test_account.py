@@ -16,7 +16,7 @@ reused rather than recreated.
 
 Connection settings resolve exactly as in apply_db.py (the TrustMe vault, or flags).
 The password is hashed with the auth service's own argon2 parameters by calling node from
-services/team1-nestjs, so the result signs in through the real /auth/login.
+Application/Services/auth-service, so the result signs in through the real /auth/login.
 
 Test data only. Do not run against a database anyone depends on.
 """
@@ -30,11 +30,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from db_config import REPO_ROOT, DbConfig, DbError, add_connection_args, quote_literal  # noqa: E402
+from db_config import REPO_ROOT, DbConfig, DbError, _first_existing, add_connection_args, quote_literal  # noqa: E402
 
-AUTH_DIR = REPO_ROOT / "services" / "team1-nestjs"
+AUTH_DIR = _first_existing(
+    REPO_ROOT / "Application" / "Services" / "auth-service",
+    REPO_ROOT / "services" / "team1-nestjs",
+)
 
-# Same parameters as services/team1-nestjs/src/auth/password.constants.ts (Algorithm.Argon2id = 2).
+# Same parameters as the auth service's password.constants.ts (Algorithm.Argon2id = 2).
 HASH_JS = """
 const { hash } = require('@node-rs/argon2');
 hash(process.env.TEST_ACCOUNT_PASSWORD, { memoryCost: 65536, timeCost: 3, parallelism: 4, algorithm: 2 })
@@ -55,7 +58,7 @@ SYNTHETIC_QUOTES = {
 
 def hash_password(password: str) -> str:
     if not (AUTH_DIR / "node_modules" / "@node-rs" / "argon2").is_dir():
-        raise DbError("Run `npm ci` in services/team1-nestjs first: the password is hashed with its argon2 package.")
+        raise DbError("Run `npm ci` in Application/Services/auth-service first: the password is hashed with its argon2 package.")
     proc = subprocess.run(
         ["node", "-e", HASH_JS],
         cwd=AUTH_DIR,

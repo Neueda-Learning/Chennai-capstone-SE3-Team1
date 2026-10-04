@@ -1,14 +1,18 @@
 """Generate a batch of realistic orders in the trade database.
 
-    cd fact-trades && python -m simulate_orders            # 20 orders, default mix
-    python fact-trades/simulate_orders.py --count 50       # same thing from the repo root
+    python Application/ETL/etl-trades/simulate_orders.py --count 50       # same thing from the repo root
 
 Every run writes brand-new orders: uuid4 order_ids, unique idempotency keys,
 and created_at timestamps that carry on after the newest order already in the
 table, so nothing is ever overwritten and each run is picked up by the next
 fact_trades load. Each order gets its orders row and its order_history trail
 (CREATED -> NEW, then the terminal event) exactly as the platform would write
-them.
+them. FILLED orders also settle their portfolio book rows, replayed with the
+same apply_fill() maths verify_db.py checks, so the books stay consistent.
+
+To populate a database for `python scripts/verify_db.py`, run with
+`--bad-share 0`: the unknown_client fixtures create clients with no users
+row, which the data-consistency checks flag by design.
 
 The mix includes orders the fact_trades load must refuse. They all satisfy the
 database's own constraints, so only the load's checks can catch them:
@@ -36,6 +40,7 @@ REPO_ROOT = HERE.parents[2]  # etl-trades -> ETL -> Application -> repo root
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from db_config import DbConfig, DbError, add_connection_args, quote_literal  # noqa: E402
+from make_seed import HOLDING_BOOK, apply_fill, price  # noqa: E402
 
 FAILURE_CODES = {
     "INSUFFICIENT_FUNDS": "wallet balance cannot cover the order value",
@@ -71,6 +76,8 @@ class Simulation:
         self.clients = []
         self.instruments = []
         self.prices = {}
+        self.fills = []  # (client_id, instrument_id, order_type, side, qty, exec_price)
+        self.short_key = None  # reserved (client_id, instrument_id) for the deterministic short
 
     # ------------------------------------------------------------ reference data
 
@@ -115,23 +122,34 @@ class Simulation:
         return (base * (1 + drift)).quantize(Decimal("0.0001"))
 
     def _emit_order(self, *, client_id, instrument_id, status, created, terminal=None,
-                    executed=None, failure=None, label=None):
+                    executed=None, failure=None, label=None, force_side=None,
+                    force_type=None):
+        # Mirrors the platform since migration 010: the live orders row is
+        # always NEW (chk_orders_status) with no executed price; settlement is
+        # a terminal order_history row carrying the idempotency key, after
+        # which the live row is deleted exactly as the executor's
+        # deleteIfNew + insertTerminal does (the history FK was dropped in 010,
+        # so history outlives the order row).
+        #
+        # FILLED fixtures are BUY-only (except the dedicated short) so the
+        # portfolio books stay an order-independent weighted average, exactly
+        # what verify_db.py's replay recomputes.
         order_id = str(uuid.uuid4())
-        side = self.rng.choice(["BUY", "SELL"])
-        order_type = self.rng.choice(["HOLDING", "HOLDING", "POSITION"])
+        side = force_side or self.rng.choice(["BUY", "SELL"])
+        order_type = force_type or self.rng.choice(["HOLDING", "HOLDING", "POSITION"])
         quantity = self.rng.choice([1, 2, 5, 10, 15, 20, 25, 50, 100])
         price = self._price_for(instrument_id)
         idem = "sim-" + uuid.uuid4().hex[:12]
-        updated = terminal if terminal and terminal >= created else created
+        if terminal is not None and status == "FILLED" and executed is not None:
+            self.fills.append((client_id, instrument_id, order_type, side, quantity, executed))
 
         self.statements.append(
             "INSERT INTO orders (order_id, client_id, account_id, instrument_id, order_type, side, "
             "quantity, price, executed_price, status, idempotency_key, created_at, updated_at) VALUES ("
             + quote_literal(order_id) + "::uuid, " + str(client_id) + ", " + str(client_id) + ", "
             + quote_literal(instrument_id) + ", " + quote_literal(order_type) + ", " + quote_literal(side) + ", "
-            + str(quantity) + ", " + money(price) + ", "
-            + (money(executed) if executed is not None else "NULL") + ", "
-            + quote_literal(status) + ", " + quote_literal(idem) + ", " + ts(created) + ", " + ts(updated) + ");"
+            + str(quantity) + ", " + money(price) + ", NULL, 'NEW', "
+            + quote_literal(idem) + ", " + ts(created) + ", " + ts(created) + ");"
         )
         self.statements.append(
             "INSERT INTO order_history (order_id, event_type, previous_status, new_status, request_id, event_timestamp, created_at) "
@@ -142,13 +160,23 @@ class Simulation:
             code, reason = failure if failure else (None, None)
             self.statements.append(
                 "INSERT INTO order_history (order_id, event_type, previous_status, new_status, external_status, "
-                "external_order_id, request_id, failure_code, failure_reason, event_timestamp, created_at) VALUES ("
+                "external_order_id, request_id, failure_code, failure_reason, executed_price, idempotency_key, "
+                "order_created_at, client_id, account_id, instrument_id, order_type, side, quantity, price, "
+                "event_timestamp, created_at) VALUES ("
                 + quote_literal(order_id) + "::uuid, " + quote_literal(status) + ", 'NEW', " + quote_literal(status) + ", "
                 + quote_literal(status) + ", " + quote_literal("EXT-" + idem[4:].upper()) + ", "
                 + quote_literal("req-" + idem[4:]) + ", "
                 + (quote_literal(code) if code else "NULL") + ", "
                 + (quote_literal(reason) if reason else "NULL") + ", "
+                + (money(executed) if executed is not None else "NULL") + ", "
+                + quote_literal(idem) + ", " + ts(created) + ", "
+                + str(client_id) + ", " + str(client_id) + ", " + quote_literal(instrument_id) + ", "
+                + quote_literal(order_type) + ", " + quote_literal(side) + ", "
+                + str(quantity) + ", " + money(price) + ", "
                 + ts(terminal) + ", " + ts(terminal) + ");"
+            )
+            self.statements.append(
+                "DELETE FROM orders WHERE order_id = " + quote_literal(order_id) + "::uuid AND status = 'NEW';"
             )
         self.summary.append((label or status, order_id, instrument_id, side, quantity, money(price), status))
         return order_id
@@ -164,6 +192,7 @@ class Simulation:
             client_id=self.rng.choice(self.clients)[0], instrument_id=symbol, status="FILLED",
             created=created, terminal=created + timedelta(seconds=self.rng.uniform(0.5, 90)),
             executed=(price * (1 + slip)).quantize(Decimal("0.0001")),
+            force_side="BUY",
         )
 
     def rejected(self):
@@ -197,6 +226,7 @@ class Simulation:
             client_id=self.rng.choice(self.clients)[0], instrument_id=symbol, status="FILLED",
             created=created, terminal=created - timedelta(minutes=self.rng.randint(2, 45)),
             executed=self._price_for(symbol), label="BAD late_creation",
+            force_side="BUY",
         )
 
     def bad_unknown_instrument(self):
@@ -216,6 +246,7 @@ class Simulation:
             client_id=self.rng.choice(self.clients)[0], instrument_id=symbol, status="FILLED",
             created=created, terminal=created + timedelta(seconds=self.rng.uniform(1, 60)),
             executed=self._price_for(symbol), label="BAD unknown_instrument",
+            force_side="BUY",
         )
 
     def bad_unknown_client(self):
@@ -240,11 +271,62 @@ class Simulation:
             client_id=client_id, instrument_id=symbol, status="FILLED",
             created=created, terminal=created + timedelta(seconds=self.rng.uniform(1, 60)),
             executed=self._price_for(symbol), label="BAD unknown_client",
+            force_side="BUY",
+        )
+
+    # -------------------------------------------- deterministic coverage tails
+
+    def reserve_short_key(self):
+        """Reserve a (client, symbol) pair no random fill may touch, for the
+        dedicated short SELL below. The pair must have no fills and no book
+        row yet, so its replay is exactly one fill."""
+        client_id = self.clients[0][0]
+        for symbol in list(self.instruments):
+            n_order = self.cfg.scalar(
+                "SELECT count(*) FROM orders WHERE client_id = " + str(client_id)
+                + " AND instrument_id = " + quote_literal(symbol) + ";")
+            n_hist = self.cfg.scalar(
+                "SELECT count(*) FROM order_history WHERE client_id = " + str(client_id)
+                + " AND instrument_id = " + quote_literal(symbol) + ";")
+            n_book = self.cfg.scalar(
+                "SELECT count(*) FROM portfolio_positions WHERE client_id = " + str(client_id)
+                + " AND instrument_id = " + quote_literal(symbol) + ";")
+            if n_order == "0" and n_hist == "0" and n_book == "0":
+                self.short_key = (client_id, symbol)
+                self.instruments.remove(symbol)
+                return
+        raise DbError("no fresh (client, symbol) pair left to place the deterministic short on")
+
+    def delisted_open(self):
+        """One NEW order on a delisted instrument: it stays in the live book,
+        resolvable after delisting (d09), and guarantees a NEW row (c26)."""
+        rows = self.cfg.rows(
+            "SELECT instrument_id FROM instruments WHERE NOT active ORDER BY 1;")
+        if not rows:
+            return
+        self._emit_order(
+            client_id=self.clients[0][0], instrument_id=rows[0][0], status="NEW",
+            created=self._when(), label="LEGACYCORP open (delisted)",
+        )
+
+    def short_sell(self):
+        """One POSITION SELL from a zero holding: settles into a negative
+        portfolio_positions row (d10). Reserved key, so its replay is exact."""
+        if self.short_key is None:
+            return
+        client_id, symbol = self.short_key
+        created = self._when()
+        self._emit_order(
+            client_id=client_id, instrument_id=symbol, status="FILLED",
+            created=created, terminal=created + timedelta(seconds=30),
+            executed=self._price_for(symbol), label="SHORT position sell",
+            force_side="SELL", force_type="POSITION",
         )
 
     # ------------------------------------------------------------ run
 
     def generate(self, count: int, bad_share: float, open_share: float):
+        self.reserve_short_key()
         n_bad = max(1, round(count * bad_share)) if bad_share > 0 else 0
         n_open = round(count * open_share)
         n_terminal = max(0, count - n_bad - n_open)
@@ -261,9 +343,47 @@ class Simulation:
         self.rng.shuffle(plan)
         for make in plan:
             make()
+        self.delisted_open()
+        self.short_sell()
 
     def script(self) -> str:
         return "\\set ON_ERROR_STOP on\nBEGIN;\n" + "\n".join(self.statements) + "\nCOMMIT;\n"
+
+    def settle_script(self) -> str:
+        """Portfolio book rows for this run's FILLED orders. Each touched key
+        is replayed from the database exactly as verify_db.py does (fills
+        ordered by order_id through apply_fill), so the books match the
+        consistency checks by construction. Runs after the orders script."""
+        touched = {}
+        for client_id, symbol, order_type, _side, _qty, _exec in self.fills:
+            touched.setdefault((client_id, symbol, order_type), None)
+        writes = []
+        for client_id, symbol, order_type in touched:
+            table = ("portfolio_holding" if order_type == HOLDING_BOOK
+                     else "portfolio_positions")
+            rows = self.cfg.rows(
+                "SELECT side, quantity, executed_price FROM ("
+                "SELECT side, quantity, executed_price, order_id FROM orders "
+                "WHERE status = 'FILLED' AND client_id = " + str(client_id)
+                + " AND instrument_id = " + quote_literal(symbol)
+                + " AND order_type = " + quote_literal(order_type)
+                + " UNION ALL "
+                "SELECT side, quantity, executed_price, order_id FROM order_history "
+                "WHERE new_status = 'FILLED' AND client_id = " + str(client_id)
+                + " AND instrument_id = " + quote_literal(symbol)
+                + " AND order_type = " + quote_literal(order_type)
+                + ") t ORDER BY order_id;")
+            qty, avg = 0, Decimal(0)
+            for side, quantity, executed in rows:
+                qty, avg = apply_fill(qty, avg, side, int(Decimal(quantity)),
+                                      price(Decimal(executed)))
+            writes.append(
+                "INSERT INTO " + table + " (client_id, instrument_id, quantity, price_per_unit) VALUES ("
+                + str(client_id) + ", " + quote_literal(symbol) + ", "
+                + str(qty) + ", " + str(price(avg)) + ") "
+                "ON CONFLICT (client_id, instrument_id) DO UPDATE SET quantity = EXCLUDED.quantity, "
+                "price_per_unit = EXCLUDED.price_per_unit, updated_at = now();")
+        return "\\set ON_ERROR_STOP on\nBEGIN;\n" + "\n".join(writes) + "\nCOMMIT;\n"
 
 
 def build_parser():
@@ -307,6 +427,7 @@ def main(argv=None) -> int:
             say(sim.script())
             return 0
         cfg.run_or_die("writing simulated orders", script=sim.script(), verbose_errors=True)
+        cfg.run_or_die("settling simulated books", script=sim.settle_script(), verbose_errors=True)
     except DbError as exc:
         say("FAILED: " + str(exc))
         return 1

@@ -1,7 +1,7 @@
 # Trading Auth Stub
 
 A minimal Node.js service that issues JWTs, standing in for the Sprint 8 auth service
-described in `sprint-06-api/contracts/auth-api.yaml`. It doesn't validate a real credential
+described in `Application/Contracts/api-schemas/auth-api.yaml`. It doesn't validate a real credential
 store — its job is to hand out tokens signed with the same secret the Trade REST API and
 executor verify, so the group can test "valid token in, protected data out" without a real
 identity service behind it. Copied as-is from the Module 9 mission-control auth stub: same
@@ -10,13 +10,13 @@ two hardcoded users, same response shape, no mapping onto this project's seed da
 ## Run it standalone
 
 ```bash
-cd services/auth-stub
+cd Application/Services/auth-stub
 npm install
-node server.js --trustme-key-file=../../leapcapstoneteam1-720d03.TM --trustme-password=<password>
+node server.js --trustme-key-file=../../../../leapcapstoneteam1-720d03.TM --trustme-password=<password>
 ```
 
 Listens on `http://localhost:4000`. It is the legacy stand-in for the real auth service
-(`services/team1-nestjs`), and `run-local.ps1` no longer starts it. When it did, it used its
+(`Application/Services/auth-service`), and `run-local.ps1` no longer starts it. When it did, it used its
 `-JwtSecret` so a token minted here verifies against the API.
 
 ## Get a token

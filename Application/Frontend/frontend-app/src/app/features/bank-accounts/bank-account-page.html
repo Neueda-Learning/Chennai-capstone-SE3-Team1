@@ -149,27 +149,25 @@
               <h2 class="card-title">Move Money</h2>
             </div>
             <div class="card-body">
-              <div class="mb-3 d-flex gap-2">
-                <button
-                  type="button"
-                  class="btn-custom flex-grow-1"
-                  [class.btn-custom-primary]="direction() === 'BANK_TO_WALLET'"
-                  [class.btn-custom-outline-primary]="direction() !== 'BANK_TO_WALLET'"
-                  data-testid="direction-in"
-                  (click)="selectDirection('BANK_TO_WALLET')"
-                >
-                  <i class="bi bi-arrow-down-circle"></i> Bank → Wallet
-                </button>
-                <button
-                  type="button"
-                  class="btn-custom flex-grow-1"
-                  [class.btn-custom-primary]="direction() === 'WALLET_TO_BANK'"
-                  [class.btn-custom-outline-primary]="direction() !== 'WALLET_TO_BANK'"
-                  data-testid="direction-out"
-                  (click)="selectDirection('WALLET_TO_BANK')"
-                >
-                  <i class="bi bi-arrow-up-circle"></i> Wallet → Bank
-                </button>
+              <div class="direction-switch mb-3" role="group" aria-label="Transfer direction">
+                <span class="direction-label" [class.active]="direction() === 'BANK_TO_WALLET'">
+                  <i class="bi bi-arrow-down-circle" aria-hidden="true"></i> Bank → Wallet
+                </span>
+                <div class="form-check form-switch direction-toggle">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    class="form-check-input"
+                    id="directionSwitch"
+                    data-testid="direction-toggle"
+                    [checked]="direction() === 'WALLET_TO_BANK'"
+                    [attr.aria-label]="'Move money ' + (direction() === 'BANK_TO_WALLET' ? 'from bank to wallet' : 'from wallet to bank') + '. Activate to reverse.'"
+                    (change)="toggleDirection()"
+                  />
+                </div>
+                <span class="direction-label" [class.active]="direction() === 'WALLET_TO_BANK'">
+                  <i class="bi bi-arrow-up-circle" aria-hidden="true"></i> Wallet → Bank
+                </span>
               </div>
 
               <p class="text-muted small" data-testid="available">

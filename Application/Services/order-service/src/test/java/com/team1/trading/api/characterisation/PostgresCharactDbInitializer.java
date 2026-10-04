@@ -101,7 +101,9 @@ public class PostgresCharactDbInitializer
         static DbSettings resolve() {
             String keyFile = envOrSystem("TRUSTME_KEY_FILE", "trustme.key-file");
             if (keyFile == null) {
-                keyFile = "../leapcapstoneteam1-720d03.TM";
+                // Key file at the repo root; surefire runs with the module
+                // directory (Application/Services/order-service) as CWD.
+                keyFile = "../../../leapcapstoneteam1-720d03.TM";
             }
             String dbName = envOrSystem("CHARACT_DB_NAME", "charact.dbname");
             if (dbName == null) {

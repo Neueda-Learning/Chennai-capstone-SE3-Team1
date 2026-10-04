@@ -10,11 +10,11 @@ set -Eeuo pipefail
 # This script itself can be run from anywhere (it resolves the compose file relative to
 # its own location, not the caller's working directory) - but starting Kafka in the first
 # place needs `.env` next to docker-compose.yml, so that part has to run from there:
-#   cd infra/kafka && docker-compose up -d
-#   bash infra/kafka/create-topics.sh   # from anywhere
+#   cd Application/Infrastructure/Kafka && docker-compose up -d
+#   bash Application/Infrastructure/Kafka/scripts/create-topics.sh   # from anywhere
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
 KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
 KAFKA_SERVICE="${KAFKA_SERVICE:-kafka}"
 

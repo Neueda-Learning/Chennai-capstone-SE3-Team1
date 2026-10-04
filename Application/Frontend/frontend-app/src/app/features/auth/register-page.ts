@@ -34,7 +34,7 @@ export class RegisterPage {
   /**
    * Live validation, shown only after the trader starts typing. The rules come
    * from `password-rules.ts`, which mirrors `PasswordPolicy` in
-   * `services/team1-nestjs` exactly, so the page never disagrees with the
+   * `Services/auth-service` exactly, so the page never disagrees with the
    * VAL-422 the service returns.
    */
   protected readonly showPasswordHelp = computed(() => this.password() !== '');

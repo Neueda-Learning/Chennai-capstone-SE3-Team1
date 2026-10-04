@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One-shot local bring-up of the trading platform on Windows: Kafka, Postgres schema, the
-    auth service (services\team1-nestjs), Trade API and Trade Executor, then a merged live
+    auth service (Application\Services\auth-service), Trade API and Trade Executor, then a merged live
     tail of every log.
 
 .DESCRIPTION
@@ -12,13 +12,13 @@
 
     What it does, in order:
       1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
-         and services\team1-nestjs.
+         and Application\Services\auth-service.
       2. Kafka 3.8.0 CLI tools: downloads to -KafkaHome if absent. Without -KafkaHosted,
          also formats KRaft storage once and starts a local broker, waiting for :9092. With
          -KafkaHosted, instead verifies the remote broker at -KafkaHost:9092 is reachable.
          Either way, creates the six contracted topics against whichever broker is in play.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
-      4. Builds domain-engine, eventbus, sprint-06-api and executor, and the auth service
+      4. Builds libs/domain-engine, libs/eventbus, order-service and executor-service, and the auth service
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
          and dist\ when they are there.
       5. Starts the auth service (:3000), the API (:8081) and the executor (:8083), waits for
@@ -81,7 +81,7 @@ $ApiPort    = 8081
 $ExecPort   = 8083
 $KafkaPort  = 9092
 $AuthPort   = 3000
-$AuthDir    = Join-Path $RepoRoot "services\team1-nestjs"
+$AuthDir    = Join-Path $RepoRoot "Application\Services\auth-service"
 $AuthMain   = Join-Path $AuthDir "dist\main.js"
 $Topics     = @{ "orders"=3; "trade-events"=3; "market-data"=6; "orders.DLT"=3; "trade-events.DLT"=3; "market-data.DLT"=6 }
 
@@ -290,17 +290,17 @@ if ($ResetDb) { $dbArgs += "--reset" }
 if ($LASTEXITCODE -ne 0) { Fail "apply_db.py failed (a migration was edited after being applied? re-run with -ResetDb)" }
 
 # ------------------------------------------------------------------ 4. build
-$apiJar  = Join-Path $RepoRoot "sprint-06-api\target\sprint-06-api-0.0.1-SNAPSHOT.jar"
-$execJar = Join-Path $RepoRoot "executor\target\trade-executor-0.0.1-SNAPSHOT.jar"
+$apiJar  = Join-Path $RepoRoot "Application\Services\order-service\target\sprint-06-api-0.0.1-SNAPSHOT.jar"
+$execJar = Join-Path $RepoRoot "Application\Services\executor-service\target\trade-executor-0.0.1-SNAPSHOT.jar"
 if ($SkipBuild -and (Test-Path $apiJar) -and (Test-Path $execJar)) {
     Say "Build skipped (-SkipBuild)"
 } else {
     Say "Building (domain-engine -> eventbus -> api -> executor)"
     $steps = @(
-        @("sprint-05-domain-engine\pom.xml", "install"),
-        @("sprint-07\eventbus\pom.xml",      "install"),
-        @("sprint-06-api\pom.xml",           "package"),
-        @("executor\pom.xml",                "package"))
+        @("Application\Services\libs\domain-engine\pom.xml", "install"),
+        @("Application\Services\libs\eventbus\pom.xml",      "install"),
+        @("Application\Services\order-service\pom.xml",      "package"),
+        @("Application\Services\executor-service\pom.xml",   "package"))
     foreach ($s in $steps) {
         Write-Host "    mvn -f $($s[0]) $($s[1])"
         & mvn -q -f $s[0] $s[1] -DskipTests 2>&1 | Where-Object { $_ -match "ERROR|BUILD FAILURE" } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
@@ -308,7 +308,7 @@ if ($SkipBuild -and (Test-Path $apiJar) -and (Test-Path $execJar)) {
     }
 }
 
-Say "Auth service (services\team1-nestjs)"
+Say "Auth service (Application\Services\auth-service)"
 Push-Location $AuthDir
 try {
     # npm writes node_modules\.package-lock.json on every install. If package-lock.json is newer

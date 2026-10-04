@@ -564,10 +564,24 @@ describe('BankAccountPage', () => {
       closeQuietly(request);
     });
 
+    it('shows the switch off for bank to wallet and on once it is flicked', () => {
+      const fixture = linkedPage();
+      const toggle = () =>
+        fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLInputElement;
+
+      expect(toggle().checked).toBe(false);
+
+      toggle().click();
+      fixture.detectChanges();
+
+      expect(toggle().checked).toBe(true);
+      expect(textOf(fixture, '[data-testid="available"]')).toContain('Available in wallet');
+    });
+
     it('sends wallet to bank once the direction is switched', () => {
       const fixture = linkedPage();
 
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       fill(fixture, '#amount', '250');
@@ -586,7 +600,7 @@ describe('BankAccountPage', () => {
       expect(textOf(fixture, '[data-testid="available"]')).toContain('Available in bank account');
       expect(textOf(fixture, '[data-testid="available"]')).toContain('150,000');
 
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       expect(textOf(fixture, '[data-testid="available"]')).toContain('Available in wallet');
@@ -598,7 +612,7 @@ describe('BankAccountPage', () => {
 
       expect(textOf(fixture, 'label[for="amount"]')).toContain('Trading wallet');
 
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       expect(textOf(fixture, 'label[for="amount"]')).toContain('Bank account');
@@ -619,7 +633,7 @@ describe('BankAccountPage', () => {
     it('will not move more back than the wallet holds', () => {
       const fixture = linkedPage();
 
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       fill(fixture, '#amount', '200000');
@@ -652,7 +666,7 @@ describe('BankAccountPage', () => {
 
       // 140000 clears the bank but not the wallet, so switching direction has to
       // make the same number invalid again rather than carry the earlier verdict.
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
       submit(fixture, 'form');
 
@@ -695,7 +709,7 @@ describe('BankAccountPage', () => {
     it('describes a wallet to bank transfer in the result, not the fixed copy', () => {
       const fixture = linkedPage();
 
-      (fixture.nativeElement.querySelector('[data-testid="direction-out"]') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       fill(fixture, '#amount', '250');

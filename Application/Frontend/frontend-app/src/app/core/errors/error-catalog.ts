@@ -25,14 +25,14 @@ export interface ErrorCatalogueEntry {
 }
 
 /**
- * Every error code from the Trade REST API contract (sprint-06-api).
- * Defined in contracts/trade-api.yaml.
+ * Every error code from the Trade REST API contract (order-service).
+ * Defined in Contracts/api-schemas/trade-api.yaml.
  */
 export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'INTERNAL-500'] as const;
 
 /**
- * Every error code from the Auth service contract (sprint-08-auth).
- * Defined in contracts/auth-api.yaml.
+ * Every error code from the Auth service contract (auth-service).
+ * Defined in Contracts/api-schemas/auth-api.yaml.
  */
 export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422', 'AUTH-410'] as const;
 

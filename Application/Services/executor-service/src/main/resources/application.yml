@@ -51,7 +51,9 @@ mybatis:
     map-underscore-to-camel-case: true
 
 trustme:
-  key-file: ../leapcapstoneteam1-720d03.TM
+  # Key file at the repository root; assumes the app runs from
+  # Application/Services/executor-service. Override with --trustme.key-file=
+  key-file: ../../../leapcapstoneteam1-720d03.TM
 
 fauxnance:
   # Read from the TrustMe vault (secret "Fauxnance_Endpoint"), like the key below.

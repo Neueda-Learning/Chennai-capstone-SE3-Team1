@@ -26,9 +26,9 @@ differs between machines.
 ## Prerequisites
 
 1. **Kafka topics** - create via infra script:
-   ```bash
-   bash infra/kafka/create-topics.sh
-   ```
+    ```bash
+    bash Application/Infrastructure/Kafka/scripts/create-topics.sh
+    ```
 2. **Database** - run migrations:
    ```bash
    python scripts/apply_db.py

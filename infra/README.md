@@ -94,5 +94,5 @@ processes without touching Kafka (that's stopped separately, on Linux).
 - The binding local-infrastructure requirements ask for Postgres 16; this setup uses
   whatever's installed locally as "PostgreSQL" on Windows, which is a team/environment
   decision, not something this repo pins.
-- Nothing here runs the real Sprint 8 auth service; `services/auth-stub` (started locally by
-  `run-local.ps1`) stands in for it. See `services/auth-stub/README.md`.
+- Nothing here runs the real Sprint 8 auth service; `Application/Services/auth-stub` (started locally by
+  `run-local.ps1`) stands in for it. See `Application/Services/auth-stub/README.md`.

@@ -12,8 +12,8 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../../migrations:/migrations:ro
-      - ../../seed:/seed:ro
+      - ../../Application/Databases/PostgreSQL/migrations:/migrations:ro
+      - ../../Application/Databases/PostgreSQL/seeds:/seed:ro
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
@@ -31,7 +31,7 @@ services:
 
   trade-api:
     build:
-      context: ../../sprint-06-api
+      context: ../../Application/Services/order-service
       dockerfile: Dockerfile
     container_name: team1_trade_api
     restart: unless-stopped
@@ -60,7 +60,7 @@ services:
 
   auth-service:
     build:
-      context: ../../services/team1-nestjs
+      context: ../../Application/Services/auth-service
       dockerfile: Dockerfile
     container_name: team1_auth_service
     restart: unless-stopped

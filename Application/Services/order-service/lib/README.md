@@ -1,12 +1,12 @@
 # Provided artifacts (built outside this project)
 
 `domain-engine-1.0-SNAPSHOT.jar` — the Sprint 5 domain engine. Not built here:
-generate it from `sprint-05-domain-engine` and place it in this folder so the
+generate it from `Application/Services/libs/domain-engine` and place it in this folder so the
 Docker build can install it.
 
 ```bash
-mvn -f sprint-05-domain-engine/pom.xml clean install
-cp sprint-05-domain-engine/target/domain-engine-1.0-SNAPSHOT.jar sprint-06-api/lib/
+mvn -f Application/Services/libs/domain-engine/pom.xml clean install
+cp Application/Services/libs/domain-engine/target/domain-engine-1.0-SNAPSHOT.jar Application/Services/order-service/lib/
 ```
 
 Expected file: `domain-engine-1.0-SNAPSHOT.jar` (the Dockerfile

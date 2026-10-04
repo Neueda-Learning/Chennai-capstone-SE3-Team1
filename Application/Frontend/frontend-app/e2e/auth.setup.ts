@@ -5,16 +5,14 @@ import { storageStatePath, testUser } from './test-user';
 /**
  * Signs the test user in once and caches the session for the authenticated projects.
  *
- * "Remember Me" is ticked on purpose: an unticked sign-in lives in `sessionStorage`, which a
- * storage state does not carry between browser contexts, so the cached session would be empty
- * and every downstream test would be bounced to the login screen.
+ * The session always lives in `localStorage` now, which a storage state does carry between browser
+ * contexts, so every project that depends on this one inherits a working session.
  */
 setup('sign in as the test user', async ({ page }) => {
   await page.goto('/login');
 
   await page.getByTestId('username').fill(testUser.username);
   await page.getByTestId('password').fill(testUser.password);
-  await page.getByTestId('remember-me').check();
   await page.getByTestId('submit').click();
 
   // Whichever way the sign-in goes, one of these two happens first.

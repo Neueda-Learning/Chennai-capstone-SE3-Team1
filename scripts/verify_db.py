@@ -8,13 +8,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from db_config import REPO_ROOT, DbConfig, DbError, add_connection_args, quote_literal
+from db_config import REPO_ROOT, DbConfig, DbError, _first_existing, add_connection_args, quote_literal
 from make_seed import apply_fill, price
 
 SQLSTATE_RE = re.compile(r"ERROR:\s+([0-9A-Z]{5}):")
 
-ENTITY_DIR = (REPO_ROOT / "sprint-05-domain-engine" / "src" / "main" / "java"
-              / "com" / "team1" / "trading" / "domain" / "entity")
+ENTITY_DIR = (_first_existing(
+    REPO_ROOT / "Application" / "Services" / "libs" / "domain-engine",
+    REPO_ROOT / "sprint-05-domain-engine")
+    / "src" / "main" / "java"
+    / "com" / "team1" / "trading" / "domain" / "entity")
 
 FIELD_RE = re.compile(r"^\s*private\s+(?:final\s+|static\s+|transient\s+)*"
                       r"[\w.<>,\[\]\s]+?\s+(\w+)\s*(?:=[^;]*)?;", re.M)
@@ -813,6 +816,7 @@ def c26_history_accepts_a_real_transition(v):
 
 def c27_history_rejects_an_unknown_status(v):
     order_id = v.scalar("SELECT order_id FROM orders LIMIT 1;")
+    require(order_id, "seed data has no orders to test with")
     v.expect_rejected(
         "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
         "VALUES (" + quote_literal(order_id) + ", 'SETTLED', 'NEW', 'SETTLED');",

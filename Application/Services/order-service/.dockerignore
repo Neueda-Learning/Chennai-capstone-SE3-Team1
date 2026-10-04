@@ -3,5 +3,5 @@ target/
 .idea/
 *.iml
 *.log
-!../sprint-05-domain-engine/pom.xml
-!../sprint-05-domain-engine/src/
+!../libs/domain-engine/pom.xml
+!../libs/domain-engine/src/

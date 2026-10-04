@@ -13,7 +13,7 @@ export const TRADE_API = process.env['TRADE_API_BASE'] ?? 'http://localhost:8081
 /** The same money format `core/format/money.ts` prints with. */
 export const rupees = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
 
-/** The session's bearer token, which sits in local storage once Remember Me was ticked. */
+/** The session's bearer token, which the app keeps in local storage. */
 export async function bearer(page: Page): Promise<string> {
   const raw = await page.evaluate((key) => localStorage.getItem(key), SESSION_KEY);
   const token = raw === null ? null : (JSON.parse(raw) as { accessToken?: string }).accessToken;

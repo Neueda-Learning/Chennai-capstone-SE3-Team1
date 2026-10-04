@@ -1,6 +1,6 @@
 {
   "generatorName": "typescript-angular",
-  "inputSpec": "../sprint-06-api/contracts/trade-api.yaml",
+  "inputSpec": "../../Contracts/api-schemas/trade-api.yaml",
   "outputDir": "src/app/generated/trade-client",
   "validateSpec": false,
   "additionalProperties": {

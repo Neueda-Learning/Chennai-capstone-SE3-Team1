@@ -72,27 +72,19 @@ test.describe('Sign in', () => {
     await expect(page.getByRole('heading', { name: 'Blotter' })).toBeVisible();
   });
 
-  test('Remember Me keeps the session in local storage and it survives a reload', async ({ page }) => {
+  test('the session is kept in local storage and survives a reload', async ({ page }) => {
     await page.goto('/login');
-    await page.getByTestId('remember-me').check();
     await signIn(page, testUser.username, testUser.password);
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    const remembered = await page.evaluate((key) => localStorage.getItem(key), SESSION_KEY);
-    expect(remembered).not.toBeNull();
+    const stored = await page.evaluate((key) => localStorage.getItem(key), SESSION_KEY);
+    expect(stored).not.toBeNull();
+    // Nothing is written to the tab-lifecycle store any more: it is read once on
+    // boot to migrate an older session, then cleared.
     expect(await page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY)).toBeNull();
 
     await page.reload();
     await expect(page.getByTestId('navbar-name')).toHaveText(testUser.username);
-  });
-
-  test('an unticked Remember Me keeps the session in the tab only', async ({ page }) => {
-    await page.goto('/login');
-    await signIn(page, testUser.username, testUser.password);
-    await expect(page).toHaveURL(/\/dashboard$/);
-
-    expect(await page.evaluate((key) => localStorage.getItem(key), SESSION_KEY)).toBeNull();
-    expect(await page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY)).not.toBeNull();
   });
 
   test('the password can be revealed and hidden again', async ({ page }) => {
