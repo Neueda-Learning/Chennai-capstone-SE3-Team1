@@ -85,6 +85,15 @@ describe('LoginPage', () => {
     expect(setUp().fixture.componentInstance).toBeTruthy();
   });
 
+  it('no longer offers a Remember Me choice', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    const compiled = root(fixture);
+
+    expect(compiled.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(compiled.textContent).not.toMatch(/remember me/i);
+  });
+
   it('should mask the password by default and reveal it on toggle', async () => {
     const { fixture } = setUp();
     await fixture.whenStable();

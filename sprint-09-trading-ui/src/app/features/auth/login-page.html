@@ -92,19 +92,6 @@
         </div>
       </div>
 
-      <div class="login-options">
-        <label class="custom-control-label">
-          <input
-            type="checkbox"
-            class="custom-checkbox-input"
-            data-testid="remember-me"
-            [checked]="remember()"
-            (change)="onRememberChange($event)"
-          >
-          <span>Keep me signed in</span>
-        </label>
-      </div>
-
       @if (error(); as message) {
         <div class="alert alert-danger login-alert" role="alert" data-testid="login-error">
           <i class="bi bi-exclamation-triangle-fill me-2"></i>

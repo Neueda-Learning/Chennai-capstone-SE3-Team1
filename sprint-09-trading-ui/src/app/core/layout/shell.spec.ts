@@ -86,7 +86,7 @@ describe('Shell', () => {
   });
 
   function signInAndCreate(accountId: number | null = ACCOUNT_ID): ComponentFixture<Shell> {
-    TestBed.inject(SessionStore).signIn('token', accountId, 'refresh-token-1', false);
+    TestBed.inject(SessionStore).signIn('token', accountId, 'refresh-token-1');
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
     settle(fixture);

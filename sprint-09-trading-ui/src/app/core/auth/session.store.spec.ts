@@ -66,6 +66,11 @@ function createStore(overrides: { session?: Storage; local?: Storage } = {}): Se
   return TestBed.inject(SessionStore);
 }
 
+function stored(store: Storage): { accessToken?: string; refreshToken?: string | null } {
+  const raw = store.getItem(KEY);
+  return raw === null ? {} : JSON.parse(raw);
+}
+
 describe('SessionStore', () => {
   it('starts signed out with no tokens and no account', () => {
     const store = createStore();
@@ -77,7 +82,7 @@ describe('SessionStore', () => {
 
   it('stores the tokens and account it is handed', () => {
     const store = createStore();
-    store.signIn('token-1', 42, 'refresh-1', false);
+    store.signIn('token-1', 42, 'refresh-1');
     expect(store.isSignedIn()).toBe(true);
     expect(store.accessToken()).toBe('token-1');
     expect(store.refreshToken()).toBe('refresh-1');
@@ -86,65 +91,52 @@ describe('SessionStore', () => {
 
   it('reads accountId from the JWT claim when it is not handed over', () => {
     const store = createStore();
-    store.signIn(jwt({ accountId: 7 }), null, null, false);
+    store.signIn(jwt({ accountId: 7 }), null, null);
     expect(store.isSignedIn()).toBe(true);
     expect(store.accountId()).toBe(7);
   });
 
   it('treats a token without an accountId claim as having none', () => {
     const store = createStore();
-    store.signIn(jwt({ sub: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f' }), null, null, false);
+    store.signIn(jwt({ sub: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f' }), null, null);
     expect(store.isSignedIn()).toBe(true);
     expect(store.accountId()).toBeNull();
   });
 
   it('lets an explicit accountId win over the JWT claim', () => {
     const store = createStore();
-    store.signIn(jwt({ accountId: 1 }), 42, null, false);
+    store.signIn(jwt({ accountId: 1 }), 42, null);
     expect(store.accountId()).toBe(42);
   });
 
   it('tolerates a token that is not a JWT at all', () => {
     const store = createStore();
-    expect(() => store.signIn('token', null, null, false)).not.toThrow();
+    expect(() => store.signIn('token', null, null)).not.toThrow();
     expect(store.isSignedIn()).toBe(true);
     expect(store.accountId()).toBeNull();
   });
 
-  it('keeps a remembered session in localStorage and out of sessionStorage', () => {
+  it('writes the session to localStorage and never to sessionStorage', () => {
     const session = new MemoryStorage();
     const local = new MemoryStorage();
     const store = createStore({ session, local });
 
-    store.signIn('token-1', 42, 'refresh-1', true);
+    store.signIn('token-1', 42, 'refresh-1');
 
-    expect(store.isSignedIn()).toBe(true);
-    expect(local.getItem(KEY)).toContain('token-1');
+    expect(stored(local).accessToken).toBe('token-1');
+    expect(stored(local).refreshToken).toBe('refresh-1');
     expect(session.getItem(KEY)).toBeNull();
   });
 
-  it('keeps a tab-lifecycle session in sessionStorage and out of localStorage', () => {
-    const session = new MemoryStorage();
+  it('a new sign-in replaces the previous one', () => {
     const local = new MemoryStorage();
-    const store = createStore({ session, local });
+    const store = createStore({ local });
 
-    store.signIn('token-1', 42, 'refresh-1', false);
-
-    expect(session.getItem(KEY)).toContain('token-1');
-    expect(local.getItem(KEY)).toBeNull();
-  });
-
-  it('a new sign-in replaces the previous one everywhere', () => {
-    const session = new MemoryStorage();
-    const local = new MemoryStorage();
-    const store = createStore({ session, local });
-
-    store.signIn('token-one', 1, null, true);
-    store.signIn('token-two', 2, null, false);
+    store.signIn('token-one', 1, null);
+    store.signIn('token-two', 2, null);
 
     expect(store.accessToken()).toBe('token-two');
-    expect(local.getItem(KEY)).toBeNull();
-    expect(session.getItem(KEY)).toContain('token-two');
+    expect(stored(local).accessToken).toBe('token-two');
   });
 
   it('reads the accountId from a token whose payload encodes to base64url with an underscore', () => {
@@ -158,16 +150,11 @@ describe('SessionStore', () => {
     expect(store.accountId()).toBe(42);
   });
 
-  it('restores only the remembered session on a future boot', () => {
+  it('restores a persisted session on a future boot', () => {
     const local = new MemoryStorage();
     local.setItem(
       KEY,
-      JSON.stringify({
-        accessToken: 'token-persisted',
-        refreshToken: 'refresh-persisted',
-        accountId: 5,
-        remembered: true
-      })
+      JSON.stringify({ accessToken: 'token-persisted', refreshToken: 'refresh-persisted', accountId: 5 })
     );
 
     const store = createStore({ local });
@@ -178,56 +165,49 @@ describe('SessionStore', () => {
     expect(store.accountId()).toBe(5);
   });
 
-  it('keeps a tab-only session across a reload of that tab', () => {
+  it('migrates a tab-only session from the previous build into localStorage', () => {
     const session = new MemoryStorage();
+    const local = new MemoryStorage();
     session.setItem(
       KEY,
       JSON.stringify({ accessToken: 'tab-token', refreshToken: 'tab-refresh', accountId: 3, remembered: false })
     );
 
-    const store = createStore({ session });
+    const store = createStore({ session, local });
 
-    expect(store.isSignedIn()).toBe(true);
     expect(store.accessToken()).toBe('tab-token');
     expect(store.refreshToken()).toBe('tab-refresh');
     expect(store.accountId()).toBe(3);
+    expect(stored(local).accessToken).toBe('tab-token');
   });
 
-  it('prefers the remembered session when both stores hold one', () => {
-    const local = new MemoryStorage();
+  it('clears the legacy store on boot, so no refresh token is left in it', () => {
     const session = new MemoryStorage();
-    local.setItem(KEY, JSON.stringify({ accessToken: 'remembered', refreshToken: null, accountId: 1, remembered: true }));
-    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: null, accountId: 2, remembered: false }));
+    const local = new MemoryStorage();
+    session.setItem(KEY, JSON.stringify({ accessToken: 'tab-token', refreshToken: 'tab-refresh', accountId: 3 }));
 
-    expect(createStore({ local, session }).accessToken()).toBe('remembered');
+    createStore({ session, local });
+
+    expect(session.getItem(KEY)).toBeNull();
   });
 
-  it('falls back to the tab session when the remembered one is unreadable', () => {
+  it('prefers localStorage and clears the legacy entry when both hold one', () => {
     const local = new MemoryStorage();
     const session = new MemoryStorage();
-    local.setItem(KEY, 'not-json');
-    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: null, accountId: 2, remembered: false }));
-
-    expect(createStore({ local, session }).accessToken()).toBe('tab');
-  });
-
-  it('a tab-only session reloaded still re-persists as tab-only, never promoted to remembered', () => {
-    const local = new MemoryStorage();
-    const session = new MemoryStorage();
-    session.setItem(KEY, JSON.stringify({ accessToken: 'tab', refreshToken: 'r', accountId: 2, remembered: false }));
+    local.setItem(KEY, JSON.stringify({ accessToken: 'local', refreshToken: null, accountId: 1 }));
+    session.setItem(KEY, JSON.stringify({ accessToken: 'legacy', refreshToken: 'legacy-refresh', accountId: 2 }));
 
     const store = createStore({ local, session });
-    store.adoptTokens('tab-2', 2, 'r2'); // re-persists using whichever store held the session
 
-    expect(local.getItem(KEY)).toBeNull();
-    expect(JSON.parse(session.getItem(KEY)!).accessToken).toBe('tab-2');
+    expect(store.accessToken()).toBe('local');
+    expect(session.getItem(KEY)).toBeNull();
   });
 
-  it('ignores a tab session with no token', () => {
-    const session = new MemoryStorage();
-    session.setItem(KEY, JSON.stringify({ accessToken: '', refreshToken: null, accountId: 3 }));
+  it('ignores a stored session with no token', () => {
+    const local = new MemoryStorage();
+    local.setItem(KEY, JSON.stringify({ accessToken: '', refreshToken: null, accountId: 3 }));
 
-    expect(createStore({ session }).isSignedIn()).toBe(false);
+    expect(createStore({ local }).isSignedIn()).toBe(false);
   });
 
   it('ignores unreadable storage content without throwing', () => {
@@ -245,7 +225,7 @@ describe('SessionStore', () => {
       local: new ThrowingStorage()
     });
 
-    expect(() => store.signIn('token-1', 42, 'refresh-1', true)).not.toThrow();
+    expect(() => store.signIn('token-1', 42, 'refresh-1')).not.toThrow();
     expect(store.isSignedIn()).toBe(true);
     expect(store.accountId()).toBe(42);
 
@@ -254,12 +234,34 @@ describe('SessionStore', () => {
     expect(store.accountId()).toBeNull();
   });
 
-  it('signOut clears the session and both stores', () => {
+  it('adoptTokens replaces the tokens in place, keeping the session', () => {
+    const local = new MemoryStorage();
+    const store = createStore({ local });
+
+    store.signIn('old-access', 7, 'old-refresh');
+    store.adoptTokens('new-access', 7, 'new-refresh');
+
+    expect(store.accessToken()).toBe('new-access');
+    expect(store.refreshToken()).toBe('new-refresh');
+    expect(store.accountId()).toBe(7);
+    expect(stored(local).accessToken).toBe('new-access');
+    expect(stored(local).refreshToken).toBe('new-refresh');
+  });
+
+  it('adoptTokens falls back to the new token\'s own claim when no account is passed', () => {
+    const store = createStore();
+
+    store.adoptTokens(jwt({ accountId: 12 }), null, 'new-refresh');
+
+    expect(store.accountId()).toBe(12);
+  });
+
+  it('signOut clears the session from both stores', () => {
     const session = new MemoryStorage();
     const local = new MemoryStorage();
     const store = createStore({ session, local });
 
-    store.signIn('token-1', 42, 'refresh-1', false);
+    store.signIn('token-1', 42, 'refresh-1');
     expect(store.isSignedIn()).toBe(true);
 
     store.signOut();

@@ -1,29 +1,37 @@
 import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
 
 /**
- * The backing store for a tab-lifecycle session. The seam Samyukhtha's guard
- * and the order ticket are written against was this class's public surface;
- * the tokens below reach past it only on purpose. The strings stored here are
- * exactly the wire tokens - the JWT itself and the opaque refresh token.
+ * The backing store for a session. Every session lives here and nowhere else:
+ * a sign-in survives a reload, a restart, and every other tab in the browser,
+ * and ends when the trader signs out or the refresh token expires.
+ *
+ * The seam Samyukhtha's guard and the order ticket are written against was this
+ * class's public surface; the tokens below reach past it only on purpose. The
+ * strings stored here are exactly the wire tokens - the JWT itself and the
+ * opaque refresh token.
  */
-export const SESSION_STORAGE = new InjectionToken<Storage>(
-  'Storage for tab-lifecycle sessions',
-  { factory: () => sessionStorage }
-);
-
-/** The backing store for a remembered session that survives a restart. */
 export const LOCAL_STORAGE = new InjectionToken<Storage>(
-  'Storage for remembered sessions',
+  'Storage for sessions',
   { factory: () => localStorage }
 );
 
-/** What actually gets written to storage. `remembered` is stored so a future
- *  boot knows where the entry came from. */
+/**
+ * The tab-lifecycle store this app used while Remember Me existed. Nothing is
+ * written here any more. It is still read once at boot, so a session created by
+ * the previous build is carried into {@link LOCAL_STORAGE} rather than stranding
+ * a signed-in trader at upgrade - and then cleared, so a live refresh token is
+ * not left behind in a store the app no longer consults.
+ */
+export const SESSION_STORAGE = new InjectionToken<Storage>(
+  'Legacy tab-lifecycle storage: migrated into LOCAL_STORAGE on boot, then cleared',
+  { factory: () => sessionStorage }
+);
+
+/** What actually gets written to storage. */
 interface PersistedSession {
   accessToken: string;
   refreshToken: string | null;
   accountId: number | null;
-  remembered: boolean;
 }
 
 const SESSION_KEY = 'trading-ui.session';
@@ -36,28 +44,34 @@ const SESSION_KEY = 'trading-ui.session';
  * Samyukhtha's note matters here: `isSignedIn` is a usability control, not a
  * security one. It answers "does this browser hold a usable token", not "is
  * this request allowed" - authorisation is the Trade REST API's decision,
- * taken on every call.
- *
- * Sessions are checkbox-driven: `remember` (Remember Me) persists across a
- * restart, everything else lives for the tab. Keeping the two apart also
- * means an unchecked sign-in can never resurrect itself later.
+ * taken on every call. Whether the access token is still inside its 15 minutes
+ * is decided by the bearer interceptor, which renews it on a 401 rather than
+ * asking this store about the clock.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionStore {
-  private readonly tabStore = inject(SESSION_STORAGE);
-  private readonly rememberedStore = inject(LOCAL_STORAGE);
+  private readonly store = inject(LOCAL_STORAGE);
+  private readonly legacyStore = inject(SESSION_STORAGE);
 
   private readonly token = signal<string | null>(null);
   private readonly refresh = signal<string | null>(null);
   private readonly account = signal<number | null>(null);
 
   constructor() {
-    const remembered = this.readPersisted();
-    if (remembered !== null) {
-      this.token.set(remembered.accessToken);
-      this.refresh.set(remembered.refreshToken);
-      this.account.set(remembered.accountId);
+    const current = this.readFrom(this.store);
+    const legacy = current === null ? this.readFrom(this.legacyStore) : null;
+    const restored = current ?? legacy;
+
+    if (restored !== null) {
+      this.token.set(restored.accessToken);
+      this.refresh.set(restored.refreshToken);
+      this.account.set(restored.accountId);
     }
+    if (current === null && legacy !== null) {
+      // Carried over from the tab-lifecycle build, so upgrade does not sign out.
+      this.persist();
+    }
+    this.clearLegacyStore();
   }
 
   /** True only while this browser holds a usable access token. */
@@ -73,7 +87,7 @@ export class SessionStore {
 
   /** The refresh token, whenever the login handed us one. Kept out of the
    *  `isSignedIn` decision: a session is forward-usable only while it has an
-   *  access token. */
+   *  access token. The bearer interceptor needs this to renew on a 401. */
   readonly refreshToken = computed(() => this.refresh());
 
   /**
@@ -81,16 +95,11 @@ export class SessionStore {
    * from the token's JWT claim when not supplied, so the order ticket and the
    * dashboard stop being hard-coded to a demo account on the next login.
    */
-  signIn(
-    accessToken: string,
-    accountId: number | null = null,
-    refreshToken: string | null = null,
-    remember = false
-  ): void {
+  signIn(accessToken: string, accountId: number | null = null, refreshToken: string | null = null): void {
     this.token.set(accessToken);
     this.refresh.set(refreshToken);
     this.account.set(accountId ?? decodeAccountId(accessToken));
-    this.persist(remember);
+    this.persist();
   }
 
   /** Drops the session locally. Called after the auth service has (best
@@ -100,58 +109,40 @@ export class SessionStore {
     this.token.set(null);
     this.refresh.set(null);
     this.account.set(null);
-    this.clearStores();
+    this.clearSession();
   }
 
   /**
-   * Replaces the tokens without touching `remembered`, for the one case that is
-   * not a sign-in: claiming a bank account creates the trading account, so the
-   * token this session is already holding is stale and has to be exchanged. Going
-   * through `signIn` for that would be a lie about what just happened and would
-   * quietly drop a "remember me" session down to a tab-only one, so the
-   * persistence promise is read back off whichever store already holds the
-   * session and re-applied.
+   * Replaces the tokens without going through `signIn`, for the two cases that
+   * are not a sign-in: the bearer interceptor renewing after a 401, and
+   * claiming a bank account, which creates the trading account and so makes the
+   * `accountId` claim the session is already holding stale. Routing either
+   * through `signIn` would be a lie about what just happened.
    */
-  adoptTokens(accessToken: string, accountId: number, refreshToken: string | null): void {
+  adoptTokens(accessToken: string, accountId: number | null, refreshToken: string | null): void {
     this.token.set(accessToken);
     this.refresh.set(refreshToken);
-    this.account.set(accountId);
-    this.persist(this.rememberedStore.getItem(SESSION_KEY) !== null);
+    this.account.set(accountId ?? decodeAccountId(accessToken));
+    this.persist();
   }
 
-  private persist(remembered: boolean): void {
+  private persist(): void {
     const entry: PersistedSession = {
       accessToken: this.token() ?? '',
       refreshToken: this.refresh(),
-      accountId: this.account(),
-      remembered
+      accountId: this.account()
     };
     try {
-      this.rememberedStore.removeItem(SESSION_KEY);
-      this.tabStore.removeItem(SESSION_KEY);
-      (remembered ? this.rememberedStore : this.tabStore).setItem(
-        SESSION_KEY,
-        JSON.stringify(entry)
-      );
+      this.store.setItem(SESSION_KEY, JSON.stringify(entry));
     } catch {
       // Storage can be full, disabled, or unavailable (private browsing).
       // The session still works for this tab; only the persistence promise
       // is dropped, silently, because there is nothing the user can do about
-      // it that a sign-in from this tab could not solve.
+      // it that a sign-in could not solve.
     }
   }
 
-  /**
-   * The session this browser should come back as: the remembered one if there is one, else the
-   * one this tab already held. sessionStorage survives a reload of the same tab and dies with the
-   * tab, which is exactly the lifetime an unticked "Remember Me" promises, so reading it here
-   * keeps a reload from signing someone out without letting a closed tab's session return later.
-   */
-  private readPersisted(): PersistedSession | null {
-    return this.readFrom(this.rememberedStore, true) ?? this.readFrom(this.tabStore, false);
-  }
-
-  private readFrom(store: Storage, remembered: boolean): PersistedSession | null {
+  private readFrom(store: Storage): PersistedSession | null {
     let raw: string | null;
     try {
       raw = store.getItem(SESSION_KEY);
@@ -169,20 +160,30 @@ export class SessionStore {
       return {
         accessToken: parsed.accessToken,
         refreshToken: typeof parsed.refreshToken === 'string' ? parsed.refreshToken : null,
-        accountId: typeof parsed.accountId === 'number' ? parsed.accountId : null,
-        remembered
+        accountId: typeof parsed.accountId === 'number' ? parsed.accountId : null
       };
     } catch {
       return null;
     }
   }
 
-  private clearStores(): void {
+  /** Wipes the session from both stores, including the legacy one. */
+  private clearSession(): void {
+    for (const store of [this.store, this.legacyStore]) {
+      try {
+        store.removeItem(SESSION_KEY);
+      } catch {
+        // Best effort, same reasoning as `persist`.
+      }
+    }
+  }
+
+  private clearLegacyStore(): void {
     try {
-      this.rememberedStore.removeItem(SESSION_KEY);
-      this.tabStore.removeItem(SESSION_KEY);
+      this.legacyStore.removeItem(SESSION_KEY);
     } catch {
-      // Best effort, same reasoning as `persist`.
+      // Best effort: nothing depends on this succeeding, and the session the
+      // trader actually has is in LOCAL_STORAGE either way.
     }
   }
 }

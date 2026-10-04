@@ -25,7 +25,6 @@ export class LoginPage {
   protected readonly passwordVisible = signal(false);
   protected readonly submitted = signal(false);
   protected readonly submitting = signal(false);
-  protected readonly remember = signal(false);
   protected readonly username = signal('');
   protected readonly password = signal('');
   protected readonly error = signal<string | null>(null);
@@ -47,10 +46,6 @@ export class LoginPage {
 
   protected togglePasswordVisibility(): void {
     this.passwordVisible.update((visible) => !visible);
-  }
-
-  protected onRememberChange(event: Event): void {
-    this.remember.set((event.target as HTMLInputElement).checked);
   }
 
   protected onUsernameInput(event: Event): void {
@@ -84,7 +79,7 @@ export class LoginPage {
   }
 
   private onSignedIn(tokens: TokenResponse): void {
-    this.session.signIn(tokens.accessToken, null, tokens.refreshToken, this.remember());
+    this.session.signIn(tokens.accessToken, null, tokens.refreshToken);
 
     const destination = this.returnUrl.consume(
       this.route.snapshot.queryParamMap.get(ReturnUrlStore.param)
