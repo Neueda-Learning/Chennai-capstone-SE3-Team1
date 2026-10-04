@@ -32,7 +32,7 @@ from decimal import Decimal
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent
+REPO_ROOT = HERE.parents[2]  # etl-trades -> ETL -> Application -> repo root
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from db_config import DbConfig, DbError, add_connection_args, quote_literal  # noqa: E402

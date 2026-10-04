@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import List, Optional
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent
+REPO_ROOT = HERE.parents[2]  # etl-trades -> ETL -> Application -> repo root
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(HERE))
 

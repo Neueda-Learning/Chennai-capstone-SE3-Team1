@@ -5,9 +5,23 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[4]  # tests -> etl-live -> ETL -> Application -> repo root
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Layout moved ETL_Analysis/ to Application/ETL/etl-live/ (Phase 1). The test
+# modules still import the old package name, so alias it to the new location.
+ETL_LIVE = Path(__file__).resolve().parents[1]
+if "ETL_Analysis" not in sys.modules:
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location(
+        "ETL_Analysis", ETL_LIVE / "__init__.py",
+        submodule_search_locations=[str(ETL_LIVE)],
+    )
+    _pkg = importlib.util.module_from_spec(_spec)
+    sys.modules["ETL_Analysis"] = _pkg
+    _spec.loader.exec_module(_pkg)
 
 
 PLOTLY_BUNDLE_MARKER = "plotly.js v"

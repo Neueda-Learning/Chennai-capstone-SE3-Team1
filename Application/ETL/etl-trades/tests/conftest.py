@@ -9,8 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-for path in (REPO_ROOT / "scripts", REPO_ROOT / "fact-trades", REPO_ROOT / "tests"):
+REPO_ROOT = Path(__file__).resolve().parents[4]  # tests -> etl-trades -> ETL -> Application -> repo root
+for path in (REPO_ROOT / "scripts",
+             REPO_ROOT / "Application" / "ETL" / "etl-trades",
+             REPO_ROOT / "tests"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
