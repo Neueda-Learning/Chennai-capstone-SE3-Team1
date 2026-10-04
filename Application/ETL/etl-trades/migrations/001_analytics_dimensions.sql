@@ -1,7 +1,7 @@
 -- DuckDB dialect. Applied to the warehouse file by:
---     python fact-trades/load_fact_trades.py schema
+--     python Application/ETL/etl-trades/load_fact_trades.py schema
 --
--- The warehouse lives in DuckDB alongside the ETL_Analysis tables (daily_price and
+-- The warehouse lives in DuckDB alongside the etl-live tables (daily_price and
 -- friends), so a trade can be joined against the price series without crossing a
 -- database boundary. Everything under analytics.* is derived from the operational
 -- PostgreSQL tables and can be rebuilt from them at any time.
