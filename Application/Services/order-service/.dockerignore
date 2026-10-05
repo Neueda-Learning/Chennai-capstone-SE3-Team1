@@ -1,0 +1,7 @@
+target/
+.git/
+.idea/
+*.iml
+*.log
+!../libs/domain-engine/pom.xml
+!../libs/domain-engine/src/

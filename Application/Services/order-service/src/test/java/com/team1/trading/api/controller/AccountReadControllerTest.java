@@ -1,0 +1,178 @@
+package com.team1.trading.api.controller;
+
+import com.team1.trading.api.dto.AccountResponse;
+import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
+import com.team1.trading.api.dto.OrderHistoryEntry;
+import com.team1.trading.api.dto.PortfolioResponse;
+import com.team1.trading.api.dto.PositionResponse;
+import com.team1.trading.api.security.JwtVerificationFilter;
+import com.team1.trading.api.security.TokenAccountIdResolver;
+import com.team1.trading.api.service.AccountService;
+import com.team1.trading.domain.entity.types.AccountStatus;
+import com.team1.trading.domain.entity.types.OrderSide;
+import com.team1.trading.domain.entity.types.OrderStatus;
+import com.team1.trading.domain.exception.AccountNotActiveException;
+import com.team1.trading.domain.exception.AccountNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(controllers = AccountController.class,
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtVerificationFilter.class))
+@TestPropertySource(properties = {
+        "jwt.secret=test-secret-key",
+        "jwt.issuer=auth-service",
+        "spring.datasource.url=jdbc:h2:mem:readtestdb;DB_CLOSE_DELAY=-1"
+})
+class AccountReadControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private AccountService accountService;
+
+    @MockitoBean
+    private TokenAccountIdResolver tokenAccountIdResolver;
+
+    private static final Long ACCOUNT_ID = 1L;
+
+    @BeforeEach
+    void setUp() {
+        // Default behavior for resolver when no Authorization header is present
+        given(tokenAccountIdResolver.resolve(any())).willReturn(null);
+    }
+
+    @Test
+    @DisplayName("Path 1: Account, balance, positions and order history returned successfully")
+    void testAllReadEndpointsSuccess() throws Exception {
+        // Setup Account Response
+        AccountResponse accountResponse = new AccountResponse(
+                ACCOUNT_ID, "ACC-000001", "Aarav Mehta", "HDFC Bank", new BigDecimal("485200.00"),
+                AccountStatus.ACTIVE.name(), 0, LocalDateTime.now()
+        );
+        given(accountService.getAccount(eq(ACCOUNT_ID), any())).willReturn(accountResponse);
+
+        mockMvc.perform(get("/api/v1/accounts/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(1)))
+                .andExpect(jsonPath("$.accountId", is("ACC-000001")))
+                .andExpect(jsonPath("$.holderName", is("Aarav Mehta")))
+                .andExpect(jsonPath("$.bankName", is("HDFC Bank")));
+
+        // Setup Balance Response
+        BalanceResponse balanceResponse = new BalanceResponse(ACCOUNT_ID, new BigDecimal("485200.00"), "USD", LocalDateTime.now());
+        given(accountService.getBalance(eq(ACCOUNT_ID), any())).willReturn(balanceResponse);
+
+        mockMvc.perform(get("/api/v1/accounts/1/balance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId", is(1)))
+                .andExpect(jsonPath("$.cashBalance", is(485200.00)))
+                .andExpect(jsonPath("$.currency", is("USD")));
+
+        // Setup Portfolio Response: both books in one answer
+        PositionResponse holding = new PositionResponse(ACCOUNT_ID, "INFY", 100, new BigDecimal("1500.00"), new BigDecimal("2500.00"));
+        PositionResponse shortPosition = new PositionResponse(ACCOUNT_ID, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00"));
+        given(accountService.getPortfolio(eq(ACCOUNT_ID), any()))
+                .willReturn(new PortfolioResponse(ACCOUNT_ID, List.of(holding), List.of(shortPosition)));
+
+        mockMvc.perform(get("/api/v1/accounts/1/portfolio"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId", is(1)))
+                .andExpect(jsonPath("$.holdings", hasSize(1)))
+                .andExpect(jsonPath("$.holdings[0].symbol", is("INFY")))
+                .andExpect(jsonPath("$.holdings[0].quantity", is(100)))
+                .andExpect(jsonPath("$.holdings[0].averageCost", is(1500.00)))
+                .andExpect(jsonPath("$.holdings[0].overallGains", is(2500.00)))
+                // a short is a negative quantity and must survive the round trip as one
+                .andExpect(jsonPath("$.positions", hasSize(1)))
+                .andExpect(jsonPath("$.positions[0].symbol", is("HDFCBANK")))
+                .andExpect(jsonPath("$.positions[0].quantity", is(-30)));
+
+        // Setup Order History Response
+        OrderHistoryEntry historyEntry = new OrderHistoryEntry(
+                "ORD-12345", ACCOUNT_ID, "INFY", OrderSide.BUY, 100, new BigDecimal("1500.00"),
+                new BigDecimal("1500.00"), OrderStatus.FILLED, "IDEM-1", LocalDateTime.now(), null
+        );
+        given(accountService.getOrderHistory(eq(ACCOUNT_ID), any(), any(), any(), any())).willReturn(List.of(historyEntry));
+
+        mockMvc.perform(get("/api/v1/accounts/1/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].orderId", is("ORD-12345")));
+    }
+
+    @Test
+    @DisplayName("Path 2: Unknown account returns ACC-404")
+    void testUnknownAccountReturns404() throws Exception {
+        given(accountService.getAccount(eq(999L), any())).willThrow(new AccountNotFoundException(999L));
+
+        mockMvc.perform(get("/api/v1/accounts/999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode", is("ACC-404")))
+                .andExpect(jsonPath("$.message", is("Account not found")));
+    }
+
+    @Test
+    @DisplayName("Path 3: Token mismatch returns ACC-403")
+    void testTokenMismatchReturns403() throws Exception {
+        given(tokenAccountIdResolver.resolve("Bearer bad-token")).willReturn(5L);
+        given(accountService.getAccount(eq(ACCOUNT_ID), eq(5L))).willThrow(new AccountNotActiveException(ACCOUNT_ID, "TOKEN"));
+
+        mockMvc.perform(get("/api/v1/accounts/1")
+                        .header("Authorization", "Bearer bad-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", is("ACC-403")))
+                .andExpect(jsonPath("$.message", is("Account not active")));
+    }
+
+    @Test
+    @DisplayName("Notifications are returned newest-first with their message")
+    void testNotifications() throws Exception {
+        NotificationResponse n = new NotificationResponse();
+        n.setId("order-abc-FILLED");
+        n.setKind("ORDER_FILLED");
+        n.setMessage("Order filled: BUY 10 RELIANCE @ 1300.00");
+        n.setOccurredAt(java.time.OffsetDateTime.parse("2026-09-28T09:14:22+05:30"));
+        given(accountService.getNotifications(eq(ACCOUNT_ID), any(), eq(10))).willReturn(List.of(n));
+
+        mockMvc.perform(get("/api/v1/accounts/1/notifications").param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is("order-abc-FILLED")))
+                .andExpect(jsonPath("$[0].kind", is("ORDER_FILLED")))
+                .andExpect(jsonPath("$[0].message", is("Order filled: BUY 10 RELIANCE @ 1300.00")))
+                .andExpect(jsonPath("$[0].occurredAt", org.hamcrest.Matchers.matchesPattern(".*(Z|[+-]\\d\\d:\\d\\d)$")));
+    }
+
+    @Test
+    @DisplayName("Notifications for someone else's account are ACC-403")
+    void testNotificationsForbidden() throws Exception {
+        given(accountService.getNotifications(eq(ACCOUNT_ID), any(), any()))
+                .willThrow(new AccountNotActiveException(ACCOUNT_ID, "TOKEN"));
+
+        mockMvc.perform(get("/api/v1/accounts/1/notifications"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", is("ACC-403")));
+    }
+}

@@ -1,0 +1,161 @@
+import { UserRepository } from './user.repository';
+
+jest.mock('pg', () => ({
+  Pool: jest.fn().mockImplementation(() => ({ query: jest.fn() })),
+}));
+
+import { Pool } from 'pg';
+import { Role } from './dto/role';
+
+describe('UserRepository', () => {
+  let repo: UserRepository;
+  let pool: { query: jest.Mock };
+
+  const row = {
+    id: '8f14e45f-ceea-4c1b-9d3b-1a2b3c4d5e6f',
+    username: 'priya.menon',
+    email: 'priya.menon@example.com',
+    phone: null,
+    account_id: 1,
+    roles: ['CUSTOMER', 'ADMIN'],
+    password_hash: 'argon2hash',
+    params_version: 1,
+    version: 1,
+    created_on: new Date('2026-10-05T08:00:00Z'),
+    status: 'ACTIVE',
+  };
+
+  beforeEach(() => {
+    pool = { query: jest.fn() };
+    repo = new UserRepository(pool as unknown as Pool);
+  });
+
+  describe('findByUsername', () => {
+    it('maps a row to a UserRecord', async () => {
+      pool.query.mockResolvedValue({ rows: [row] });
+      const result = await repo.findByUsername('priya.menon');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM users WHERE username = $1'),
+        ['priya.menon'],
+      );
+      expect(result).toEqual({
+        id: row.id,
+        username: 'priya.menon',
+        email: 'priya.menon@example.com',
+        phone: null,
+        accountId: 1,
+        roles: ['CUSTOMER', 'ADMIN'],
+        passwordHash: 'argon2hash',
+        paramsVersion: 1,
+        version: 1,
+        createdOn: row.created_on,
+        status: 'ACTIVE',
+      });
+    });
+
+    it('returns null when no user exists', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+      expect(await repo.findByUsername('ghost.user')).toBeNull();
+    });
+  });
+
+  describe('findById', () => {
+    it('queries by id and maps the row', async () => {
+      pool.query.mockResolvedValue({ rows: [row] });
+      const result = await repo.findById(row.id);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE id = $1'),
+        [row.id],
+      );
+      expect(result?.id).toBe(row.id);
+    });
+  });
+
+  describe('findByEmail', () => {
+    it('queries by email and maps the row', async () => {
+      pool.query.mockResolvedValue({ rows: [row] });
+      const result = await repo.findByEmail('priya.menon@example.com');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM users WHERE email = $1'),
+        ['priya.menon@example.com'],
+      );
+      expect(result?.email).toBe('priya.menon@example.com');
+    });
+  });
+
+  describe('create', () => {
+    it('inserts without an account and maps a null account_id to null', async () => {
+      pool.query.mockResolvedValue({
+        rows: [{ ...row, account_id: null, status: 'PENDING' }],
+      });
+      const result = await repo.create({
+        username: 'priya.menon',
+        email: 'priya.menon@example.com',
+        roles: [Role.CUSTOMER],
+        passwordHash: 'argon2hash',
+        paramsVersion: 1,
+        status: 'PENDING',
+      });
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toContain(
+        'INSERT INTO users (username, email, roles, password_hash, params_version, status, version, created_on, updated)',
+      );
+      expect(params).toEqual([
+        'priya.menon',
+        'priya.menon@example.com',
+        [Role.CUSTOMER],
+        'argon2hash',
+        1,
+        'PENDING',
+      ]);
+      expect(result.accountId).toBeNull();
+      expect(result.status).toBe('PENDING');
+    });
+  });
+
+  describe('setStatus', () => {
+    it('bumps version and stamps updated', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+      await repo.setStatus(row.id, 'ACTIVE');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('version = version + 1'),
+        ['ACTIVE', row.id],
+      );
+    });
+  });
+
+  describe('updatePasswordHash', () => {
+    it('increments version and stamps updated', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+      await repo.updatePasswordHash(row.id, 'newhash', 2);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('version = version + 1'),
+        ['newhash', 2, row.id],
+      );
+    });
+  });
+
+  describe('violatedConstraint', () => {
+    it('reads the constraint name pg reports', () => {
+      expect(
+        UserRepository.violatedConstraint({
+          code: '23505',
+          constraint: 'uq_users_email',
+        }),
+      ).toBe('uq_users_email');
+      expect(UserRepository.violatedConstraint(null)).toBeUndefined();
+    });
+  });
+
+  describe('isUniqueViolation', () => {
+    it('is true for pg code 23505', () => {
+      expect(UserRepository.isUniqueViolation({ code: '23505' })).toBe(true);
+    });
+
+    it('is false for other errors or non-objects', () => {
+      expect(UserRepository.isUniqueViolation({ code: '42P01' })).toBe(false);
+      expect(UserRepository.isUniqueViolation(null)).toBe(false);
+      expect(UserRepository.isUniqueViolation(new Error('nope'))).toBe(false);
+    });
+  });
+});

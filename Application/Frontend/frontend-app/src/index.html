@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>YRVTrading</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <script>
+    // Apply the saved (or system) theme before the app boots so the page never flashes light first.
+    // ThemeService owns the choice from then on and keeps this attribute in step with it.
+    try {
+      var t = localStorage.getItem('trading-ui.theme');
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-bs-theme', t);
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <tui-root></tui-root>
+</body>
+</html>

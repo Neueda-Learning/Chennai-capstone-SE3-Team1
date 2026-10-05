@@ -1,0 +1,183 @@
+package com.team1.trading.api.service;
+
+import com.team1.trading.api.dto.AccountResponse;
+import com.team1.trading.api.dto.BalanceResponse;
+import com.team1.trading.api.dto.NotificationResponse;
+import com.team1.trading.api.dto.OrderHistoryEntry;
+import com.team1.trading.api.dto.PortfolioResponse;
+import com.team1.trading.api.dto.PositionResponse;
+import com.team1.trading.api.mapper.AccountMapper;
+import com.team1.trading.api.mapper.AccountMapper.AccountRow;
+import com.team1.trading.api.mapper.NotificationMapper;
+import com.team1.trading.api.mapper.OrderMapper;
+import com.team1.trading.api.mapper.OrderMapper.OrderHistoryFilter;
+import com.team1.trading.api.mapper.OrderMapper.OrderRow;
+import com.team1.trading.api.mapper.PositionMapper;
+import com.team1.trading.domain.entity.Client;
+import com.team1.trading.domain.entity.types.OrderStatus;
+import com.team1.trading.domain.exception.AccountNotActiveException;
+import com.team1.trading.domain.exception.AccountNotFoundException;
+import com.team1.trading.domain.exception.InvalidOrderException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * Read endpoints for contracts/trade-api.yaml: account details, cash balance, positions and the
+ * order history audit trail.
+ *
+ * <p>Every read first proves the account exists and is reachable with the caller's token
+ * ({@code ACC-404}/{@code ACC-403}), then answers from the tables. Activeness is decided by the
+ * domain's {@link Client#canTrade()} method, never reimplemented here.
+ */
+@Service
+public class AccountService {
+
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(AccountService.class);
+
+    private final AccountMapper accountMapper;
+    private final OrderMapper orderMapper;
+    private final PositionMapper positionMapper;
+    private final NotificationMapper notificationMapper;
+    private final String currency;
+
+    public AccountService(AccountMapper accountMapper, OrderMapper orderMapper,
+                          PositionMapper positionMapper, NotificationMapper notificationMapper,
+                          @Value("${trade.currency:INR}") String currency) {
+        this.accountMapper = accountMapper;
+        this.orderMapper = orderMapper;
+        this.positionMapper = positionMapper;
+        this.notificationMapper = notificationMapper;
+        this.currency = currency;
+    }
+
+    public AccountResponse getAccount(Long accountId, Long tokenAccountId) {
+        AccountRow row = resolve(accountId, tokenAccountId);
+
+        log.info("[account] read accountId={} name={} accountNumber={} bankName={} wallet={} state={}",
+                accountId, row.getName(), row.getAccountNumber(), row.getBankName(),
+                row.getWalletBalance(), row.getAccountState());
+        if (row.getBankName() == null) {
+            log.warn("[account] bankName is null for accountId={}. The bank_account LEFT JOIN found "
+                    + "no row, so there is no bank to name. Attach one with: "
+                    + "UPDATE public.bank_account SET client_id = {} WHERE account_number = "
+                    + "'<unclaimed account number>';", accountId, accountId);
+        }
+
+        return new AccountResponse(row.getClientId(), row.getAccountNumber(), row.getName(),
+                row.getBankName(), row.getWalletBalance(), row.getAccountState(), row.getVersion(),
+                row.getUpdatedOn());
+    }
+
+    public BalanceResponse getBalance(Long accountId, Long tokenAccountId) {
+        AccountRow row = resolve(accountId, tokenAccountId);
+        return new BalanceResponse(row.getClientId(), row.getWalletBalance(), currency, LocalDateTime.now());
+    }
+
+    /**
+     * The account's whole portfolio: the delivery book and the intraday book together.
+     *
+     * <p>They are read in one call because a caller asking "what do I hold" means both, and
+     * making it two round trips would let the answers disagree with each other.
+     */
+    public PortfolioResponse getPortfolio(Long accountId, Long tokenAccountId) {
+        resolve(accountId, tokenAccountId);
+        return new PortfolioResponse(accountId,
+                positionMapper.listHoldings(accountId),
+                positionMapper.listPositions(accountId));
+    }
+
+    public List<OrderHistoryEntry> getOrderHistory(Long accountId, Long tokenAccountId,
+                                                   String status, LocalDateTime from, LocalDateTime to) {
+        resolve(accountId, tokenAccountId);
+        OrderHistoryFilter filter = new OrderHistoryFilter();
+        filter.setClientId(accountId);
+        filter.setStatus(parseStatus(status));
+        filter.setFrom(from);
+        filter.setTo(to);
+        return orderMapper.listByAccount(filter).stream().map(row -> toHistoryEntry(row)).toList();
+    }
+
+    static final int DEFAULT_NOTIFICATIONS = 30;
+    static final int MAX_NOTIFICATIONS = 100;
+
+    /**
+     * What has happened to the account lately - orders placed, filled, rejected or cancelled and
+     * money moved to or from the bank - newest first. Derived from the order and transfer
+     * records themselves, so it cannot drift from them. {@code limit} is clamped to 1..100.
+     */
+    public List<NotificationResponse> getNotifications(Long accountId, Long tokenAccountId, Integer limit) {
+        resolve(accountId, tokenAccountId);
+        int size = limit == null ? DEFAULT_NOTIFICATIONS : Math.max(1, Math.min(limit, MAX_NOTIFICATIONS));
+        List<NotificationResponse> notifications = notificationMapper.listForAccount(accountId, size);
+        notifications.forEach(n -> n.setMessage(describe(n)));
+        return notifications;
+    }
+
+    private String describe(NotificationResponse n) {
+        String order = n.getSide() + " " + n.getQuantity() + " " + n.getSymbol();
+        return switch (n.getKind()) {
+            case "ORDER_PLACED" -> "Order placed: " + order;
+            case "ORDER_FILLED" -> "Order filled: " + order + " @ " + money(n.getExecutedPrice());
+            case "ORDER_REJECTED" -> "Order rejected: " + order
+                    + (n.getReason() == null ? "" : " (" + n.getReason() + ")");
+            case "ORDER_CANCELLED" -> "Order cancelled: " + order;
+            case "TRANSFER_IN" -> "Wallet funded: +" + money(n.getAmount()) + " " + currency;
+            case "TRANSFER_OUT" -> "Withdrawn to bank: -" + money(n.getAmount()) + " " + currency;
+            default -> n.getKind();
+        };
+    }
+
+    private static String money(java.math.BigDecimal value) {
+        return value == null ? "-" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /**
+     * The shared existence, reachability and activeness check behind every read.
+     */
+    private AccountRow resolve(Long accountId, Long tokenAccountId) {
+        AccountRow row = accountMapper.findRow(accountId)
+                .orElseThrow(() -> new AccountNotFoundException(accountId));
+        // A null claim is a user who has not linked a bank account yet: they own no account.
+        if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
+            throw new AccountNotActiveException(accountId, "TOKEN");
+        }
+        Client client = toClient(row);
+        if (!client.canTrade()) {
+            throw new AccountNotActiveException(accountId, client.getAccountState());
+        }
+        return row;
+    }
+
+    /**
+     * An unknown status value on the query string is invalid input, {@code VAL-422}.
+     */
+    private static OrderStatus parseStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        try {
+            return OrderStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidOrderException("status", status);
+        }
+    }
+
+    private static Client toClient(AccountRow row) {
+        return new Client(row.getClientId(), row.getName(),
+                row.getCreatedOn(), row.getAccountState(), row.getWalletBalance());
+    }
+
+    private static OrderHistoryEntry toHistoryEntry(OrderRow row) {
+        return new OrderHistoryEntry(displayId(row.getOrderUuid()), row.getAccountId(), row.getSymbol(),
+                row.getSide(), row.getQuantity(), row.getPrice(), row.getExecutedPrice(),
+                row.getStatus(), row.getIdempotencyKey(), row.getCreatedAt(), row.getReason());
+    }
+
+    private static String displayId(String orderUuid) {
+        return "ORD-" + orderUuid;
+    }
+}

@@ -1,13 +1,28 @@
 # Local connection overrides. Never commit real credentials.
 .env
 
+# Node (services/auth-stub)
+node_modules/
+
+# Maven
+target/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+*.class
+*.log
+hs_err_pid*
+
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 */target/*
-.metals/*
 
 # Editors / OS
 .vscode/
@@ -18,3 +33,10 @@ Thumbs.db
 # Local scratch
 *.log
 tmp/
+logs/
+
+# Executor module
+executor/target/
+executor/.mvn/
+executor/mvnw
+executor/mvnw.cmd

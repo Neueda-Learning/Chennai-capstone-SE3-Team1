@@ -1,0 +1,15 @@
+meta {
+  name: Cancel Order
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/orders/ORD-<paste-uuid-here>
+  body: none
+  auth: inherit
+}
+
+docs {
+  Only works while the order is still NEW, which is a sub-second window locally.
+}

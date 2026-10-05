@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.SymbolMapper">
+
+    <!--
+      Every instrument that is still tradable. This used to be "only what somebody holds", which
+      left the market screen with nothing to chart until a first order had been filled and made
+      a price the order ticket must show impossible to know before the first trade. The tradable
+      universe is 50 instruments today: two batches of the Fauxnance endpoint, so two requests
+      per cycle, 1440 requests/day at the 120s interval, inside the 1500 poller budget. Growing
+      past 50 means lengthening executor.poll-interval-seconds, or MarketDataPoller's budget check
+      starts skipping cycles.
+
+      Inactive instruments are still skipped: they cannot be traded, so a quote for one feeds
+      nothing. Ordered so that the batches a poll produces are stable between cycles and a log
+      line can be compared with the one before it.
+    -->
+    <select id="findPolledSymbols" resultType="java.lang.String">
+        SELECT i.instrument_id
+        FROM instruments i
+        WHERE i.active = TRUE
+        ORDER BY i.instrument_id
+    </select>
+
+</mapper>

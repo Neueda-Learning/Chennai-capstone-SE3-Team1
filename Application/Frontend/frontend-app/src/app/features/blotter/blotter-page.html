@@ -1,0 +1,334 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Blotter</h1>
+    <p class="page-subtitle">Order and trade history.</p>
+  </div>
+</div>
+
+<!-- Loading State -->
+@if (isLoading()) {
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p>Loading order history...</p>
+  </div>
+} @else if (error()) {
+  <!-- Error State -->
+  <div class="alert alert-danger" role="alert">
+    <strong>Error:</strong> {{ error() }}
+    <button class="btn btn-sm btn-outline-danger ms-2" (click)="refreshOrders()">
+      Try Again
+    </button>
+  </div>
+} @else if (rows().length === 0) {
+  <!-- Empty State -->
+  <div class="empty-state">
+    <p>No orders found.</p>
+  </div>
+} @else {
+  <!-- Orders Table -->
+  <div class="blotter-container">
+    <!-- Filter Controls -->
+    <div class="filter-section">
+      <div class="filter-row">
+        <!-- Search -->
+        <div class="filter-group">
+          <label class="filter-label">Search</label>
+          <div class="search-box">
+            <i class="bi bi-search search-icon"></i>
+            <input 
+              type="text" 
+              class="search-input" 
+              placeholder="Order ID or symbol..."
+              [(ngModel)]="searchText"
+              (change)="onFilterChange()"
+            >
+          </div>
+        </div>
+
+        <!-- Time Frame -->
+        <div class="filter-group">
+          <label class="filter-label">Time Frame</label>
+          <select class="filter-select" [(ngModel)]="timeFrame" (change)="onFilterChange()">
+            @for (tf of timeFrameOptions; track tf.value) {
+              <option [value]="tf.value">{{ tf.label }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Status -->
+        <div class="filter-group">
+          <label class="filter-label">Status</label>
+          <select class="filter-select" [(ngModel)]="selectedStatus" (change)="onFilterChange()">
+            <option value="ALL">All </option>
+            <option [value]="OrderStatus.New">Working</option>
+            <option [value]="OrderStatus.Filled">Filled</option>
+            <option [value]="OrderStatus.Rejected">Rejected</option>
+            <option [value]="OrderStatus.Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <!-- Side -->
+        <div class="filter-group">
+          <label class="filter-label">Side</label>
+          <select class="filter-select" [(ngModel)]="selectedSide" (change)="onFilterChange()">
+            <option value="ALL">All </option>
+            <option value="BUY">Buy</option>
+            <option value="SELL">Sell</option>
+          </select>
+        </div>
+
+        <!-- Clear Filters Button -->
+        @if (hasActiveFilters()) {
+          <div class="filter-group filter-action">
+            <button class="btn-clear-filters" (click)="clearFilters()" type="button">
+              <i class="bi bi-x-circle"></i>
+              Clear Filters
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Results Info and Refresh -->
+      <div class="filter-footer">
+        <div class="results-info">
+          @if (filteredRows().length > 0) {
+            <span class="results-count">
+              Showing {{ (currentPage() - 1) * pageSize() + 1 }}-{{ Math.min(currentPage() * pageSize(), filteredRows().length) }} of {{ filteredRows().length }} orders
+            </span>
+          } @else {
+            <span class="results-count">No orders match your filters</span>
+          }
+        </div>
+
+        <div class="refresh-section">
+          @if (isPolling()) {
+            <span class="polling-indicator">
+              <i class="bi bi-arrow-repeat spinning"></i>
+              Updating...
+            </span>
+          }
+          <button 
+            class="btn-refresh" 
+            type="button" 
+            (click)="refreshOrders()"
+            [disabled]="isRefreshing()"
+          >
+            <i class="bi bi-arrow-clockwise"></i>
+            {{ isRefreshing() ? 'Refreshing...' : 'Refresh' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+      <div class="table-responsive-wrapper">
+        <table class="table-custom">
+          <thead>
+            <tr>
+              <th class="col-order-id">Order ID</th>
+              <th class="col-symbol">Symbol</th>
+              <th class="col-side">Side</th>
+              <th class="col-quantity">Quantity</th>
+              <th class="col-price">Price</th>
+              <th class="col-date">Date</th>
+              <th class="col-status">Status</th>
+              <th class="col-actions text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of paginatedRows(); track row.orderId) {
+              <tr class="table-row" [class.working-row]="row.status === OrderStatus.New">
+                <td class="col-order-id" data-label="Order ID">
+                  <span class="order-id-badge">{{ row.orderId }}</span>
+                </td>
+                <td class="col-symbol" data-label="Symbol">
+                  <span class="symbol-badge">{{ row.symbol }}</span>
+                </td>
+                <td class="col-side" data-label="Side">
+                  <span class="badge-table" [ngClass]="{ 'success': row.side === 'BUY', 'pending': row.side === 'SELL' }">
+                    {{ row.side }}
+                  </span>
+                </td>
+                <td class="col-quantity" data-label="Quantity">{{ row.quantity }}</td>
+                <td class="col-price" data-label="Price" data-testid="price-cell">
+                  @if (row.executedPrice) {
+                    <span data-testid="executed-price">{{ row.executedPrice }}</span>
+                    <span class="price-note">filled · limit {{ row.price }}</span>
+                  } @else {
+                    <span data-testid="limit-price">{{ row.price }}</span>
+                    <span class="price-note">limit</span>
+                  }
+                </td>
+                <td class="col-date" data-label="Date">{{ row.date }}</td>
+                <td class="col-status" data-label="Status">
+                  <span class="badge-table" [ngClass]="getStatusClass(row.status)">
+                    {{ getStatusDisplay(row.status) }}
+                  </span>
+                  @if (row.status === OrderStatus.New) {
+                    <span class="working-indicator">still working</span>
+                  }
+                </td>
+                <td class="col-actions" data-label="Actions">
+                  <div class="action-buttons">
+                    <button 
+                      class="btn-action" 
+                      title="View details"
+                      (click)="viewOrderDetails(row)"
+                      type="button"
+                      aria-label="View order details"
+                    >
+                      <i class="bi bi-eye"></i>
+                    </button>
+                    @if (canCancelOrder(row)) {
+                      <button 
+                        class="btn-action delete" 
+                        title="Cancel order"
+                        (click)="cancelOrder(row)"
+                        [disabled]="isCancelling() === row.orderId"
+                        type="button"
+                        aria-label="Cancel order"
+                      >
+                        @if (isCancelling() === row.orderId) {
+                          <i class="bi bi-hourglass-split spinning"></i>
+                        } @else {
+                          <i class="bi bi-x-circle"></i>
+                        }
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    @if (filteredRows().length > 0 && totalPages() > 1) {
+      <div class="pagination-section">
+        <div class="pagination-info">
+          <span class="page-info">Page {{ currentPage() }} of {{ totalPages() }}</span>
+        </div>
+
+        <div class="pagination-controls">
+          <button 
+            class="btn-pagination" 
+            (click)="previousPage()"
+            [disabled]="currentPage() === 1"
+            type="button"
+            aria-label="Previous page"
+          >
+            <i class="bi bi-chevron-left"></i>
+            Previous
+          </button>
+
+          <div class="page-selector">
+            @for (page of $any(Array(totalPages()).fill(0)); let i = $index; track i) {
+              <button 
+                class="btn-page"
+                [class.active]="currentPage() === i + 1"
+                (click)="currentPage.set(i + 1)"
+                type="button"
+                [attr.aria-label]="'Go to page ' + (i + 1)"
+              >
+                {{ i + 1 }}
+              </button>
+            }
+          </div>
+
+          <button 
+            class="btn-pagination" 
+            (click)="nextPage()"
+            [disabled]="currentPage() === totalPages()"
+            type="button"
+            aria-label="Next page"
+          >
+            Next
+            <i class="bi bi-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+}
+
+<!-- Order Details Modal -->
+@if (selectedOrderForDetails()) {
+  <div class="modal-overlay" (click)="closeDetailsModal()"></div>
+  <div class="modal-dialog modal-show">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Order Details</h5>
+        <button type="button" class="btn-modal-close" (click)="closeDetailsModal()" aria-label="Close">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="details-grid">
+          <div class="detail-item">
+            <label class="detail-label">Order ID</label>
+            <span class="detail-value order-id-badge">{{ selectedOrderForDetails()!.orderId }}</span>
+          </div>
+          <div class="detail-item">
+            <label class="detail-label">Symbol</label>
+            <span class="detail-value symbol-badge">{{ selectedOrderForDetails()!.symbol }}</span>
+          </div>
+          <div class="detail-item">
+            <label class="detail-label">Side</label>
+            <span class="detail-value">
+              <span class="badge-table" [ngClass]="{ 'badge-buy': selectedOrderForDetails()!.side === 'BUY', 'badge-sell': selectedOrderForDetails()!.side === 'SELL' }">
+                {{ selectedOrderForDetails()!.side }}
+              </span>
+            </span>
+          </div>
+          <div class="detail-item">
+            <label class="detail-label">Quantity</label>
+            <span class="detail-value">{{ selectedOrderForDetails()!.quantity }}</span>
+          </div>
+          <div class="detail-item">
+            <label class="detail-label">Limit Price</label>
+            <span class="detail-value">{{ selectedOrderForDetails()!.price }}</span>
+          </div>
+          @if (selectedOrderForDetails()!.executedPrice) {
+            <div class="detail-item">
+              <label class="detail-label">Executed Price</label>
+              <span class="detail-value">{{ selectedOrderForDetails()!.executedPrice }}</span>
+            </div>
+          }
+          <div class="detail-item">
+            <label class="detail-label">Status</label>
+            <span class="detail-value">
+              <span class="badge-table" [ngClass]="getStatusClass(selectedOrderForDetails()!.status)">
+                {{ getStatusDisplay(selectedOrderForDetails()!.status) }}
+              </span>
+            </span>
+          </div>
+          <div class="detail-item">
+            <label class="detail-label">Date</label>
+            <span class="detail-value">{{ selectedOrderForDetails()!.date }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeDetailsModal()">Close</button>
+        @if (canCancelOrder(selectedOrderForDetails()!)) {
+          <button 
+            type="button" 
+            class="btn btn-danger" 
+            (click)="cancelOrder(selectedOrderForDetails()!)"
+            [disabled]="isCancelling() === selectedOrderForDetails()!.orderId"
+          >
+            @if (isCancelling() === selectedOrderForDetails()!.orderId) {
+              <span>Cancelling...</span>
+            } @else {
+              <span>Cancel Order</span>
+            }
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}
+

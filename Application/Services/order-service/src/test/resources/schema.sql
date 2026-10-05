@@ -1,0 +1,161 @@
+-- H2-compatible schema for unit and integration tests.
+-- Derived from migrations/001-009.sql, stripped of PostgreSQL-specific triggers,
+-- PL/pgSQL functions, and deferred FK constraints that H2 does not support.
+--
+-- Each Spring test context re-initializes the shared in-memory testdb, so all
+-- tables are dropped first to guarantee a deterministic empty state.
+
+DROP TABLE IF EXISTS wallet_transfers;
+DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS bank_account;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS auth;
+DROP TABLE IF EXISTS instruments;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS order_history;
+DROP TABLE IF EXISTS portfolio_holding;
+DROP TABLE IF EXISTS portfolio_positions;
+DROP TABLE IF EXISTS positions;
+DROP TABLE IF EXISTS holdings;
+
+CREATE TABLE clients (
+    client_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(150)    NOT NULL,
+    created_on      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    account_state   VARCHAR(10)     NOT NULL DEFAULT 'ACTIVE',
+    wallet_balance  DECIMAL(18,2)   NOT NULL DEFAULT 0,
+    version         INT             NOT NULL DEFAULT 0,
+    updated_on      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE bank_account (
+    account_number  VARCHAR(34)     PRIMARY KEY,
+    client_id       BIGINT          UNIQUE,          -- NULL: unclaimed (migration 017)
+    account_balance DECIMAL(18,2)   NOT NULL DEFAULT 0,
+    bank_name       VARCHAR(150)    NOT NULL,
+    ifsc_code       VARCHAR(11)     NOT NULL
+);
+
+-- users replaced auth in migration 014. account_id is NULL until a bank account is linked.
+CREATE TABLE users (
+    id             UUID          DEFAULT RANDOM_UUID() PRIMARY KEY,
+    username       VARCHAR(64)   NOT NULL UNIQUE,
+    email          VARCHAR(150)  NOT NULL UNIQUE,
+    phone          VARCHAR(20),
+    account_id     BIGINT        UNIQUE,
+    roles          VARCHAR(20) ARRAY NOT NULL DEFAULT ARRAY['CUSTOMER'],
+    password_hash  VARCHAR(255)  NOT NULL,
+    params_version INT           NOT NULL DEFAULT 1,
+    version        INT           NOT NULL DEFAULT 0,
+    created_on     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE instruments (
+    instrument_id   VARCHAR(20)     PRIMARY KEY,
+    instrument_name VARCHAR(150)    NOT NULL UNIQUE,
+    active          BOOLEAN         NOT NULL DEFAULT TRUE,
+    updated_on      TIMESTAMP
+);
+
+CREATE TABLE orders (
+    order_id          UUID            PRIMARY KEY,
+    client_id         BIGINT          NOT NULL,
+    account_id        BIGINT          NOT NULL,
+    instrument_id     VARCHAR(20)     NOT NULL,
+    order_type        VARCHAR(8)      NOT NULL,
+    side              VARCHAR(4)      NOT NULL,
+    quantity          DECIMAL(18,4)   NOT NULL,
+    price             DECIMAL(18,4)   NOT NULL,
+    executed_price    DECIMAL(18,4),
+    status            VARCHAR(10)     NOT NULL DEFAULT 'NEW',
+    idempotency_key   VARCHAR(100)    NOT NULL,
+    external_order_id VARCHAR(100),
+    created_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_orders_idempotency_key UNIQUE (idempotency_key)
+);
+
+CREATE TABLE order_history (
+    history_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id          UUID          NOT NULL,
+    event_type        VARCHAR(50)   NOT NULL,
+    previous_status   VARCHAR(10),
+    new_status        VARCHAR(10),
+    external_status   VARCHAR(50),
+    external_order_id VARCHAR(100),
+    request_id        VARCHAR(100),
+    failure_code      VARCHAR(50),
+    failure_reason    VARCHAR(255),
+    api_response      TEXT,
+    event_timestamp   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- migration 010: the terminal row carries the order itself, because orders holds
+    -- live orders only and the row is deleted once it settles.
+    client_id         BIGINT,
+    account_id        BIGINT,
+    instrument_id     VARCHAR(20),
+    order_type        VARCHAR(8),
+    side              VARCHAR(4),
+    quantity          DECIMAL(18,4),
+    price             DECIMAL(18,4),
+    executed_price    DECIMAL(18,4),
+    idempotency_key   VARCHAR(100),
+    order_created_at  TIMESTAMP
+);
+
+-- Partial unique index: only the terminal row carries a key, and it is what refuses a
+-- duplicate submission now that the orders row does not outlive settlement.
+CREATE UNIQUE INDEX uq_order_history_idempotency_key
+    ON order_history (idempotency_key);
+
+CREATE TABLE portfolio_holding (
+    holding_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
+    client_id       BIGINT          NOT NULL,
+    instrument_id   VARCHAR(20)     NOT NULL,
+    quantity        INT             NOT NULL,
+    price_per_unit  DECIMAL(18,4)   NOT NULL,
+    overall_gains   DECIMAL(18,2)   NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_portfolio_holding_client_instrument UNIQUE (client_id, instrument_id)
+);
+
+CREATE TABLE portfolio_positions (
+    position_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
+    client_id       BIGINT          NOT NULL,
+    instrument_id   VARCHAR(20)     NOT NULL,
+    quantity        INT             NOT NULL,
+    price_per_unit  DECIMAL(18,4)   NOT NULL,
+    overall_gains   DECIMAL(18,2)   NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_portfolio_positions_client_instrument UNIQUE (client_id, instrument_id)
+);
+
+-- Tables referenced by PositionMapper (named differently from portfolio tables)
+CREATE TABLE positions (
+    account_id      BIGINT          NOT NULL,
+    instrument_id   VARCHAR(20)     NOT NULL,
+    quantity        INT             NOT NULL,
+    avg_price       DECIMAL(18,4)   NOT NULL,
+    CONSTRAINT uq_positions_account_instrument UNIQUE (account_id, instrument_id)
+);
+
+CREATE TABLE holdings (
+    account_id      BIGINT          NOT NULL,
+    instrument_id   VARCHAR(20)     NOT NULL,
+    quantity        INT             NOT NULL,
+    CONSTRAINT uq_holdings_account_instrument UNIQUE (account_id, instrument_id)
+);
+
+-- Transfers between a client's wallet and linked bank account (migration 016).
+CREATE TABLE wallet_transfers (
+    transfer_id      UUID            PRIMARY KEY,
+    client_id        BIGINT          NOT NULL,
+    account_number   VARCHAR(34)     NOT NULL,
+    direction        VARCHAR(16)     NOT NULL,
+    amount           DECIMAL(18,2)   NOT NULL,
+    idempotency_key  VARCHAR(100)    NOT NULL UNIQUE,
+    created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

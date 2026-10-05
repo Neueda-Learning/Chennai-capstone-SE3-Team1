@@ -1,0 +1,13 @@
+/* The Playwright suite: the specs under e2e/ and the config that runs them. Kept out of
+   tsconfig.app.json so the Angular build never compiles the test tree, and out of
+   tsconfig.spec.json so the Vitest run never loads Playwright. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/e2e",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}

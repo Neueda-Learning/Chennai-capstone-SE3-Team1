@@ -8,27 +8,30 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from db_config import REPO_ROOT, DbConfig, DbError, add_connection_args, quote_literal
+from db_config import REPO_ROOT, DbConfig, DbError, _first_existing, add_connection_args, quote_literal
 from make_seed import apply_fill, price
 
 SQLSTATE_RE = re.compile(r"ERROR:\s+([0-9A-Z]{5}):")
 
-ENTITY_DIR = (REPO_ROOT / "sprint-05-domain-engine" / "src" / "main" / "java"
-              / "com" / "team1" / "trading" / "domain" / "entity")
+ENTITY_DIR = (_first_existing(
+    REPO_ROOT / "Application" / "Services" / "libs" / "domain-engine",
+    REPO_ROOT / "sprint-05-domain-engine")
+    / "src" / "main" / "java"
+    / "com" / "team1" / "trading" / "domain" / "entity")
 
 FIELD_RE = re.compile(r"^\s*private\s+(?:final\s+|static\s+|transient\s+)*"
                       r"[\w.<>,\[\]\s]+?\s+(\w+)\s*(?:=[^;]*)?;", re.M)
 ENUM_BODY_RE = re.compile(r"enum\s+\w+\s*\{(.*?)\}", re.S)
 
 EXPECTED_TABLES = [
-    "auth", "bank_account", "clients", "instruments", "order_history", "orders",
-    "portfolio_holding", "portfolio_positions", "schema_migrations",
+    "bank_account", "clients", "instruments", "order_history", "orders",
+    "daily_candle_syncs", "daily_candles", "market_quotes", "otp_codes", "portfolio_holding", "portfolio_positions", "refresh_tokens", "schema_migrations", "users",
+    "wallet_transfers",
 ]
 
 ENTITY_TABLES = {
     "bank_account": ("BankAccount", {}),
     "clients": ("Client", {}),
-    "auth": ("Auth", {}),
     "instruments": ("Instrument", {}),
     "orders": ("Order", {}),
     "order_history": ("OrderHistory", {}),
@@ -36,8 +39,25 @@ ENTITY_TABLES = {
     "portfolio_positions": ("PortfolioPosition", {"portifolioid": "position_id"}),
 }
 
+# Since migration 010 an order lives in `orders` while it is NEW and becomes its terminal
+# order_history row on settlement, at which point the orders row is deleted. A check that
+# means "every order ever placed" has to read both halves; one that means "the live book"
+# reads orders alone.
+ALL_ORDERS = """(
+    SELECT order_id, client_id, instrument_id, order_type, side, quantity, price,
+           executed_price, status, idempotency_key, created_at
+    FROM orders
+    UNION ALL
+    SELECT order_id, client_id, instrument_id, order_type, side, quantity, price,
+           executed_price, new_status, idempotency_key, order_created_at
+    FROM order_history
+    WHERE idempotency_key IS NOT NULL
+)"""
+
 ENUM_CONSTRAINTS = [
-    ("chk_orders_status", "OrderStatus"),
+    # chk_orders_status is intentionally absent: orders is the live book since migration
+    # 010 and may only hold NEW, so its CHECK is narrower than OrderStatus by design. The
+    # full vocabulary is still asserted on order_history, where settled orders now live.
     ("chk_orders_order_type", "OrderType"),
     ("chk_orders_side", "OrderSide"),
     ("chk_clients_account_state", "AccountStatus"),
@@ -193,7 +213,8 @@ def rollback_script(body):
 def a01_tables_exist(v):
     found = [r[0] for r in v.rows(
         "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
+        "WHERE table_schema IN ('public', 'auth_db') AND table_type = 'BASE TABLE' "
+        "ORDER BY table_name;"
     )]
     missing = [t for t in EXPECTED_TABLES if t not in found]
     require(not missing, "missing table(s): " + ", ".join(missing))
@@ -324,7 +345,7 @@ def a08_money_is_exact(v):
 def a09_no_inexact_numeric_anywhere(v):
     bad = v.rows(
         "SELECT table_name, column_name, data_type FROM information_schema.columns "
-        "WHERE table_schema='public' AND data_type IN "
+        "WHERE table_schema IN ('public', 'auth_db') AND data_type IN "
         "('real','double precision','money') ORDER BY table_name, column_name;"
     )
     require(
@@ -367,7 +388,7 @@ def a11_numbered_in_order(v):
 def b01_at_least_three_checks(v):
     n = v.count(
         "SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace "
-        "WHERE c.contype='c' AND n.nspname='public' AND c.conname LIKE 'chk_%';"
+        "WHERE c.contype='c' AND n.nspname IN ('public', 'auth_db') AND c.conname LIKE 'chk_%';"
     )
     require(n >= 3, "expected at least 3 named CHECK constraints, found " + str(n))
 
@@ -401,12 +422,16 @@ def b03_idempotency_unique(v):
 
 def b04_foreign_keys_present(v):
     expected = {
-        ("clients", "bank_account"),
+        # One direction only since migration 015: a client's bank account names the client.
         ("bank_account", "clients"),
-        ("auth", "clients"),
+        ("users", "clients"),
+        ("refresh_tokens", "users"),
+        ("wallet_transfers", "clients"),
+        ("wallet_transfers", "bank_account"),
         ("orders", "clients"),
         ("orders", "instruments"),
-        ("order_history", "orders"),
+        # order_history -> orders was dropped in migration 010. The history row survives
+        # the order it records, so it cannot reference a row that is deleted on settlement.
         ("portfolio_holding", "clients"),
         ("portfolio_holding", "instruments"),
         ("portfolio_positions", "clients"),
@@ -419,7 +444,7 @@ def b04_foreign_keys_present(v):
             "JOIN pg_class src ON src.oid = c.conrelid "
             "JOIN pg_class tgt ON tgt.oid = c.confrelid "
             "JOIN pg_namespace n ON n.oid = c.connamespace "
-            "WHERE c.contype = 'f' AND n.nspname = 'public';"
+            "WHERE c.contype = 'f' AND n.nspname IN ('public', 'auth_db');"
         )
     }
     missing = sorted(expected - found)
@@ -467,15 +492,17 @@ def b08_order_history_records_a_real_transition(v):
     )
 
 
-def b09_bank_account_and_clients_reference_each_other(v):
+def b09_bank_account_owns_the_link_to_clients(v):
     require(v.constraint_def("fk_bank_account_client"),
             "bank_account.client_id has no foreign key to clients")
-    definition = v.constraint_def("fk_bank_account_client")
-    require(
-        "DEFERRABLE" in definition.upper(),
-        "fk_bank_account_client must be DEFERRABLE: bank_account and clients point at "
-        "each other, so one of the two has to be checked at COMMIT for either to load",
+    require(v.constraint_def("uq_bank_account_client_id"),
+            "bank_account.client_id is not UNIQUE: a client links one bank account")
+    back = v.count(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = 'clients' "
+        "AND column_name = 'account_number';"
     )
+    equal(back, 0, "clients.account_number is back: the link is bank_account.client_id only")
 
 
 _NEW_ORDER = (
@@ -585,7 +612,7 @@ def c12_delisting_keeps_orders_resolvable(v):
         "BEGIN;\n"
         "UPDATE instruments SET active = FALSE, updated_on = now() "
         "WHERE instrument_id = 'RELIANCE';\n"
-        "SELECT count(*) FROM orders o JOIN instruments i USING (instrument_id) "
+        "SELECT count(*) FROM " + ALL_ORDERS + " o JOIN instruments i USING (instrument_id) "
         "WHERE i.instrument_id = 'RELIANCE';\n"
         "ROLLBACK;\n",
         "delisting RELIANCE",
@@ -608,7 +635,8 @@ def c13_deactivating_without_a_date_is_accepted(v):
 
 def c14_bad_order_status_rejected(v):
     v.expect_rejected(
-        "UPDATE orders SET status = 'SUCCESS' WHERE order_id = 1;",
+        "UPDATE orders SET status = 'SUCCESS' "
+        "WHERE order_id = (SELECT order_id FROM orders LIMIT 1);",
         "23514",
         "an order status outside the OrderStatus enum",
     )
@@ -667,21 +695,21 @@ def c19_one_portfolio_row_per_client_instrument(v):
 
 
 def c20_optimistic_concurrency_detects_the_loser(v):
-    email = v.scalar("SELECT email FROM auth ORDER BY email LIMIT 1;")
+    email = v.scalar("SELECT email FROM users ORDER BY email LIMIT 1;")
     require(email, "no seeded credentials to test with")
     v.expect_accepted(
         "BEGIN;\n"
         "DO $verify$\n"
         "DECLARE stale INT; n INT;\n"
         "BEGIN\n"
-        "  SELECT version INTO stale FROM auth WHERE email = " + quote_literal(email) + ";\n"
-        "  UPDATE auth SET password_hash = 'rotated-1', updated = now(), "
+        "  SELECT version INTO stale FROM users WHERE email = " + quote_literal(email) + ";\n"
+        "  UPDATE users SET password_hash = 'rotated-1', updated = now(), "
         "version = version + 1\n"
         "   WHERE email = " + quote_literal(email) + " AND version = stale;\n"
         "  GET DIAGNOSTICS n = ROW_COUNT;\n"
         "  IF n <> 1 THEN RAISE EXCEPTION 'first writer should have won, updated % row(s)', n; "
         "END IF;\n"
-        "  UPDATE auth SET password_hash = 'rotated-2', updated = now(), "
+        "  UPDATE users SET password_hash = 'rotated-2', updated = now(), "
         "version = version + 1\n"
         "   WHERE email = " + quote_literal(email) + " AND version = stale;\n"
         "  GET DIAGNOSTICS n = ROW_COUNT;\n"
@@ -690,7 +718,7 @@ def c20_optimistic_concurrency_detects_the_loser(v):
         "END\n"
         "$verify$;\n"
         "ROLLBACK;\n",
-        "optimistic concurrency on auth.version",
+        "optimistic concurrency on users.version",
     )
 
 
@@ -712,40 +740,65 @@ def c22_negative_wallet_balance_rejected(v):
     )
 
 
-def c23_sequences_resynced_past_seed(v):
-    max_id = v.count("SELECT coalesce(max(order_id), 0) FROM orders;")
+def c23_generated_order_id_does_not_collide(v):
+    """orders.order_id defaults to gen_random_uuid() (migration 009).
+
+    There is no sequence left to fall behind the seed, but the property that
+    check stood for still matters: an insert that does not name an id must be
+    given one that is not already taken.
+    """
     out = v.expect_accepted(
         "BEGIN;\n"
         + _NEW_ORDER
-        + "(1, 1, 'RELIANCE', 'HOLDING', 'BUY', 1, 100.0000, 'verify-sequence-probe') "
+        + "(1, 1, 'RELIANCE', 'HOLDING', 'BUY', 1, 100.0000, 'verify-uuid-probe') "
           "RETURNING order_id;\n"
         "ROLLBACK;\n",
         "inserting an order without an explicit id",
     )
-    numbers = [int(t) for t in re.findall(r"^\s*(\d+)\s*$", out, re.M)]
-    require(numbers, "did not get an order_id back: " + repr(out))
-    require(
-        max(numbers) > max_id,
-        "orders_order_id_seq is behind the seeded data: next id would be "
-        + str(max(numbers)) + " but max(order_id) is " + str(max_id),
+    generated = re.findall(
+        r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", out, re.I
     )
+    require(generated, "did not get a UUID order_id back: " + repr(out))
+    taken = v.count(
+        "SELECT count(*) FROM orders WHERE order_id = "
+        + quote_literal(generated[0]) + "::uuid;"
+    )
+    equal(taken, 0, "the generated order_id already exists in orders")
 
 
 def c24_blank_password_rejected(v):
-    email = v.scalar("SELECT email FROM clients ORDER BY client_id LIMIT 1;")
+    email = v.scalar("SELECT email FROM users ORDER BY email LIMIT 1;")
     v.expect_rejected(
-        "UPDATE auth SET password_hash = '   ' WHERE email = " + quote_literal(email) + ";",
+        "UPDATE users SET password_hash = '   ' WHERE email = " + quote_literal(email) + ";",
         "23514",
-        "a blank auth password_hash",
+        "a blank users password_hash",
     )
 
 
-def c25_history_for_a_missing_order_rejected(v):
+def c25_duplicate_settled_idempotency_key_rejected(v):
+    """Migration 010 moved the idempotency guarantee, and this checks its new home.
+
+    It used to be a foreign key: an order_history row for an order that does not exist was
+    refused. That cannot hold any more, because a settled order is deleted from orders and
+    its history row is meant to outlive it - so the key was dropped deliberately.
+
+    What still has to hold is the rule that key protected in practice: a client retrying a
+    request must not place a second trade. orders.idempotency_key is UNIQUE and covers
+    orders still in the live book; uq_order_history_idempotency_key covers the settled
+    ones, and that is what this asserts.
+    """
+    existing = v.scalar(
+        "SELECT idempotency_key FROM order_history WHERE idempotency_key IS NOT NULL LIMIT 1;"
+    )
+    require(existing, "no settled order to test the idempotency guard with")
     v.expect_rejected(
-        "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-        "VALUES (99999, 'FILLED', 'NEW', 'FILLED');",
-        "23503",
-        "an audit row for an order that does not exist",
+        # CANCELLED rather than FILLED so the row does not trip
+        # chk_order_history_filled_has_executed_price before reaching the unique index.
+        "INSERT INTO order_history (order_id, event_type, previous_status, new_status, "
+        "idempotency_key) VALUES ('00000000-0000-4000-8000-000000000000', 'CANCELLED', 'NEW', "
+        "'CANCELLED', " + quote_literal(existing) + ");",
+        "23505",
+        "a second settled order reusing an idempotency key",
     )
 
 
@@ -755,7 +808,7 @@ def c26_history_accepts_a_real_transition(v):
     v.expect_accepted(
         rollback_script(
             "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-            "VALUES (" + order_id + ", 'CANCELLED', 'NEW', 'CANCELLED');"
+            "VALUES (" + quote_literal(order_id) + ", 'CANCELLED', 'NEW', 'CANCELLED');"
         ),
         "recording a NEW -> CANCELLED transition",
     )
@@ -763,9 +816,10 @@ def c26_history_accepts_a_real_transition(v):
 
 def c27_history_rejects_an_unknown_status(v):
     order_id = v.scalar("SELECT order_id FROM orders LIMIT 1;")
+    require(order_id, "seed data has no orders to test with")
     v.expect_rejected(
         "INSERT INTO order_history (order_id, event_type, previous_status, new_status) "
-        "VALUES (" + order_id + ", 'SETTLED', 'NEW', 'SETTLED');",
+        "VALUES (" + quote_literal(order_id) + ", 'SETTLED', 'NEW', 'SETTLED');",
         "23514",
         "an audit row naming a status outside the OrderStatus enum",
     )
@@ -827,21 +881,21 @@ def d06_all_three_client_states_present(v):
 
 
 def d07_every_order_status_exercised(v):
-    found = {r[0] for r in v.rows("SELECT DISTINCT status FROM orders;")}
+    found = {r[0] for r in v.rows("SELECT DISTINCT status FROM " + ALL_ORDERS + " o;")}
     missing = enum_constants("OrderStatus") - found
     require(not missing,
             "seed data never reaches order status: " + ", ".join(sorted(missing)))
 
 
 def d08_both_order_types_used(v):
-    found = {r[0] for r in v.rows("SELECT DISTINCT order_type FROM orders;")}
+    found = {r[0] for r in v.rows("SELECT DISTINCT order_type FROM " + ALL_ORDERS + " o;")}
     missing = enum_constants("OrderType") - found
     require(not missing, "seed data has no " + ", ".join(sorted(missing)) + " orders")
 
 
 def d09_delisted_instrument_still_referenced(v):
     n = v.count(
-        "SELECT count(*) FROM orders o JOIN instruments i USING (instrument_id) "
+        "SELECT count(*) FROM " + ALL_ORDERS + " o JOIN instruments i USING (instrument_id) "
         "WHERE i.active = FALSE;"
     )
     require(n > 0, "no orders point at a delisted instrument, so the case is untested")
@@ -860,7 +914,7 @@ def d11_holding_has_no_negatives(v):
 def _replay_from_db(v):
     rows = v.rows(
         "SELECT client_id, instrument_id, order_type, side, quantity, executed_price "
-        "FROM orders WHERE status = 'FILLED' ORDER BY order_id;"
+        "FROM " + ALL_ORDERS + " o WHERE status = 'FILLED' ORDER BY order_id;"
     )
     holding, positions = {}, {}
     for client_id, instrument_id, order_type, side, quantity, executed in rows:
@@ -906,29 +960,26 @@ def d13_positions_matches_position_orders(v):
     _compare_book(v, "portfolio_positions", positions, POSITION_BOOK)
 
 
-def d14_bank_account_and_clients_agree(v):
-    problems = v.rows(
-        "SELECT c.client_id, c.account_number, b.client_id FROM clients c "
-        "JOIN bank_account b ON b.account_number = c.account_number "
-        "WHERE b.client_id <> c.client_id;"
+def d14_every_client_has_a_bank_account(v):
+    # A clients row is created by linking a bank account, so none should be without one.
+    missing = v.rows(
+        "SELECT c.client_id FROM clients c "
+        "WHERE NOT EXISTS (SELECT 1 FROM bank_account b WHERE b.client_id = c.client_id);"
     )
     require(
-        not problems,
-        "clients and bank_account disagree about ownership: "
-        + ", ".join("client " + r[0] + " holds " + r[1] + " but that account names client "
-                    + r[2] for r in problems),
+        not missing,
+        "clients with no bank_account row: " + ", ".join(r[0] for r in missing),
     )
 
 
 def d15_every_client_has_credentials(v):
     missing = v.rows(
-        "SELECT c.client_id, c.email FROM clients c "
-        "WHERE NOT EXISTS (SELECT 1 FROM auth a WHERE a.email = c.email);"
+        "SELECT c.client_id FROM clients c "
+        "WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.account_id = c.client_id);"
     )
     require(
         not missing,
-        "clients with no auth row: "
-        + ", ".join(r[0] + " (" + r[1] + ")" for r in missing),
+        "clients with no users row: " + ", ".join(r[0] for r in missing),
     )
 
 
@@ -953,8 +1004,8 @@ CHECKS = [
     ("B", "portfolio_positions allows negative quantity", b06_positions_allows_negative),
     ("B", "one portfolio row per (client, instrument)", b07_unique_portfolio_keys),
     ("B", "order_history refuses a no-op transition", b08_order_history_records_a_real_transition),
-    ("B", "bank_account and clients reference each other",
-     b09_bank_account_and_clients_reference_each_other),
+    ("B", "bank_account.client_id is the only link to clients",
+     b09_bank_account_owns_the_link_to_clients),
 
     ("C", "duplicate idempotency_key raises 23505", c01_duplicate_idempotency_key_rejected),
     ("C", "unknown order_type rejected", c02_bad_order_type_rejected),
@@ -979,9 +1030,9 @@ CHECKS = [
     ("C", "stale credential writer detects it lost", c20_optimistic_concurrency_detects_the_loser),
     ("C", "negative bank balance rejected", c21_negative_bank_balance_rejected),
     ("C", "negative wallet balance rejected", c22_negative_wallet_balance_rejected),
-    ("C", "sequences are past the seeded ids", c23_sequences_resynced_past_seed),
-    ("C", "blank auth password rejected", c24_blank_password_rejected),
-    ("C", "audit row for a missing order rejected", c25_history_for_a_missing_order_rejected),
+    ("C", "a generated order_id does not collide", c23_generated_order_id_does_not_collide),
+    ("C", "blank users password rejected", c24_blank_password_rejected),
+    ("C", "duplicate settled idempotency key rejected", c25_duplicate_settled_idempotency_key_rejected),
     ("C", "audit row for a real transition accepted", c26_history_accepts_a_real_transition),
     ("C", "audit row with an unknown status rejected", c27_history_rejects_an_unknown_status),
 
@@ -998,7 +1049,7 @@ CHECKS = [
     ("D", "portfolio_holding has no negatives", d11_holding_has_no_negatives),
     ("D", "portfolio_holding matches the HOLDING orders", d12_holding_matches_holding_orders),
     ("D", "portfolio_positions matches the POSITION orders", d13_positions_matches_position_orders),
-    ("D", "bank_account and clients agree on ownership", d14_bank_account_and_clients_agree),
+    ("D", "every client has a bank account", d14_every_client_has_a_bank_account),
     ("D", "every client has credentials", d15_every_client_has_credentials),
 ]
 

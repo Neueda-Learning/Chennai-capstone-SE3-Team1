@@ -1,0 +1,96 @@
+package com.team1.trading.api.mapper;
+
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Mapper
+public interface AccountMapper {
+
+    @Select("""
+            SELECT c.client_id AS clientId, b.account_number AS accountNumber, b.bank_name AS bankName,
+                   c.name, c.created_on AS createdOn, c.account_state AS accountState,
+                   c.wallet_balance AS walletBalance, c.version, c.updated_on AS updatedOn
+            FROM clients c
+            LEFT JOIN bank_account b ON b.client_id = c.client_id
+            WHERE c.client_id = #{accountId}
+            """)
+    Optional<AccountRow> findRow(@Param("accountId") Long accountId);
+
+    @Update("""
+            UPDATE clients
+            SET wallet_balance = #{update.newBalance},
+                version = version + 1,
+                updated_on = now()
+            WHERE client_id = #{update.clientId}
+              AND version = #{update.expectedVersion}
+            """)
+    int updateCashGuarded(@Param("update") AccountCashUpdate update);
+
+    class AccountRow {
+        private Long clientId;
+        private String accountNumber;
+        private String bankName;
+        private String name;
+        private LocalDateTime createdOn;
+        private String accountState;
+        private BigDecimal walletBalance;
+        private Integer version;
+        private LocalDateTime updatedOn;
+
+        public Long getClientId() { return clientId; }
+        public void setClientId(Long clientId) { this.clientId = clientId; }
+
+        public String getAccountNumber() { return accountNumber; }
+        public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+
+        public String getBankName() { return bankName; }
+        public void setBankName(String bankName) { this.bankName = bankName; }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public LocalDateTime getCreatedOn() { return createdOn; }
+        public void setCreatedOn(LocalDateTime createdOn) { this.createdOn = createdOn; }
+
+        public String getAccountState() { return accountState; }
+        public void setAccountState(String accountState) { this.accountState = accountState; }
+
+        public BigDecimal getWalletBalance() { return walletBalance; }
+        public void setWalletBalance(BigDecimal walletBalance) { this.walletBalance = walletBalance; }
+
+        public Integer getVersion() { return version; }
+        public void setVersion(Integer version) { this.version = version; }
+
+        public LocalDateTime getUpdatedOn() { return updatedOn; }
+        public void setUpdatedOn(LocalDateTime updatedOn) { this.updatedOn = updatedOn; }
+    }
+
+    class AccountCashUpdate {
+        private Long clientId;
+        private BigDecimal newBalance;
+        private Integer expectedVersion;
+
+        public AccountCashUpdate() {}
+
+        public AccountCashUpdate(Long clientId, BigDecimal newBalance, Integer expectedVersion) {
+            this.clientId = clientId;
+            this.newBalance = newBalance;
+            this.expectedVersion = expectedVersion;
+        }
+
+        public Long getClientId() { return clientId; }
+        public void setClientId(Long clientId) { this.clientId = clientId; }
+
+        public BigDecimal getNewBalance() { return newBalance; }
+        public void setNewBalance(BigDecimal newBalance) { this.newBalance = newBalance; }
+
+        public Integer getExpectedVersion() { return expectedVersion; }
+        public void setExpectedVersion(Integer expectedVersion) { this.expectedVersion = expectedVersion; }
+    }
+}

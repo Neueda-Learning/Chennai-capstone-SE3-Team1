@@ -26,28 +26,51 @@ def price(value):
 
 
 BANK_ACCOUNTS = [
-    ("IN45HDFC0000001234567", 1, "Aarav Mehta",   "+919812345001", "aarav.mehta@example.com",   "485200.00", "HDFC Bank",      "HDFC0001234"),
-    ("IN45ICIC0000002345678", 2, "Diya Sharma",   "+919812345002", "diya.sharma@example.com",   "129750.50", "ICICI Bank",     "ICIC0002345"),
-    ("IN45SBIN0000003456789", 3, "Rohan Iyer",    "+919812345003", "rohan.iyer@example.com",    "873400.25", "State Bank",     "SBIN0003456"),
-    ("IN45AXIS0000004567890", 4, "Meera Nair",    "+919812345004", "meera.nair@example.com",     "64300.00", "Axis Bank",      "UTIB0004567"),
-    ("IN45KKBK0000005678901", 5, "Vikram Rao",    "+919812345005", "vikram.rao@example.com",    "251000.75", "Kotak Mahindra", "KKBK0005678"),
-    ("IN45YESB0000006789012", 6, "Sanya Kapoor",  "+919812345006", "sanya.kapoor@example.com",       "0.00", "Yes Bank",       "YESB0006789"),
+    ("IN45HDFC0000001234567", 1, "485200.00", "HDFC Bank",      "HDFC0001234"),
+    ("IN45ICIC0000002345678", 2, "129750.50", "ICICI Bank",     "ICIC0002345"),
+    ("IN45SBIN0000003456789", 3, "873400.25", "State Bank",     "SBIN0003456"),
+    ("IN45AXIS0000004567890", 4,  "64300.00", "Axis Bank",      "UTIB0004567"),
+    ("IN45KKBK0000005678901", 5, "251000.75", "Kotak Mahindra", "KKBK0005678"),
+    ("IN45YESB0000006789012", 6,      "0.00", "Yes Bank",       "YESB0006789"),
+
+    # Unclaimed (client_id NULL, migration 017): bank accounts that exist before anyone owns
+    # them. Onboarding claims one by account number; the rest stay unclaimed.
+    ("IN45HDFC0000007890123", None, "150000.00", "HDFC Bank",      "HDFC0007890"),
+    ("IN45ICIC0000008901234", None,  "92500.00", "ICICI Bank",     "ICIC0008901"),
+    ("IN45SBIN0000009012345", None, "310000.00", "State Bank",     "SBIN0009012"),
+    ("IN45AXIS0000010123456", None,  "48000.50", "Axis Bank",      "UTIB0010123"),
+    ("IN45KKBK0000011234567", None, "225750.00", "Kotak Mahindra", "KKBK0011234"),
+    ("IN45YESB0000012345678", None,   "5000.00", "Yes Bank",       "YESB0012345"),
 ]
 
 
 CLIENTS = [
-    (1, "IN45HDFC0000001234567", "Aarav Mehta",   "aarav.mehta@example.com",   "+919812345001", "ACTIVE",    "125000.00"),
-    (2, "IN45ICIC0000002345678", "Diya Sharma",   "diya.sharma@example.com",   "+919812345002", "ACTIVE",     "48250.50"),
-    (3, "IN45SBIN0000003456789", "Rohan Iyer",    "rohan.iyer@example.com",    "+919812345003", "ACTIVE",    "310400.75"),
-    (4, "IN45AXIS0000004567890", "Meera Nair",    "meera.nair@example.com",    "+919812345004", "SUSPENDED",  "15000.00"),
-    (5, "IN45KKBK0000005678901", "Vikram Rao",    "vikram.rao@example.com",    "+919812345005", "ACTIVE",     "92750.25"),
-    (6, "IN45YESB0000006789012", "Sanya Kapoor",  "sanya.kapoor@example.com",  "+919812345006", "CLOSED",         "0.00"),
+    (1, "Aarav Mehta",   "ACTIVE",    "125000.00"),
+    (2, "Diya Sharma",   "ACTIVE",     "48250.50"),
+    (3, "Rohan Iyer",    "ACTIVE",    "310400.75"),
+    (4, "Meera Nair",    "SUSPENDED",  "15000.00"),
+    (5, "Vikram Rao",    "ACTIVE",     "92750.25"),
+    (6, "Sanya Kapoor",  "CLOSED",         "0.00"),
 ]
 
 
-_PLACEHOLDER_HASH = "$2b$12$SEEDDATAONLYnotarealhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+# argon2id (the auth service's parameters) of the seed password "Pass@word123456", so every seeded
+# user can sign in. Test data only.
+_SEED_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
 
-AUTH = [(client[3], _PLACEHOLDER_HASH) for client in CLIENTS]
+
+def _local_part(name):
+    return name.lower().replace(" ", ".")
+
+
+# Every seeded client already has a linked bank account, so each seeded user carries its
+# account_id. Username/email are generated from the client's name (firstname.lastname), which
+# fits users' username rule; email/phone live only on users now (migration 021) - clients
+# carries neither.
+USERS = [
+    (_local_part(client[1]), _local_part(client[1]) + "@example.com", client[0], _SEED_PASSWORD_HASH)
+    for client in CLIENTS
+]
 
 
 INSTRUMENTS = [
@@ -101,7 +124,7 @@ ORDER_KEYS = (
 ORDER_FIELDS = (
     "order_id", "client_id", "account_id", "instrument_id", "order_type", "side",
     "quantity", "price", "executed_price", "status", "idempotency_key",
-    "external_order_id",
+    "external_order_id", "created_at", "updated_at",
 )
 
 HOLDING_BOOK = "HOLDING"
@@ -116,6 +139,13 @@ TERMINAL_EVENT = {
 
 def order_dict(row):
     return dict(zip(ORDER_KEYS, row))
+
+
+# orders.order_id is a UUID (migration 009). The dataset is keyed by a small
+# integer, so derive the UUID from it: the seed stays deterministic and an
+# order's id is still readable at a glance.
+def order_uuid(order_id):
+    return "550e8400-e29b-41d4-a716-44665544" + format(order_id, "04d")
 
 
 def account_id_for(order):
@@ -183,20 +213,19 @@ def settle_orders():
 
 
 def build_bank_account():
-    header = ["account_number", "client_id", "name", "phone", "email",
+    header = ["account_number", "client_id",
               "account_balance", "bank_name", "ifsc_code"]
     return header, [list(r) for r in BANK_ACCOUNTS]
 
 
 def build_clients():
-    header = ["client_id", "account_number", "name", "email", "phone",
-              "account_state", "wallet_balance"]
+    header = ["client_id", "name", "account_state", "wallet_balance"]
     return header, [list(r) for r in CLIENTS]
 
 
-def build_auth():
-    header = ["email", "password_hash"]
-    return header, [list(r) for r in AUTH]
+def build_users():
+    header = ["username", "email", "account_id", "password_hash"]
+    return header, [list(r) for r in USERS]
 
 
 def build_instruments():
@@ -204,13 +233,47 @@ def build_instruments():
     return header, [list(r) for r in INSTRUMENTS]
 
 
+def stamp(sequence):
+    minute_of_day = 9 * 60 + 15 + sequence
+    return "2026-01-05 " + format(minute_of_day // 60, "02d") + ":"         + format(minute_of_day % 60, "02d") + ":00"
+
+
+def order_timestamps():
+    """When each order was created and when it reached its terminal state.
+
+    orders and order_history have to agree: an order cannot be filled before it
+    was placed. Both builders read this one clock, so the two files cannot drift.
+    """
+    stamps = {}
+    history_id = 0
+    for raw in ORDERS:
+        o = order_dict(raw)
+        history_id += 1
+        created = stamp(history_id)
+        terminal = None
+        if TERMINAL_EVENT.get(o["status"]) is not None:
+            history_id += 1
+            terminal = stamp(history_id)
+        stamps[o["order_id"]] = (created, terminal)
+    return stamps
+
+
 def build_orders():
+    """The live book: orders that have not settled.
+
+    Migration 010 made orders NEW-only - a settled order is deleted from it and lives on
+    as its terminal order_history row - so a seeded FILLED order here would be refused by
+    chk_orders_status. The terminal ones are emitted by build_order_history() instead.
+    """
     header = list(ORDER_FIELDS)
+    stamps = order_timestamps()
     rows = []
     for raw in ORDERS:
         o = order_dict(raw)
+        if TERMINAL_EVENT.get(o["status"]) is not None:
+            continue
         record = {
-            "order_id": o["order_id"],
+            "order_id": order_uuid(o["order_id"]),
             "client_id": o["client_id"],
             "account_id": account_id_for(o),
             "instrument_id": o["instrument_id"],
@@ -222,6 +285,8 @@ def build_orders():
             "status": o["status"],
             "idempotency_key": o["idempotency_key"],
             "external_order_id": external_order_id_for(o),
+            "created_at": stamps[o["order_id"]][0],
+            "updated_at": stamps[o["order_id"]][1] or stamps[o["order_id"]][0],
         }
         rows.append([record[field] for field in ORDER_FIELDS])
     return header, rows
@@ -230,24 +295,26 @@ def build_orders():
 def build_order_history():
     header = ["history_id", "order_id", "event_type", "previous_status", "new_status",
               "external_status", "external_order_id", "request_id", "failure_code",
-              "failure_reason", "event_timestamp", "created_at"]
+              "failure_reason", "event_timestamp", "created_at",
+              # migration 010: the terminal row is the settled order itself
+              "client_id", "account_id", "instrument_id", "order_type", "side",
+              "quantity", "price", "executed_price", "idempotency_key", "order_created_at"]
     rows = []
     history_id = 0
 
-    def stamp(sequence):
-        minute_of_day = 9 * 60 + 15 + sequence
-        return "2026-01-05 " + format(minute_of_day // 60, "02d") + ":" \
-            + format(minute_of_day % 60, "02d") + ":00"
+    stamps = order_timestamps()
 
     for raw in ORDERS:
         o = order_dict(raw)
 
         history_id += 1
-        created_stamp = stamp(history_id)
+        created_stamp = stamps[o["order_id"]][0]
         rows.append([
-            history_id, o["order_id"], "CREATED", None, "NEW", None, None,
+            history_id, order_uuid(o["order_id"]), "CREATED", None, "NEW", None, None,
             "req-" + format(o["order_id"], "06d"), None, None,
             created_stamp, created_stamp,
+            # a CREATED event is a transition, not the order: detail columns stay empty
+            None, None, None, None, None, None, None, None, None, None,
         ])
 
         event = TERMINAL_EVENT.get(o["status"])
@@ -255,14 +322,17 @@ def build_order_history():
             continue
 
         history_id += 1
-        terminal_stamp = stamp(history_id)
+        terminal_stamp = stamps[o["order_id"]][1]
         rows.append([
-            history_id, o["order_id"], event, "NEW", o["status"],
+            history_id, order_uuid(o["order_id"]), event, "NEW", o["status"],
             event if o["status"] == "FILLED" else None,
             external_order_id_for(o),
             "req-" + format(o["order_id"], "06d"),
             o["failure_code"], o["failure_reason"],
             terminal_stamp, terminal_stamp,
+            o["client_id"], account_id_for(o), o["instrument_id"], o["order_type"], o["side"],
+            o["quantity"], price(o["price"]), executed_price_for(o),
+            o["idempotency_key"], stamps[o["order_id"]][0],
         ])
 
     return header, rows
@@ -288,15 +358,18 @@ def build_portfolio_positions():
     return header, _portfolio_rows(positions)
 
 
+# orders / order_history / portfolio_holding / portfolio_positions are deliberately not
+# seeded (team decision - accounts should start with no trading activity, created some
+# other way). build_orders/build_order_history/build_portfolio_holding/
+# build_portfolio_positions and settle_orders() above are left in place as reference/in
+# case that decision changes, just not wired into BUILDERS. Re-add them here to restore
+# the old behaviour.
 BUILDERS = [
-    ("010_bank_account.csv",        build_bank_account),
-    ("020_clients.csv",             build_clients),
-    ("030_auth.csv",                build_auth),
+    # clients before bank_account: bank_account.client_id is checked immediately.
+    ("010_clients.csv",             build_clients),
+    ("020_bank_account.csv",        build_bank_account),
+    ("030_users.csv",               build_users),
     ("040_instruments.csv",         build_instruments),
-    ("050_orders.csv",              build_orders),
-    ("060_order_history.csv",       build_order_history),
-    ("070_portfolio_holding.csv",   build_portfolio_holding),
-    ("080_portfolio_positions.csv", build_portfolio_positions),
 ]
 
 

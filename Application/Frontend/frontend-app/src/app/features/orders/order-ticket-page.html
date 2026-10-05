@@ -1,0 +1,432 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Market &amp; Trade</h1>
+    <p class="page-subtitle">Pick a ticker to trade it beside the list — the trend opens on demand.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card mb-0">
+      <div class="card-header">
+        <h2 class="card-title">Tickers</h2>
+        <span class="small text-muted-green">Updated about every two minutes</span>
+      </div>
+
+      @switch (quotesState()) {
+        @case ('failed') {
+          <p class="empty-note" data-testid="quotes-failed">Could not load market prices. They will be retried automatically.</p>
+        }
+        @case ('ready') {
+          @if (quotes().length === 0) {
+            <p class="empty-note" data-testid="quotes-empty">No tradable instruments are available.</p>
+          }
+        }
+        @default {
+          <p class="empty-note" data-testid="quotes-loading">Loading prices…</p>
+        }
+      }
+
+      <ul class="ticker-list" data-testid="ticker-list">
+        @for (quote of quotes(); track quote.symbol) {
+          <li class="ticker-row">
+            <button
+              type="button"
+              class="ticker-item"
+              data-testid="ticker"
+              [class.active]="quote.symbol === selectedSymbol()"
+              [attr.aria-pressed]="quote.symbol === selectedSymbol()"
+              (click)="select(quote.symbol)"
+            >
+              <span class="ticker-main">
+                <span class="ticker-symbol">{{ quote.symbol }}</span>
+                <span class="ticker-name">{{ quote.name }}</span>
+              </span>
+              <span class="ticker-quote">
+                @if (quote.price !== null) {
+                  <span class="ticker-price">{{ formatMoney(quote.price) }}</span>
+                  <span [class]="'ticker-change ticker-' + changeTone(quote)">
+                    @if (quote.changePercent !== null) {
+                      <i class="bi" [class.bi-caret-up-fill]="changeTone(quote) === 'up'" [class.bi-caret-down-fill]="changeTone(quote) === 'down'"></i>
+                      {{ formatSignedPercent(quote.changePercent) }}
+                    } @else {
+                      —
+                    }
+                  </span>
+                } @else {
+                  <span class="ticker-price text-muted-green">Waiting for price</span>
+                }
+              </span>
+            </button>
+            <button
+              type="button"
+              class="ticker-chart-btn"
+              data-testid="ticker-chart"
+              [attr.aria-label]="'Show price trend for ' + quote.symbol"
+              [title]="'Show price trend for ' + quote.symbol"
+              [disabled]="quote.price === null"
+              (click)="selectAndChart(quote.symbol)"
+            >
+              <i class="bi bi-graph-up" aria-hidden="true"></i>
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card mb-0">
+      <div class="card-header ticket-head">
+        <div>
+          @if (selected(); as quote) {
+            <h2 class="card-title" data-testid="selected-symbol">{{ quote.symbol }} <span class="ticker-name">{{ quote.name }}</span></h2>
+          } @else {
+            <h2 class="card-title">Select a ticker</h2>
+          }
+        </div>
+        @if (selected() !== null) {
+          <button
+            type="button"
+            class="range-btn"
+            data-testid="open-chart"
+            (click)="openChart()"
+          >
+            <i class="bi bi-graph-up"></i> Trend
+          </button>
+        }
+      </div>
+
+      @if (selected(); as quote) {
+        <div class="price-headline">
+          <div class="price-now" data-testid="current-price">{{ quote.price !== null ? formatMoney(quote.price) : '—' }}</div>
+          @if (quote.price !== null) {
+            <div [class]="'ticker-change ticker-' + changeTone(quote)" data-testid="price-change">
+              {{ formatSignedPercent(quote.changePercent) }}
+            </div>
+            @if (quote.bid !== null && quote.ask !== null) {
+              <div class="price-spread small text-muted-green">Bid {{ formatMoney(quote.bid) }} · Ask {{ formatMoney(quote.ask) }}</div>
+            }
+            @if (quote.stale) {
+              <span class="badge-table pending" data-testid="stale-badge">Delayed</span>
+            }
+            @if (quote.marketState && quote.marketState.toLowerCase() !== 'unknown') {
+              <span class="small text-muted-green">{{ quote.marketState }}</span>
+            }
+          }
+        </div>
+      }
+
+      <form [formGroup]="form" (submit)="onSubmit($event)" novalidate>
+        <div class="mb-3 d-flex gap-2">
+          <button
+            type="button"
+            class="btn-custom flex-grow-1"
+            data-testid="side-buy"
+            [class.btn-custom-primary]="side() === 'BUY'"
+            [class.btn-custom-outline-primary]="side() !== 'BUY'"
+            (click)="selectSide('BUY')"
+          >
+            <i class="bi bi-arrow-up-circle"></i> Buy
+          </button>
+          <button
+            type="button"
+            class="btn-custom flex-grow-1"
+            data-testid="side-sell"
+            [class.btn-custom-danger]="side() === 'SELL'"
+            [class.btn-custom-outline-danger]="side() !== 'SELL'"
+            (click)="selectSide('SELL')"
+          >
+            <i class="bi bi-arrow-down-circle"></i> Sell
+          </button>
+        </div>
+
+        <div class="order-facts mb-3">
+          <div class="order-fact">
+            <span class="stat-label">Current price</span>
+            <span class="order-fact-value" data-testid="ticket-price">
+              {{ currentPrice() !== null ? formatMoney(currentPrice()) : '—' }}
+            </span>
+          </div>
+          @if (side() === 'SELL') {
+            <div class="order-fact">
+              <span class="stat-label">Units available to sell</span>
+              <span class="order-fact-value" data-testid="units-available">
+                {{ unitsAvailable() }}
+                @if (unitsAvailable() > 0) {
+                  <button type="button" class="btn-link-inline" data-testid="sell-all" (click)="sellAll()">Sell all</button>
+                }
+              </span>
+            </div>
+          }
+        </div>
+
+        <div class="mb-3">
+          <label for="quantity" class="form-label-custom">Quantity</label>
+          <input
+            type="number"
+            id="quantity"
+            class="form-control-custom"
+            formControlName="quantity"
+            placeholder="10"
+            min="1"
+            step="1"
+            [class.is-invalid-custom]="quantityInvalid()"
+          />
+          @if (quantityMessage() ?? blocker(); as message) {
+            <span class="form-feedback-custom invalid-custom" data-testid="ticket-error">{{ message }}</span>
+          }
+        </div>
+
+        <div class="order-facts mb-3">
+          <div class="order-fact">
+            <span class="stat-label">Estimated {{ side() === 'BUY' ? 'cost' : 'proceeds' }}</span>
+            <span class="order-fact-value" data-testid="estimated-total">
+              {{ estimatedTotal() !== null ? formatMoney(estimatedTotal()) : '—' }}
+            </span>
+          </div>
+        </div>
+        <p class="small text-muted-green mb-3">
+          Executes at the current market price when it reaches the market; buys fill at the ask and sells at the bid.
+          The price may move slightly before then, so the order is protected to within {{ protectionPercent }}% of it.
+        </p>
+
+        <button
+          type="submit"
+          class="btn-custom btn-custom-lg w-100"
+          data-testid="place-order"
+          [class.btn-custom-primary]="side() === 'BUY'"
+          [class.btn-custom-danger]="side() === 'SELL'"
+          [disabled]="submitting() || selected() === null"
+        >
+          @if (submitting()) {
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Placing order…
+          } @else {
+            {{ side() === 'BUY' ? 'Buy' : 'Sell' }} {{ selectedSymbol() ?? '' }} at market
+          }
+        </button>
+      </form>
+
+      @if (outcome(); as result) {
+        @if (result.kind === 'accepted') {
+          <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status" data-testid="outcome-accepted">
+            <i class="bi bi-check-circle-fill"></i>
+            <div>
+              <div class="fw-semibold">
+                Order {{ result.order.orderId }} accepted
+                <span [class]="'badge-table ' + statusTone(result.order.status)">
+                  {{ result.order.status }}
+                </span>
+              </div>
+              <div class="small">{{ result.summary }}</div>
+              @if (result.order.status === 'NEW') {
+                <div class="small">Working. It will fill or be rejected; the blotter and your notifications update as it resolves.</div>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="alert alert-danger d-flex align-items-start gap-2 mt-3" role="alert" data-testid="outcome-refused">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <div>
+              <div class="fw-semibold">Order not placed</div>
+              <div class="small">{{ result.message }}</div>
+            </div>
+          </div>
+        }
+      }
+
+      <hr class="ticket-divider" />
+
+      <div class="order-facts wallet-strip">
+        <div class="order-fact">
+          <span class="stat-label">Wallet balance</span>
+          <span class="order-fact-value" data-testid="balance">
+            @switch (balanceState()) {
+              @case ('loading') {
+                <span class="text-muted">Loading…</span>
+              }
+              @case ('ready') {
+                {{ formatMoney(balance()!.cashBalance) }}
+              }
+              @case ('failed') {
+                <span class="text-muted">Could not load balance</span>
+              }
+              @default {
+                <span class="text-muted">—</span>
+              }
+            }
+          </span>
+          @if (balanceState() === 'ready') {
+            <span class="stat-label">As of {{ balance()!.asOf }}</span>
+          }
+        </div>
+        <div class="order-fact">
+          <span class="stat-label">Linked bank</span>
+          <span class="order-fact-value" data-testid="account-id">
+            @switch (accountState()) {
+              @case ('loading') {
+                <span class="text-muted">Loading…</span>
+              }
+              @case ('ready') {
+                @if (account()!.bankName) {
+                  <span data-testid="bank-name">{{ account()!.bankName }}</span>
+                  <div class="stat-label">
+                    {{ account()!.holderName }}
+                    @if (account()!.accountId) {
+                      <span>· {{ account()!.accountId }}</span>
+                    }
+                  </div>
+                } @else {
+                  <span class="text-muted" data-testid="bank-name">No bank linked</span>
+                  <div class="stat-label">{{ account()!.holderName }}</div>
+                }
+              }
+              @case ('failed') {
+                <span class="text-muted">Could not load account</span>
+              }
+              @default {
+                @if (hasAccount()) {
+                  <span class="text-muted">Account {{ accountId() }}</span>
+                } @else {
+                  <span class="text-muted">Not linked</span>
+                }
+              }
+            }
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (chartOpen()) {
+  @if (selected(); as quote) {
+    <div
+      class="chart-dialog-backdrop"
+      data-testid="chart-dialog-backdrop"
+      (click)="closeChart()"
+    >
+      <div
+        class="chart-dialog card"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="'Price trend for ' + quote.symbol"
+        data-testid="chart-dialog"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="card-header ticket-head">
+          <h2 class="card-title" data-testid="chart-dialog-title">
+            {{ quote.symbol }} trend <span class="ticker-name">{{ quote.name }}</span>
+          </h2>
+          <button
+            type="button"
+            class="range-btn"
+            data-testid="close-chart"
+            aria-label="Close price trend"
+            (click)="closeChart()"
+          >
+            <i class="bi bi-x-lg" aria-hidden="true"></i> Close
+          </button>
+        </div>
+
+        <div class="chart-toolbar" data-testid="chart-toolbar">
+          <div class="range-switch" role="group" aria-label="Range">
+            @for (option of ranges; track option.value) {
+              <button
+                type="button"
+                class="range-btn"
+                [attr.data-testid]="'range-' + option.value"
+                [class.active]="range().value === option.value"
+                (click)="selectRange(option)"
+              >
+                {{ option.label }}
+              </button>
+            }
+          </div>
+
+          <div class="range-switch" role="group" aria-label="Candle size">
+            <span class="range-switch-label">Candle</span>
+            @for (option of intervals(); track option.value) {
+              <button
+                type="button"
+                class="range-btn"
+                [attr.data-testid]="'interval-' + option.value"
+                [class.active]="interval().value === option.value"
+                (click)="selectInterval(option)"
+              >
+                {{ option.label }}
+              </button>
+            }
+          </div>
+
+          <div class="range-switch" role="group" aria-label="Chart type">
+            <button type="button" class="range-btn" data-testid="style-candles" [class.active]="chartStyle() === 'candles'" (click)="selectStyle('candles')">
+              <i class="bi bi-bar-chart-steps"></i> Candles
+            </button>
+            <button type="button" class="range-btn" data-testid="style-line" [class.active]="chartStyle() === 'line'" (click)="selectStyle('line')">
+              <i class="bi bi-graph-up"></i> Line
+            </button>
+          </div>
+
+          <div class="dropdown">
+            <button
+              type="button"
+              class="range-btn indicator-btn dropdown-toggle"
+              data-testid="indicators-menu"
+              data-bs-toggle="dropdown"
+              data-bs-auto-close="outside"
+              aria-expanded="false"
+            >
+              <i class="bi bi-activity"></i> Indicators
+              @if (indicators().length > 0) {
+                <span class="notification-count" data-testid="indicator-count">{{ indicators().length }}</span>
+              }
+            </button>
+            <div class="dropdown-menu dropdown-menu-end indicator-menu p-2">
+              @for (option of indicatorOptions; track option.id) {
+                <label
+                  class="indicator-item form-check-custom"
+                  [class.disabled]="option.needsVolume && !hasVolume()"
+                  [attr.title]="option.hint"
+                >
+                  <input
+                    type="checkbox"
+                    class="form-check-input-custom"
+                    [attr.data-testid]="'indicator-' + option.id"
+                    [checked]="indicators().includes(option.id)"
+                    [disabled]="option.needsVolume && !hasVolume()"
+                    (change)="toggleIndicator(option.id)"
+                  />
+                  <span>{{ option.label }}</span>
+                  @if (option.needsVolume && !hasVolume()) {
+                    <span class="indicator-note">daily candles</span>
+                  }
+                </label>
+              }
+              <button type="button" class="btn-link-inline indicator-reset" data-testid="chart-reset" (click)="resetChart()">Reset chart</button>
+            </div>
+          </div>
+        </div>
+
+        <tui-price-chart [candles]="candles()" [style]="chartStyle()" [indicators]="indicators()" [hasVolume]="hasVolume()" />
+        @switch (candlesState()) {
+          @case ('failed') {
+            <p class="empty-note" data-testid="history-failed">Could not load the chart data.</p>
+          }
+          @case ('ready') {
+            @if (candles().length === 0) {
+              <p class="empty-note" data-testid="history-empty">
+                @if (interval().kind === 'daily') {
+                  No daily history is available for this ticker yet.
+                } @else {
+                  No prices have been recorded for this ticker in this range yet. Short candles fill in as the minute-by-minute quotes arrive.
+                }
+              </p>
+            }
+          }
+        }
+      </div>
+    </div>
+  }
+}

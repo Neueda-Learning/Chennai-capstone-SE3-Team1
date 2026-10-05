@@ -1,0 +1,179 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Portfolio</h1>
+    <p class="page-subtitle">
+      What you own, valued at the latest prices.
+      @if (updatedAt(); as when) {
+        <span class="text-muted-green">Updated {{ when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }}.</span>
+      }
+    </p>
+  </div>
+  <a routerLink="/orders" class="btn-custom btn-custom-primary" data-testid="go-trade">
+    <i class="bi bi-bar-chart-line"></i> Trade
+  </a>
+</div>
+
+@if (accountId() === null) {
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="status" data-testid="no-account">
+    <i class="bi bi-bank"></i>
+    <div>
+      <div class="fw-semibold">No trading account yet</div>
+      <div class="small">
+        Link a bank account to open your trading account.
+        <a routerLink="/bank-accounts">Go to Bank Account Details</a>
+      </div>
+    </div>
+  </div>
+} @else if (state() === 'failed') {
+  <div class="alert alert-danger d-flex align-items-start gap-2" role="alert" data-testid="load-failed">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      <div class="fw-semibold">Could not load your portfolio</div>
+      <div class="small">
+        The trading service did not answer.
+        <button type="button" class="btn-link-inline" (click)="retry()">Try again</button>
+      </div>
+    </div>
+  </div>
+} @else {
+  @if (refreshFailed()) {
+    <div class="alert alert-warning d-flex align-items-start gap-2" role="status" data-testid="refresh-failed">
+      <i class="bi bi-wifi-off"></i>
+      <div class="small">Could not refresh. Showing the last data received; it may be out of date.</div>
+    </div>
+  }
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card card-stat mb-0">
+        <span class="stat-label">Total Value</span>
+        <div class="stat-value stat-value-md" data-testid="total-value">{{ state() === 'ready' ? formatMoney(summary().totalValue) : 'â€”' }}</div>
+        <div class="stat-footnote"><span>Cash plus investments</span></div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card card-stat mb-0">
+        <span class="stat-label">Invested</span>
+        <div class="stat-value stat-value-md" data-testid="invested">{{ state() === 'ready' ? formatMoney(summary().investedValue) : 'â€”' }}</div>
+        <div class="stat-footnote"><span>Cost <strong>{{ state() === 'ready' ? formatMoney(summary().cost) : 'â€”' }}</strong></span></div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card card-stat mb-0">
+        <span class="stat-label">Unrealised P&amp;L</span>
+        <div class="stat-value" [class]="'stat-value stat-value-md ' + tone(state() === 'ready' ? summary().unrealised : null)" data-testid="unrealised">
+          {{ state() === 'ready' ? formatSignedMoney(summary().unrealised) : 'â€”' }}
+        </div>
+        <div class="stat-footnote">
+          <span>{{ state() === 'ready' ? formatSignedPercent(summary().unrealisedPercent) : 'â€”' }} on cost</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card card-stat mb-0">
+        <span class="stat-label">Cash</span>
+        <div class="stat-value stat-value-md" data-testid="cash">{{ state() === 'ready' ? formatMoney(summary().cash) : 'â€”' }}</div>
+        <div class="stat-footnote"><span>Available to trade</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Holdings</h2>
+    </div>
+    @if (holdings().length > 0) {
+      <div class="table-responsive">
+        <table class="table-custom" data-testid="holdings-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class="text-end">Qty</th>
+              <th class="text-end">Avg cost</th>
+              <th class="text-end">Last price</th>
+              <th class="text-end">Value</th>
+              <th class="text-end">Gain / loss</th>
+              <th class="text-end">Today</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of holdings(); track row.symbol) {
+              <tr data-testid="holding-row">
+                <td>
+                  <div class="fw-semibold">{{ row.symbol }}</div>
+                  <div class="small text-muted-green">{{ row.name }}</div>
+                </td>
+                <td class="text-end">{{ row.quantity }}</td>
+                <td class="text-end">{{ formatMoney(row.averageCost) }}</td>
+                <td class="text-end">
+                  {{ formatMoney(row.lastPrice) }}
+                  @if (!row.priceIsLive) {
+                    <span class="badge-table pending" title="No live quote yet; priced from the last stored gain">est.</span>
+                  }
+                </td>
+                <td class="text-end">{{ formatMoney(row.value) }}</td>
+                <td class="text-end" [class]="'text-end ' + tone(row.gain)">
+                  {{ formatSignedMoney(row.gain) }}
+                  <div class="small">{{ formatSignedPercent(row.gainPercent) }}</div>
+                </td>
+                <td class="text-end" [class]="'text-end ' + tone(row.dayChange)">{{ formatSignedMoney(row.dayChange) }}</td>
+                <td class="text-end">
+                  <a [routerLink]="['/orders']" [queryParams]="{ symbol: row.symbol }" class="btn-custom btn-custom-outline-primary btn-custom-sm">Trade</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="empty-note" data-testid="holdings-empty">
+        @if (state() === 'ready') {
+          You do not hold anything yet. <a routerLink="/orders">Pick a ticker on the Market page</a> to buy your first shares.
+        } @else {
+          &nbsp;
+        }
+      </p>
+    }
+  </div>
+
+  @if (positions().length > 0) {
+    <div class="card mt-4">
+      <div class="card-header">
+        <h2 class="card-title">Intraday positions</h2>
+      </div>
+      <div class="table-responsive">
+        <table class="table-custom" data-testid="positions-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class="text-end">Qty</th>
+              <th class="text-end">Avg price</th>
+              <th class="text-end">Last price</th>
+              <th class="text-end">Value</th>
+              <th class="text-end">Gain / loss</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of positions(); track row.symbol) {
+              <tr data-testid="position-row">
+                <td>
+                  <div class="fw-semibold">{{ row.symbol }}</div>
+                  <div class="small text-muted-green">{{ row.name }}</div>
+                </td>
+                <td class="text-end">{{ row.quantity }}</td>
+                <td class="text-end">{{ formatMoney(row.averageCost) }}</td>
+                <td class="text-end">{{ formatMoney(row.lastPrice) }}</td>
+                <td class="text-end">{{ formatMoney(row.value) }}</td>
+                <td class="text-end" [class]="'text-end ' + tone(row.gain)">
+                  {{ formatSignedMoney(row.gain) }}
+                  <div class="small">{{ formatSignedPercent(row.gainPercent) }}</div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+}

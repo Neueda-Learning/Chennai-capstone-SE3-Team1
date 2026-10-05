@@ -1,0 +1,68 @@
+package com.team1.trading.domain.entity;
+
+import java.math.BigDecimal;
+import java.util.Objects;
+
+/**
+ * A bank account a client funds their wallet from and pays out to. {@code clientId} is
+ * {@code null} while the account is unclaimed: bank accounts can exist before anyone owns them,
+ * and onboarding claims one. It carries no holder name of its own; {@code clientId} is the only
+ * identity it needs, and joining to {@code clients} gets the name once one is linked.
+ */
+public class BankAccount {
+
+    private Long clientId;
+    private String accountNumber;
+    private BigDecimal accountBalance;
+    private String bankName;
+    private String ifscCode;
+
+    public BankAccount(Long clientId, String accountNumber, String bankName, String ifscCode) {
+        this.clientId = clientId;
+        this.accountNumber =  Objects.requireNonNull(accountNumber, "accountNumber must not be null");
+        this.bankName = bankName;
+        this.ifscCode = ifscCode;
+        this.accountBalance = BigDecimal.ZERO;
+    }
+
+    public BankAccount(Long clientId, String accountNumber,
+                       BigDecimal accountBalance, String bankName, String ifscCode) {
+        this.clientId = clientId;
+        this.accountNumber = Objects.requireNonNull(accountNumber, "accountNumber must not be null");
+        this.accountBalance = accountBalance;
+        this.bankName = bankName;
+        this.ifscCode = ifscCode;
+    }
+
+    public Long getClientId() {
+        return clientId;
+    }
+
+    public boolean isClaimed() {
+        return clientId != null;
+    }
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    public String getBankName() {
+        return bankName;
+    }
+
+    public String getIfscCode() {
+        return ifscCode;
+    }
+
+    public BigDecimal getBalance() {
+        return accountBalance;
+    }
+
+    public void deposit(BigDecimal amount) {
+        this.accountBalance = accountBalance.add(amount);
+    }
+
+    public void withdraw(BigDecimal amount) {
+        this.accountBalance = accountBalance.subtract(amount);
+    }
+}

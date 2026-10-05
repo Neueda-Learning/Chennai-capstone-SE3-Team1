@@ -1,0 +1,67 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Account</h1>
+    <p class="page-subtitle">Your login and trading account details.</p>
+  </div>
+</div>
+
+@if (!profile.loaded()) {
+  <p class="empty-note" data-testid="account-loading">Loading your details…</p>
+} @else {
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h2 class="card-title">Profile</h2>
+        </div>
+        <div class="profile-head">
+          <tui-avatar [src]="profile.avatarUrl()" [initials]="profile.initials()" imgClass="account-avatar" />
+          <div>
+            <div class="stat-value profile-name" data-testid="account-name">{{ profile.displayName() }}</div>
+            <div class="stat-label">{{ user()!.username }}</div>
+          </div>
+        </div>
+        <dl class="detail-list">
+          <dt>Email</dt>
+          <dd data-testid="account-email">{{ user()!.email }}</dd>
+          <dt>Phone</dt>
+          <dd data-testid="account-phone">{{ user()!.phone ?? 'Not set' }}</dd>
+          <dt>Roles</dt>
+          <dd data-testid="account-roles">{{ user()!.roles.join(', ') }}</dd>
+          <dt>Status</dt>
+          <dd data-testid="account-status">{{ user()!.status }}</dd>
+          @if (memberSince(); as since) {
+            <dt>Member since</dt>
+            <dd data-testid="account-since">{{ since }}</dd>
+          }
+        </dl>
+        <p class="small text-muted-green mb-0">These details cannot be edited here yet.</p>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h2 class="card-title">Trading account</h2>
+        </div>
+        @if (account(); as acct) {
+          <dl class="detail-list" data-testid="trading-account">
+            <dt>Account holder</dt>
+            <dd>{{ acct.holderName }}</dd>
+            <dt>Account ID</dt>
+            <dd>{{ acct.accountId }}</dd>
+            <dt>Bank</dt>
+            <dd>{{ acct.bankName ?? 'No bank linked' }}</dd>
+            <dt>Status</dt>
+            <dd>{{ acct.status }}</dd>
+          </dl>
+        } @else {
+          <p class="empty-note" data-testid="no-trading-account">
+            No trading account yet.
+            <a routerLink="/bank-accounts">Link a bank account</a> to open one.
+          </p>
+        }
+      </div>
+    </div>
+  </div>
+}

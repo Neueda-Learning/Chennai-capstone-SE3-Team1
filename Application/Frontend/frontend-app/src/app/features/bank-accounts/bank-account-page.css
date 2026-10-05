@@ -1,0 +1,33 @@
+/* Styled globally by src/styles/spark-admin.css; only the direction switch below
+   is local, because that pattern exists nowhere else. */
+
+.direction-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.direction-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.55;
+}
+
+.direction-label.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.direction-toggle {
+  margin-bottom: 0;
+  padding-left: 2.75em;
+}
+
+.direction-toggle .form-check-input {
+  width: 2.25em;
+  height: 1.25em;
+  margin-left: -2.75em;
+  cursor: pointer;
+}

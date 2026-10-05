@@ -1,0 +1,221 @@
+<div class="landing-wrapper" (keydown)="onEscape($event)">
+  <!-- Navigation Bar -->
+  <nav class="landing-navbar">
+    <div class="navbar-container">
+      <div class="navbar-logo">
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>Trading Platform</span>
+      </div>
+      <div class="navbar-links">
+        <a href="#features" (click)="scrollToSection('features')" class="nav-link">Features</a>
+        <a href="#about" (click)="scrollToSection('about')" class="nav-link">About</a>
+        <button
+          #detailsTrigger
+          type="button"
+          class="btn-nav-details"
+          data-testid="details-open"
+          [attr.aria-expanded]="detailsOpen()"
+          aria-controls="landing-details-drawer"
+          (click)="toggleDetails()"
+        >
+          <i class="bi bi-list-ul"></i>
+          Details
+        </button>
+        <a routerLink="/login" class="btn-nav-login">Sign In</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="landing-hero">
+    <div class="hero-background">
+      <div class="hero-shape hero-shape-1"></div>
+      <div class="hero-shape hero-shape-2"></div>
+    </div>
+
+    <div class="hero-content">
+      <div class="hero-badge">
+        <i class="bi bi-star-fill"></i>
+        Welcome to Smart Trading
+      </div>
+
+      <h1 class="hero-title">
+        Trade Smarter,<br>
+        <span class="gradient-text">Grow Faster</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        A modern platform for executing trades, managing your portfolio, and achieving your investment goals with real-time analytics and market insights.
+      </p>
+
+      <div class="hero-actions">
+        <a routerLink="/register" class="btn btn-primary btn-lg">
+          <span>Get Started</span>
+          <i class="bi bi-arrow-right"></i>
+        </a>
+        <a routerLink="/login" class="btn btn-secondary btn-lg">
+          <span>Sign In</span>
+          <i class="bi bi-login"></i>
+        </a>
+      </div>
+
+      <div class="hero-stats">
+        @for (stat of heroStats; track stat.label) {
+          <div class="stat">
+            <div class="stat-number">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Features: one line each on the page, the paragraph lives in the drawer -->
+  <section class="landing-features" id="features">
+    <div class="section-container">
+      <div class="features-header">
+        <h2>Why Choose Our Platform?</h2>
+        <p>Powerful features designed to help you succeed in trading</p>
+      </div>
+
+      <div class="features-grid">
+        @for (feature of features; track feature.title) {
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="bi" [class]="feature.icon"></i>
+            </div>
+            <h3>{{ feature.title }}</h3>
+            <p>{{ feature.blurb }}</p>
+          </div>
+        }
+      </div>
+
+      <div class="features-footer">
+        <button type="button" class="btn btn-ghost" data-testid="details-open-features" (click)="toggleDetails()">
+          <i class="bi bi-list-ul"></i>
+          See what each one actually does
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="landing-about" id="about">
+    <div class="section-container about-container">
+      <div class="about-content">
+        <h2>About Our Platform</h2>
+        <p>
+          Built with cutting-edge technology and designed for modern traders. Our platform combines powerful trading tools, real-time market data, and advanced analytics to give you the edge you need.
+        </p>
+        <div class="about-list">
+          @for (item of highlights; track item) {
+            <div class="about-item">
+              <i class="bi bi-check-circle-fill"></i>
+              <span>{{ item }}</span>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="about-image">
+        <div class="about-card">
+          <div class="about-card-content">
+            <i class="bi bi-graph-up"></i>
+            <span>Real-Time Performance</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="landing-cta">
+    <div class="cta-content">
+      <h2>Ready to Start Trading?</h2>
+      <p>Join thousands of traders using our platform</p>
+      <div class="cta-actions">
+        <a routerLink="/register" class="btn btn-primary btn-lg">
+          Create Account
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <div class="section-container footer-container">
+      <div class="footer-content">
+        <p>&copy; 2024 Trading Platform. All rights reserved.</p>
+        <div class="footer-links">
+          <a href="#privacy">Privacy Policy</a>
+          <a href="#terms">Terms of Service</a>
+          <a href="#contact">Contact Us</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Details drawer: the depth behind each feature, off the page itself -->
+  <div
+    class="drawer-backdrop"
+    [class.show]="detailsOpen()"
+    data-testid="details-backdrop"
+    (click)="closeDetails()"
+  ></div>
+
+  <aside
+    id="landing-details-drawer"
+    class="details-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="details-drawer-title"
+    [class.show]="detailsOpen()"
+    [attr.aria-hidden]="!detailsOpen()"
+    data-testid="details-drawer"
+  >
+    <header class="drawer-header">
+      <h2 id="details-drawer-title" class="drawer-title">Platform details</h2>
+      <button
+        #drawerClose
+        type="button"
+        class="drawer-close"
+        aria-label="Close details"
+        data-testid="details-close"
+        (click)="closeDetails()"
+      >
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </header>
+
+    <div class="drawer-body">
+      @for (feature of features; track feature.title) {
+        <section class="drawer-item">
+          <div class="drawer-item-head">
+            <span class="drawer-item-icon"><i class="bi" [class]="feature.icon"></i></span>
+            <h3>{{ feature.title }}</h3>
+          </div>
+          <p>{{ feature.detail }}</p>
+        </section>
+      }
+
+      <section class="drawer-item">
+        <div class="drawer-item-head">
+          <span class="drawer-item-icon"><i class="bi bi-check-circle-fill"></i></span>
+          <h3>What you get</h3>
+        </div>
+        <ul class="drawer-highlights">
+          @for (item of highlights; track item) {
+            <li>{{ item }}</li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    <footer class="drawer-footer">
+      <a routerLink="/register" class="btn btn-primary w-100" (click)="closeDetails()">
+        Create Account
+        <i class="bi bi-arrow-right"></i>
+      </a>
+    </footer>
+  </aside>
+</div>

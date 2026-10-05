@@ -21,24 +21,40 @@ python scripts/verify_db.py     # run the checks
 python -m pytest tests/         # run the migration test suite
 ```
 
-Defaults are `localhost:5432`, user `postgres`, database `trading_platform`.
-Override with a CLI flag, a `PG*` environment variable, or a `.env` file —
-flags win over env vars, env vars win over `.env`. Copy `.env.example` to `.env`
-to set them permanently; `.env` is git-ignored.
+The connection settings come from the TrustMe vault (see below); a CLI flag
+(`--host`, `--password`, ...) overrides any of them for one run.
 
 If `psql` is not on `PATH` the scripts look in
-`C:\Program Files\PostgreSQL\<version>\bin`, or set `PSQL_BIN`.
+`C:\Program Files\PostgreSQL\<version>\bin`, or set the `PSQL_BIN` environment variable.
 
-`.env.example` also carries `FAUXNANCE_API_KEY` and `FAUXNANCE_BASE_URL`, which
-the analytics pipeline in `ETL_Analysis/` reads. The key ships empty on purpose:
-put your own in `.env`, never in a source file, a test or a fixture.
+## Configuration and secrets
+
+Every secret and connection detail comes from the TrustMe vault
+(`leapcapstoneteam1-720d03.TM`). There are no `.env` files for them and no
+environment-variable fallbacks, so there is one place a value can live and one
+place it can be wrong.
+
+| TrustMe secret | Used for | Read by |
+|---|---|---|
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | the database connection | Trade API, executor, auth service, `scripts/*.py` |
+| `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service |
+| `Fauxnance`, `Fauxnance_Endpoint` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `ETL_Analysis/` |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | the mail server that sends OTP codes; mail is on only when all four exist | auth service |
+
+Everything else is a plain value in code or in `application.properties` / `application.yml`
+(ports, the JWT issuer, the currency, the SMTP port and TLS mode, the `.NS` symbol suffix, the
+poll interval). The only environment variables still read are `KAFKA_BOOTSTRAP_SERVERS` and
+`KAFKA_BROKER` (where Kafka is: `localhost` on a laptop, another host with
+`run-local.ps1 -KafkaHosted`), `NODE_ENV` (set by the runtime), and `PSQL_BIN` (where `psql` is).
+
+To add or change a secret, do it in TrustMe; nothing in the repo needs to change.
 
 ## Layout
 
 ```
 migrations/      numbered .sql files, the only definition of the schema
 seed/            CSV data, loaded in filename order
-scripts/         apply_db.py, verify_db.py, make_seed.py, db_config.py
+scripts/         apply_db.py, verify_db.py, make_seed.py, create_test_account.py, db_config.py
 tests/           pytest suite over the migrations, seed and schema parity
 docs/            ERD and order lifecycle diagrams
 infra/postgres/  docker compose setup
@@ -54,12 +70,28 @@ The number is the order.
 | `000_migration_ledger.sql` | `schema_migrations` tracking table |
 | `001_bank_account.sql` | funding account |
 | `002_clients.sql` | clients, wallet balance, account state rules |
-| `003_auth.sql` | credentials, `version` for optimistic concurrency |
+| `003_auth.sql` | credentials, `version` for optimistic concurrency (dropped in 014) |
 | `004_instruments.sql` | instruments keyed by symbol, delisting |
 | `005_orders.sql` | orders, `order_type`, `side`, idempotency key |
 | `006_order_history.sql` | audit trail of order status changes |
 | `007_portfolio.sql` | `portfolio_holding` and `portfolio_positions` |
 | `008_maintenance.sql` | `fn_resync_sequences()` |
+| `009_clients_version_and_order_uuid.sql` | `clients.version`, `orders.uuid` |
+| `010_terminal_orders_move_to_history.sql` | terminal orders archived to history |
+| `011_credential_argon2.sql` | `auth.params_version` for argon2 cost upgrades |
+| `012_auth_service_tables.sql` | `users` + `refresh_tokens` for the Sprint 8 auth service |
+| `013_unique_user_per_account.sql` | one user per trading account |
+| `014_users_replace_auth.sql` | drops `auth`; `users` gains `email`, `account_id` becomes nullable until a bank account is linked |
+| `015_clients_drop_account_number.sql` | drops `clients.account_number`; `bank_account.client_id` (unique, checked immediately) is the only link |
+| `016_wallet_transfers.sql` | `wallet_transfers`: every movement between a wallet and its linked bank account, idempotency key unique |
+| `017_bank_account_unclaimed.sql` | `bank_account.client_id` nullable: bank accounts exist unclaimed until onboarding claims one |
+| `018_users_to_auth_db_schema.sql` | `users` and `refresh_tokens` move to a new `auth_db` schema; default `search_path` extended so unqualified references still resolve |
+| `019_bank_account_drop_contact.sql` | drops `bank_account.phone` and `.email`: an unclaimed or claimed bank account is never a contact record |
+| `020_bank_account_drop_name.sql` | drops `bank_account.name`: `client_id` is the only identity a bank account needs, joining to `clients` gets the name once one is linked |
+| `021_users_owns_email_and_phone.sql` | adds `users.phone`; drops `clients.email` and `.phone` — `auth_db.users` becomes the single stored copy of both contact fields |
+| `022_otp_verification.sql` | `users.status` (PENDING/ACTIVE) and `auth_db.otp_codes`: emailed one-time codes for registration and password reset |
+| `023_market_quotes.sql` | `market_quotes`: a rolling window of the polled quotes the Trade API keeps for the market screen and its charts |
+| `024_daily_candles.sql` | `daily_candles` + `daily_candle_syncs`: a year of end-of-day history per instrument, fetched from Fauxnance once a day, for the long-range charts |
 
 Running `psql -f` over these in order rebuilds the database without the Python
 scripts.
@@ -86,9 +118,9 @@ python scripts/apply_db.py --dry-run
   re-running is a no-op.
 - Aborts if a migration changed after it was applied (`--allow-modified` to
   re-record, `--reset` to rebuild).
-- Loads `seed/*.csv` in filename order inside one transaction. This is required,
-  not stylistic: `clients` and `bank_account` reference each other, so one of the
-  two foreign keys is deferred to `COMMIT`.
+- Loads `seed/*.csv` in filename order inside one transaction, so a bad file
+  leaves nothing half-loaded. `clients` loads before `bank_account`, whose
+  `client_id` foreign key is checked at insert.
 - Validates every seed file before loading any of it — unknown column, duplicate
   column, blank line, wrong field count, each reported with file and line. Type
   and constraint errors roll the whole load back. Bad rows are never skipped.
@@ -97,6 +129,26 @@ python scripts/apply_db.py --dry-run
 Seed files are named `NNN_<table>.csv`. The header row is the column list, so a
 file only supplies the columns it has and the rest take their defaults. An
 unquoted empty field is `NULL`.
+
+Every seeded user (`aarav.mehta`, `diya.sharma`, ...) signs in with the password
+`Pass@word123456`; `seed/030_users.csv` carries its argon2id hash. Test data only.
+
+## scripts/create_test_account.py
+
+Writes a ready-to-sign-in account straight to the database, so nothing is emailed and no
+one-time code is needed. Test data only.
+
+```
+python scripts/create_test_account.py                   # test.trader / TestTrader#2026!
+python scripts/create_test_account.py --no-sample-data  # just the login, account and bank
+python scripts/create_test_account.py --seed-quotes     # also a synthetic 3 hour price history
+```
+
+It is idempotent: running it again resets that account's activity and password. Connection
+settings resolve as in `apply_db.py`. The password is hashed with the auth service's own argon2
+parameters (it calls node from `services/team1-nestjs`, so run `npm ci` there first).
+`--seed-quotes` replaces everything in `market_quotes`, so use it only where the poller is not
+running.
 
 ## scripts/verify_db.py
 
@@ -148,7 +200,7 @@ What it covers beyond `verify_db.py`:
 - seed row counts in the database match the CSV files
 - a seed file with an unknown column or a short row is rejected, with the line
 - reseeding is stable
-- the seed genuinely cannot be loaded outside one transaction
+- `fk_bank_account_client` is checked at insert, and `clients` references nothing in `bank_account`
 
 ## scripts/make_seed.py
 

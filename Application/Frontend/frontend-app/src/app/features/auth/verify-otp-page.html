@@ -1,0 +1,102 @@
+<div class="login-wrapper">
+  <tui-theme-toggle class="theme-toggle-floating" />
+  <div class="login-bg-shape login-bg-shape-1"></div>
+  <div class="login-bg-shape login-bg-shape-2"></div>
+
+  <div class="login-card">
+    <span class="login-brand">
+      <i class="bi bi-graph-up-arrow"></i>
+      <span>YRVTrading</span>
+    </span>
+
+    <p class="login-subtitle">Enter the code we emailed you to finish signing up</p>
+
+    @if (notice(); as message) {
+      <div class="alert alert-info login-alert" role="status" data-testid="verify-notice">
+        <i class="bi bi-envelope-check me-2"></i>
+        {{ message }}
+      </div>
+    }
+
+    <form
+      class="needs-validation"
+      [class.was-validated]="submitted()"
+      novalidate
+      (submit)="onSubmit($event)"
+    >
+      <div class="login-form-group">
+        <label for="verify-email" class="login-form-label">Email</label>
+        <div class="login-input-group">
+          <i class="bi bi-envelope input-icon"></i>
+          <input
+            type="email"
+            id="verify-email"
+            class="login-input"
+            placeholder="jane.doe@example.com"
+            required
+            maxlength="150"
+            autocomplete="email"
+            data-testid="verify-email"
+            [value]="email()"
+            (input)="onEmailInput($event)"
+          >
+        </div>
+      </div>
+
+      <div class="login-form-group">
+        <label for="otp" class="login-form-label">Verification code</label>
+        <div class="login-input-group">
+          <i class="bi bi-key input-icon"></i>
+          <input
+            type="text"
+            id="otp"
+            class="login-input"
+            placeholder="123456"
+            required
+            minlength="6"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            autofocus
+            aria-describedby="otp-help"
+            data-testid="otp"
+            [value]="otp()"
+            (input)="onOtpInput($event)"
+          >
+        </div>
+        <div id="otp-help" class="form-text mt-1" data-testid="otp-help">
+          Six digits, valid for ten minutes. Asking for a new one replaces the old.
+        </div>
+      </div>
+
+      @if (error(); as message) {
+        <div class="alert alert-danger login-alert" role="alert" data-testid="verify-error">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          {{ message }}
+        </div>
+      }
+
+      <button type="submit" class="btn-login" [disabled]="submitting()" data-testid="submit">
+        @if (submitting()) {
+          <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+        }
+        <span>{{ submitting() ? 'Verifying…' : 'Verify email' }}</span>
+        <i class="bi bi-arrow-right"></i>
+      </button>
+    </form>
+
+    <p class="login-footer-text">
+      <a
+        href=""
+        data-testid="resend"
+        [class.disabled]="resending()"
+        (click)="onResend($event)"
+      >{{ resending() ? 'Sending a new code…' : 'Send me a new code' }}</a>
+    </p>
+
+    <p class="login-footer-text">
+      Already verified? <a routerLink="/login">Sign In</a>
+    </p>
+  </div>
+</div>

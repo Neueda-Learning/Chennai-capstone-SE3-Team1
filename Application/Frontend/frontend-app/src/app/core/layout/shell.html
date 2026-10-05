@@ -1,0 +1,219 @@
+<div class="sidebar-wrapper" [class.show]="mobileNavOpen()">
+  <a routerLink="/app/dashboard" class="sidebar-brand">
+    <i class="bi bi-graph-up-arrow"></i>
+    <span>YRVTrading</span>
+  </a>
+
+  <div class="flex-grow-1 overflow-y-auto">
+    <div class="sidebar-menu-section">
+      <div class="sidebar-menu-title">Trading</div>
+      <ul class="sidebar-menu-list">
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/app/dashboard"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Dashboard"
+          >
+            <i class="bi bi-grid-fill"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/app/portfolio"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Portfolio"
+          >
+            <i class="bi bi-pie-chart-fill"></i>
+            <span>Portfolio</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/app/orders"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Market and trading"
+          >
+            <i class="bi bi-bar-chart-line-fill"></i>
+            <span>Market &amp; Trade</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/app/blotter"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Blotter"
+          >
+            <i class="bi bi-table"></i>
+            <span>Blotter</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item">
+          <a
+            routerLink="/app/bank-accounts"
+            routerLinkActive="active"
+            class="sidebar-menu-link"
+            title="Bank Account Details"
+          >
+            <i class="bi bi-bank"></i>
+            <span>Bank Account Details</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sidebar-profile">
+    <tui-avatar [src]="profile.avatarUrl()" [initials]="profile.initials()" imgClass="sidebar-profile-img" />
+    <div class="sidebar-profile-info">
+      <div class="sidebar-profile-name" data-testid="sidebar-name">{{ profile.displayName() ?? 'Trader' }}</div>
+      <div class="sidebar-profile-email" data-testid="sidebar-email">{{ profile.email() ?? '' }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" [class.show]="mobileNavOpen()" (click)="closeMobileNav()"></div>
+
+<div class="main-wrapper">
+  <header class="navbar-custom">
+    <div class="navbar-inner">
+      <div class="navbar-left">
+        <button
+          class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
+          type="button"
+          aria-label="Minimize sidebar"
+          (click)="toggleSidebarMinimized()"
+        >
+          <i class="bi" [class.bi-chevron-bar-left]="!sidebarMinimized()" [class.bi-chevron-bar-right]="sidebarMinimized()"></i>
+        </button>
+        <button class="sidebar-toggle-btn me-2" type="button" aria-label="Toggle navigation" (click)="toggleMobileNav()">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+
+      <tui-navbar-search />
+
+      <div class="navbar-actions">
+      <tui-theme-toggle class="me-1" />
+
+      <button class="navbar-action-btn me-1" type="button" aria-label="Toggle fullscreen" (click)="toggleFullscreen()">
+        <i class="bi" [class.bi-arrows-fullscreen]="!isFullscreen()" [class.bi-fullscreen-exit]="isFullscreen()"></i>
+      </button>
+
+      <div class="dropdown">
+        <button
+          class="navbar-action-btn dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          data-bs-auto-close="outside"
+          aria-expanded="false"
+        >
+          <i class="bi bi-bell"></i>
+          @if (notifications.unreadCount() > 0) {
+            <span class="navbar-action-badge" data-testid="notification-badge"></span>
+          }
+        </button>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-notification p-0">
+          <div class="notification-header">
+            <h6 class="notification-title">
+              Notifications
+              @if (notifications.unreadCount() > 0) {
+                <span class="notification-count" data-testid="notification-count">{{ notifications.unreadCount() }}</span>
+              }
+            </h6>
+            <button
+              class="btn-clear-all"
+              type="button"
+              data-testid="mark-all-read"
+              [disabled]="notifications.unreadCount() === 0"
+              (click)="notifications.markAllRead()"
+            >
+              Mark all read
+            </button>
+          </div>
+          <div class="notification-list">
+            @for (item of notifications.items(); track item.id) {
+              <button
+                type="button"
+                class="notification-item"
+                data-testid="notification-item"
+                (click)="notifications.markRead(item.id)"
+              >
+                <div class="notification-icon" [class]="'notification-icon notification-tone-' + notificationStyle(item.kind).tone">
+                  <i class="bi" [class]="'bi ' + notificationStyle(item.kind).icon"></i>
+                </div>
+                <div class="notification-content">
+                  <p class="notification-text">{{ item.message }}</p>
+                  <span class="notification-time">{{ timeAgo(item.occurredAt, notifications.now()) }}</span>
+                </div>
+                @if (!notifications.isRead(item.id)) {
+                  <span class="notification-unread-dot"></span>
+                }
+              </button>
+            } @empty {
+              <p class="notification-empty" data-testid="notification-empty">
+                @if (notifications.failed()) {
+                  Could not load notifications right now.
+                } @else if (session.accountId() === null) {
+                  Link a bank account to start receiving account notifications.
+                } @else {
+                  Nothing yet. Orders and wallet transfers will show up here.
+                }
+              </p>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown ms-2">
+        <button class="navbar-profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <tui-avatar [src]="profile.avatarUrl()" [initials]="profile.initials()" imgClass="navbar-profile-img" />
+          <span class="navbar-profile-name d-none d-md-inline" data-testid="navbar-name">{{ profile.displayName() ?? 'Trader' }}</span>
+          <i class="bi bi-chevron-down navbar-profile-caret"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-profile">
+          <li class="dropdown-header">
+            Welcome{{ profile.displayName() ? ', ' + profile.displayName() : '' }}!
+            @if (profile.email()) {
+              <div class="dropdown-header-sub">{{ profile.email() }}</div>
+            }
+          </li>
+          <li><a class="dropdown-item" routerLink="/account" data-testid="menu-account"><i class="bi bi-person"></i> My Account</a></li>
+          <li><a class="dropdown-item" routerLink="/settings" data-testid="menu-settings"><i class="bi bi-gear"></i> Settings</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button
+              type="button"
+              class="dropdown-item text-danger"
+              data-testid="logout"
+              (click)="onSignOut()"
+            >
+              <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+          </li>
+        </ul>
+      </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <router-outlet />
+  </div>
+
+  <footer class="footer-custom">
+    <div class="footer-left">
+      <span class="footer-logo">
+        <i class="bi bi-graph-up-arrow"></i> YRVTrading
+      </span>
+      <span class="footer-separator">|</span>
+      <span class="footer-copy">Prices are polled about every two minutes and may be delayed</span>
+    </div>
+  </footer>
+</div>
+
+<tui-toast-container />

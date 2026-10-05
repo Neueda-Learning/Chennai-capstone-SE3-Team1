@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from db_config import (
     MIGRATIONS_DIR,
+    REPO_ROOT,
     SEED_DIR,
     DbConfig,
     DbError,
@@ -44,12 +45,13 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def discover_migrations():
-    if not MIGRATIONS_DIR.is_dir():
-        raise DbError("migrations/ directory not found at " + str(MIGRATIONS_DIR))
-    files = sorted(MIGRATIONS_DIR.glob("*.sql"), key=lambda p: p.name)
+def discover_migrations(directory=MIGRATIONS_DIR):
+    label = directory.relative_to(REPO_ROOT).as_posix() + "/"
+    if not directory.is_dir():
+        raise DbError(label + " directory not found at " + str(directory))
+    files = sorted(directory.glob("*.sql"), key=lambda p: p.name)
     if not files:
-        raise DbError("migrations/ contains no .sql files")
+        raise DbError(label + " contains no .sql files")
 
     bad = [f.name for f in files if not re.match(r"^\d{3}_", f.name)]
     if bad:
@@ -136,22 +138,25 @@ def read_ledger(cfg: DbConfig):
     return {r[0]: r[1] for r in rows if len(r) >= 2}
 
 
-def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
-    files = discover_migrations()
-    say("  " + str(len(files)) + " migration file(s) in " + str(MIGRATIONS_DIR))
+def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False,
+                     directory=MIGRATIONS_DIR, ledger_prefix=""):
+    files = discover_migrations(directory)
+    say("  " + str(len(files)) + " migration file(s) in " + str(directory))
 
     if dry_run:
         for f in files:
             step("would apply " + f.name)
         return {"applied": 0, "skipped": 0, "total": len(files)}
 
-    bootstrap_ledger(cfg, files)
+    if not ledger_prefix:
+        bootstrap_ledger(cfg, files)
     ledger = read_ledger(cfg)
 
     applied = skipped = 0
     for path in files:
         digest = sha256_of(path)
-        recorded = ledger.get(path.name)
+        ledger_key = ledger_prefix + path.name
+        recorded = ledger.get(ledger_key)
 
         if recorded == digest:
             step("skip    " + path.name + "  (already applied)")
@@ -176,7 +181,7 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
                 "updating the ledger for " + path.name,
                 sql=(
                     "UPDATE schema_migrations SET checksum = " + quote_literal(digest)
-                    + ", applied_at = now() WHERE filename = " + quote_literal(path.name) + ";"
+                    + ", applied_at = now() WHERE filename = " + quote_literal(ledger_key) + ";"
                 ),
             )
             skipped += 1
@@ -188,7 +193,7 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
             "recording " + path.name + " in schema_migrations",
             sql=(
                 "INSERT INTO schema_migrations (filename, checksum) VALUES ("
-                + quote_literal(path.name) + ", " + quote_literal(digest) + ") "
+                + quote_literal(ledger_key) + ", " + quote_literal(digest) + ") "
                 "ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum, "
                 "applied_at = now();"
             ),
@@ -198,10 +203,17 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False):
     return {"applied": applied, "skipped": skipped, "total": len(files)}
 
 
+# users/refresh_tokens live in auth_db (018_users_to_auth_db_schema.sql); every other seeded
+# table is still public. validate_seed_file() needs the real schema to look columns up -
+# unlike a plain INSERT/\copy, information_schema introspection isn't resolved by search_path.
+TABLE_SCHEMA = {"users": "auth_db", "refresh_tokens": "auth_db"}
+
+
 def table_columns(cfg: DbConfig, table: str):
+    schema = TABLE_SCHEMA.get(table, "public")
     rows = cfg.rows(
         "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = 'public' AND table_name = " + quote_literal(table)
+        "WHERE table_schema = " + quote_literal(schema) + " AND table_name = " + quote_literal(table)
         + " ORDER BY ordinal_position;"
     )
     return [r[0] for r in rows]
@@ -363,7 +375,7 @@ def build_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Runs with no arguments on a machine that has psql and a local Postgres.\n"
-            "Override any setting with a flag, a PG* environment variable, or a .env file."
+            "Settings come from the TrustMe vault; override any of them with a flag."
         ),
     )
     add_connection_args(p)
@@ -409,7 +421,7 @@ def main(argv=None):
                 "cannot reach the PostgreSQL server at " + cfg.host + ":" + str(cfg.port)
                 + " as user " + cfg.user + ".\n" + detail
                 + "\nIs the server running? Check the host/port/user/password "
-                "(flags, PG* env vars, or .env)."
+                "(the TrustMe vault, or flags)."
             )
 
         if args.reset and not args.dry_run:

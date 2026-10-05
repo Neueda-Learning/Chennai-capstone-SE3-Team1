@@ -1,0 +1,265 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Your portfolio at a glance.</p>
+  </div>
+  <label class="btn-date-picker" for="dashboard-range">
+    <i class="bi bi-calendar4-event"></i>
+    <select
+      id="dashboard-range"
+      class="range-select"
+      data-testid="range-select"
+      aria-label="Order flow range"
+      [value]="rangeDays()"
+      (change)="setRange($any($event.target).value)"
+    >
+      @for (option of rangeOptions; track option.days) {
+        <option [value]="option.days" [selected]="option.days === rangeDays()">{{ option.label }}</option>
+      }
+    </select>
+  </label>
+</div>
+
+@if (accountId() === null) {
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="status" data-testid="no-account">
+    <i class="bi bi-bank"></i>
+    <div>
+      <div class="fw-semibold">No trading account yet</div>
+      <div class="small">
+        Link a bank account to open your trading account. Your balance, portfolio and orders appear here once it exists.
+        <a routerLink="/bank-accounts">Go to Bank Account Details</a>
+      </div>
+    </div>
+  </div>
+} @else if (state() === 'failed') {
+  <div class="alert alert-danger d-flex align-items-start gap-2" role="alert" data-testid="load-failed">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      <div class="fw-semibold">Could not load your dashboard</div>
+      <div class="small">
+        The trading service did not answer.
+        <button type="button" class="btn-link-inline" (click)="retry()">Try again</button>
+      </div>
+    </div>
+  </div>
+} @else if (refreshFailed()) {
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="status" data-testid="refresh-failed">
+    <i class="bi bi-wifi-off"></i>
+    <div class="small">Could not refresh. Showing the last data received; it may be out of date.</div>
+  </div>
+}
+
+<div class="row g-4">
+  <div class="col-12">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card alert-green-card">
+          <div class="position-relative z-index-2">
+            <span class="alert-green-badge">Live</span>
+            <div class="alert-green-date">Today</div>
+            <div class="alert-green-text" data-testid="headline">{{ headline() }}</div>
+          </div>
+          <a routerLink="/portfolio" class="alert-green-link z-index-2" data-testid="view-portfolio">
+            <span>View portfolio</span>
+            <i class="bi bi-arrow-right"></i>
+          </a>
+          <svg class="alert-green-bg-shape" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(50,50)">
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(60)" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(120)" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-stat d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header">
+              <span class="stat-label">Portfolio Value</span>
+            </div>
+            <div class="stat-value" data-testid="portfolio-value">
+              {{ state() === 'ready' ? formatMoney(summary().totalValue) : '—' }}
+            </div>
+            @if (state() === 'ready') {
+              <div class="trend-badge" [class]="'trend-badge ' + trendClass(summary().unrealised)" data-testid="unrealised">
+                <i class="bi" [class.bi-arrow-up-right]="summary().unrealised >= 0" [class.bi-arrow-down-left]="summary().unrealised < 0"></i>
+                <span>
+                  {{ formatSignedMoney(summary().unrealised) }}
+                  @if (summary().unrealisedPercent !== null) {
+                    ({{ formatSignedPercent(summary().unrealisedPercent) }})
+                  }
+                  unrealised
+                </span>
+              </div>
+            }
+          </div>
+          @if (state() === 'ready') {
+            <div class="stat-footnote">
+              <span>Cash <strong data-testid="cash">{{ formatMoney(summary().cash) }}</strong></span>
+              <span>Invested <strong data-testid="invested">{{ formatMoney(summary().investedValue) }}</strong></span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-stat d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header">
+              <span class="stat-label">Today's P&amp;L</span>
+            </div>
+            <div class="stat-value" data-testid="day-pnl">
+              {{ state() === 'ready' ? formatSignedMoney(summary().dayPnl) : '—' }}
+            </div>
+            @if (state() === 'ready' && summary().dayPnl !== null) {
+              <div class="trend-badge" [class]="'trend-badge ' + trendClass(summary().dayPnl)">
+                <i class="bi" [class.bi-arrow-up-right]="(summary().dayPnl ?? 0) >= 0" [class.bi-arrow-down-left]="(summary().dayPnl ?? 0) < 0"></i>
+                <span>{{ formatSignedPercent(summary().dayPercent) }} since the previous close</span>
+              </div>
+            } @else if (state() === 'ready') {
+              <div class="stat-footnote"><span>No price movement to report yet.</span></div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-9 col-lg-8">
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="card mb-0">
+          <div class="card-header mb-2">
+            <h2 class="card-title">Order Flow</h2>
+            <div class="d-flex gap-3 align-items-center">
+              <div class="chart-legend-item">
+                <span class="legend-dot legend-dot-buys"></span>
+                <span class="chart-legend-label">Buys</span>
+              </div>
+              <div class="chart-legend-item">
+                <span class="legend-dot legend-dot-sells"></span>
+                <span class="chart-legend-label">Sells</span>
+              </div>
+            </div>
+          </div>
+          <div #orderFlowChart></div>
+          @if (state() === 'ready' && orderFlowTotal() === 0) {
+            <p class="empty-note" data-testid="order-flow-empty">No orders placed in this range.</p>
+          }
+        </div>
+      </div>
+
+      <div class="col-md-7 d-flex flex-column">
+        <div class="card h-100 flex-grow-1">
+          <div class="card-header">
+            <h2 class="card-title">Recent Orders</h2>
+            <a routerLink="/blotter" class="card-link-small">View all</a>
+          </div>
+
+          <div class="transaction-list" data-testid="recent-orders">
+            @for (order of recentOrders(); track order.orderId) {
+              <div class="transaction-item" data-testid="recent-order">
+                <div class="transaction-icon bg-forest-light text-lime">
+                  <i class="bi" [class]="'bi ' + iconFor(order)"></i>
+                </div>
+                <div class="transaction-info">
+                  <div class="transaction-name">{{ order.side }} {{ order.quantity }} {{ order.symbol }}</div>
+                  <div class="transaction-date">
+                    {{ formatWhen(order.createdOn) }} •
+                    <span [class]="'order-status order-status-' + order.status.toLowerCase()">{{ order.status }}</span>
+                  </div>
+                </div>
+                <div class="transaction-amount" [class.text-success]="order.side === 'SELL' && order.status === 'FILLED'" [class.text-main]="order.side === 'BUY' && order.status === 'FILLED'" [class.text-muted-green]="order.status !== 'FILLED'">
+                  {{ order.side === 'SELL' && order.status === 'FILLED' ? '+' : '' }}{{ formatMoney(orderValue(order)) }}
+                </div>
+              </div>
+            } @empty {
+              <p class="empty-note" data-testid="recent-orders-empty">
+                @if (state() === 'ready') {
+                  You have not placed any orders yet.
+                } @else {
+                  &nbsp;
+                }
+              </p>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-5 d-flex flex-column">
+        <div class="card h-100 flex-grow-1">
+          <div class="card-header">
+            <h2 class="card-title">Order Summary</h2>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Filled</span>
+              <span class="progress-value" data-testid="count-filled">{{ counts().filled }}</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Filled orders" [attr.aria-valuenow]="share(counts().filled)" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent" [style.width.%]="share(counts().filled)"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Working</span>
+              <span class="progress-value" data-testid="count-working">{{ counts().working }}</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Working orders" [attr.aria-valuenow]="share(counts().working)" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent opacity-50" [style.width.%]="share(counts().working)"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Rejected</span>
+              <span class="progress-value" data-testid="count-rejected">{{ counts().rejected }}</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Rejected orders" [attr.aria-valuenow]="share(counts().rejected)" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-brand-orange" [style.width.%]="share(counts().rejected)"></div>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span class="progress-label">Cancelled</span>
+              <span class="progress-value" data-testid="count-cancelled">{{ counts().cancelled }}</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="Cancelled orders" [attr.aria-valuenow]="share(counts().cancelled)" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar bg-lime-accent opacity-50" [style.width.%]="share(counts().cancelled)"></div>
+            </div>
+          </div>
+
+          <div class="stat-footnote mt-auto">
+            <span>Total orders <strong data-testid="count-total">{{ counts().total }}</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-lg-4">
+    <div class="right-panel-wrapper d-flex flex-column gap-4 h-100">
+      <div class="card flex-grow-1 d-flex flex-column justify-content-between mb-0">
+        <div class="card-header mb-1">
+          <h2 class="card-title">Portfolio Allocation</h2>
+        </div>
+
+        <div #allocationChart></div>
+
+        <div class="chart-legends-container" data-testid="allocation-legend">
+          @for (slice of allocation(); track slice.label) {
+            <div class="chart-legend-item">
+              <span class="legend-dot" [style.background-color]="slice.color"></span>
+              <span class="text-muted-green">{{ slice.label }} {{ slice.percent.toFixed(1) }}%</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

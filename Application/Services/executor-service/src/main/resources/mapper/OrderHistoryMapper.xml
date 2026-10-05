@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.OrderHistoryMapper">
+
+    <!-- event_timestamp and created_at default to now(). A CHECK on the table refuses a
+         row whose previous_status equals its new_status, so callers must only record an
+         actual transition. -->
+    <insert id="insertTransition">
+        INSERT INTO order_history (order_id, event_type, previous_status, new_status)
+        VALUES (#{orderId}, #{eventType}, #{previousStatus}, #{newStatus})
+    </insert>
+
+    <!-- The terminal row carries the order's own fields, because the orders row is deleted
+         immediately after this and nothing else would remember them. idempotency_key is
+         covered by a partial UNIQUE index here, which is what still refuses a duplicate
+         submission now that the orders-side constraint is gone with the row.
+         failure_code is the machine-readable rule name (BUY_LIMIT_BELOW_ASK);
+         failure_reason is the sentence a person reads. Both are NULL on a fill. -->
+    <insert id="insertTerminal">
+        INSERT INTO order_history (
+            order_id, event_type, previous_status, new_status, external_status,
+            failure_code, failure_reason,
+            client_id, account_id, instrument_id, order_type, side,
+            quantity, price, executed_price, idempotency_key, order_created_at
+        ) VALUES (
+            #{order.orderId}, #{eventType}, 'NEW', #{newStatus}, #{newStatus},
+            #{failureCode}, #{failureReason},
+            #{order.clientId}, #{order.accountId}, #{order.instrumentId},
+            #{order.orderType}, #{order.side},
+            #{order.quantity}, #{order.price}, #{executedPrice},
+            #{order.idempotencyKey}, #{order.createdAt}
+        )
+    </insert>
+
+</mapper>

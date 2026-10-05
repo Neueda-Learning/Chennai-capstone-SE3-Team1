@@ -1,0 +1,118 @@
+<div class="login-wrapper">
+  <tui-theme-toggle class="theme-toggle-floating" />
+
+  <div class="login-bg-shape login-bg-shape-1"></div>
+  <div class="login-bg-shape login-bg-shape-2"></div>
+
+  <main class="login-card">
+    <span class="login-brand">
+      <i class="bi bi-graph-up-arrow"></i>
+      <span>YRVTrading</span>
+    </span>
+
+    <div class="login-header">
+      <h1 class="login-title">Sign in</h1>
+      <p class="login-subtitle">Access your trading account and portfolio</p>
+    </div>
+
+    @if (registered()) {
+      <div class="alert alert-success login-alert" role="status" data-testid="login-registered-banner">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        Account created. Sign in below to start trading.
+      </div>
+    }
+
+    @if (verified()) {
+      <div class="alert alert-success login-alert" role="status" data-testid="login-verified-banner">
+        <i class="bi bi-patch-check-fill me-2"></i>
+        Email verified. Sign in below to start trading.
+      </div>
+    }
+
+    @if (reset()) {
+      <div class="alert alert-success login-alert" role="status" data-testid="login-reset-banner">
+        <i class="bi bi-shield-check me-2"></i>
+        Password changed. Sign in with your new password.
+      </div>
+    }
+
+    <form
+      class="needs-validation"
+      [class.was-validated]="submitted()"
+      novalidate
+      (submit)="onSubmit($event)"
+    >
+      <div class="login-form-group">
+        <label for="username" class="login-form-label">Username</label>
+        <div class="login-input-group">
+          <i class="bi bi-person input-icon"></i>
+          <input
+            type="text"
+            id="username"
+            class="login-input"
+            placeholder="jane.doe"
+            required
+            autocomplete="username"
+            autofocus
+            data-testid="username"
+            [value]="username()"
+            (input)="onUsernameInput($event)"
+          >
+        </div>
+      </div>
+
+      <div class="login-form-group">
+        <div class="login-label-row">
+          <label for="password" class="login-form-label">Password</label>
+          <a routerLink="/forgot-password" class="forgot-password-link" data-testid="forgot-password">
+            Forgot password?
+          </a>
+        </div>
+        <div class="login-input-group">
+          <i class="bi bi-lock input-icon"></i>
+          <input
+            [type]="passwordVisible() ? 'text' : 'password'"
+            id="password"
+            class="login-input login-input-password"
+            placeholder="Enter your password"
+            required
+            autocomplete="current-password"
+            data-testid="password"
+            [value]="password()"
+            (input)="onPasswordInput($event)"
+          >
+          <button
+            type="button"
+            class="password-toggle-btn"
+            [attr.aria-label]="passwordVisible() ? 'Hide password' : 'Show password'"
+            (click)="togglePasswordVisibility()"
+          >
+            <i class="bi" [class.bi-eye]="!passwordVisible()" [class.bi-eye-slash]="passwordVisible()"></i>
+          </button>
+        </div>
+      </div>
+
+      @if (error(); as message) {
+        <div class="alert alert-danger login-alert" role="alert" data-testid="login-error">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          {{ message }}
+        </div>
+        <div class="form-text text-center mt-2" data-testid="login-verify-hint">
+          Still waiting on an email code?
+          <a routerLink="/verify-otp">Enter it here</a>
+        </div>
+      }
+
+      <button type="submit" class="btn-login" [disabled]="submitting()" data-testid="submit">
+        @if (submitting()) {
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        }
+        <span>{{ submitting() ? 'Signing in…' : 'Sign in' }}</span>
+      </button>
+    </form>
+
+    <p class="login-footer-text">
+      Don't have an account? <a routerLink="/register">Register now</a>
+    </p>
+  </main>
+</div>

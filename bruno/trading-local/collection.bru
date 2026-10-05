@@ -1,0 +1,16 @@
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+docs {
+  Local trading platform (run-local.ps1).
+
+  1. Select the "local" environment (top-right).
+  2. Set the `token` secret to the contents of logs/local/token.txt.
+     It is a 1-hour HS256 JWT for account 1; re-run run-local.ps1 for a fresh one.
+  3. Send "Place Order", then "List Orders" to see it FILLED / REJECTED.
+}

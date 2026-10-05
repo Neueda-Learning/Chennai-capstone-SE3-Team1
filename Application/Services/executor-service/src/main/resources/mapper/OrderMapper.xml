@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.team1.executor.mapper.OrderMapper">
+
+    <!-- OrderRow is a record: no setters, so map through its canonical constructor.
+         Args are positional and must stay in component order. -->
+    <resultMap id="orderResultMap" type="com.team1.executor.model.OrderRow">
+        <constructor>
+        <idArg column="order_id" javaType="java.util.UUID"/>
+        <arg column="client_id" javaType="java.lang.Long"/>
+        <arg column="account_id" javaType="java.lang.Long"/>
+        <arg column="instrument_id" javaType="java.lang.String"/>
+        <arg column="order_type" javaType="java.lang.String"/>
+        <arg column="side" javaType="java.lang.String"/>
+        <arg column="quantity" javaType="java.math.BigDecimal"/>
+        <arg column="price" javaType="java.math.BigDecimal"/>
+        <arg column="executed_price" javaType="java.math.BigDecimal"/>
+        <arg column="status" javaType="java.lang.String"/>
+        <arg column="idempotency_key" javaType="java.lang.String"/>
+        <arg column="external_order_id" javaType="java.lang.String"/>
+        <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findByOrderId" resultMap="orderResultMap">
+        SELECT order_id, client_id, account_id, instrument_id, order_type, side,
+               quantity, price, executed_price, status, idempotency_key, external_order_id,
+               created_at, updated_at
+        FROM orders
+        WHERE order_id = #{orderId}
+    </select>
+
+    <!-- The order leaves the live book on reaching a terminal state; its details are
+         written onto the terminal order_history row first. The `status = 'NEW'` guard is
+         what makes a replayed Kafka message harmless: the second delete affects zero rows
+         and the caller treats that as "already settled". -->
+    <delete id="deleteIfNew">
+        DELETE FROM orders
+        WHERE order_id = #{orderId}
+          AND status = 'NEW'
+    </delete>
+
+</mapper>

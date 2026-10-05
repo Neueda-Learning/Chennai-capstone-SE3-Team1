@@ -1,0 +1,106 @@
+spring:
+  application:
+    name: trade-executor
+
+  datasource:
+    url: jdbc:postgresql://${trustme.secret.PostGres_Host}:${trustme.secret.Postgres_Port}/${trustme.secret.Postgres_DB}
+    username: ${trustme.secret.PostGres_User}
+    password: ${trustme.secret.PostGres}
+    driver-class-name: org.postgresql.Driver
+
+  # quoteAsOf, eventTime and executedOn are contracted as RFC 3339 strings. Jackson writes
+  # java.time types as epoch numbers unless told otherwise; Spring Boot happens to default this
+  # off, but a payload shape three downstream teams parse should be pinned here rather than
+  # inherited from a framework default somebody could flip. See contracts/kafka-topics.md.
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: trade-executor
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.team1.trading.api.event,com.team1.eventbus,com.team1.executor.model"
+        spring.json.value.default.type: com.team1.eventbus.Envelope
+    producer:
+      acks: all
+      enable.idempotence: true
+      retries: 2147483647
+      max.in.flight.requests.per.connection: 5
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# Top-level, not under spring: — MyBatis reads mybatis.*, and nested under
+# spring: it silently becomes spring.mybatis.* and no XML mapper is loaded.
+mybatis:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.team1.executor.mapper
+  # UUID has no built-in handler and orders.order_id needs one.
+  type-handlers-package: com.team1.executor.mapper.typehandler
+  configuration:
+    map-underscore-to-camel-case: true
+
+trustme:
+  # Key file at the repository root; assumes the app runs from
+  # Application/Services/executor-service. Override with --trustme.key-file=
+  key-file: ../../../leapcapstoneteam1-720d03.TM
+
+fauxnance:
+  # Read from the TrustMe vault (secret "Fauxnance_Endpoint"), like the key below.
+  base-url: ${trustme.secret.Fauxnance_Endpoint}
+  # Read from the TrustMe vault, the same way the API reads its database credentials and
+  # JWT secret. It used to come in on the command line, which meant the key was typed into
+  # a shell, kept in history and visible in the process list of anything that looked.
+  # The secret is named "Fauxnance" in the vault, not FAUXNANCE_API_KEY.
+  api-key: ${trustme.secret.Fauxnance}
+  # instruments.instrument_id is the bare NSE ticker (RELIANCE); Fauxnance keys the
+  # same stock as RELIANCE.NS. The client appends this on the way out and strips it
+  # on the way back so everything else in the executor stays in instrument_id space.
+  symbol-suffix: .NS
+  timeout-seconds: 5
+  max-retries: 3
+  retry-backoff-ms: 1000
+
+executor:
+  poll-interval-seconds: 120
+  optimistic-lock-max-retries: 3
+  
+  # Dead-letter and retry configuration
+  # ===================================
+  # Poison messages (malformed JSON, missing fields) are dead-lettered immediately.
+  # Transient failures (network, DB connection, lock contention) are retried with backoff.
+  # After retry budget is exhausted, message is dead-lettered.
+  #
+  # Formula for retry delays:
+  #   delay_ms = base-delay-ms * (backoff-multiplier ^ attemptNumber)
+  #   Example (base=1000, multiplier=2.0):
+  #     Attempt 1 fails → wait 1000ms before attempt 2
+  #     Attempt 2 fails → wait 2000ms before attempt 3  
+  #     Attempt 3 fails → dead-letter (no more retries)
+  #
+  retry:
+    max-attempts: 3              # Total attempts including first attempt
+    base-delay-ms: 1000          # Milliseconds before first retry
+    backoff-multiplier: 2.0      # Exponential factor (standard: 2.0)
+  
+  dead-letter-topic: orders.DLT  # Topic for dead-lettered messages
+                                  # Use format: <topic-name>.DLT
+                                  # Available: orders.DLT, trade-events.DLT, market-data.DLT
+
+server:
+  port: 8083
+
+logging:
+  level:
+    com.team1.executor: DEBUG
+    org.springframework.kafka: DEBUG

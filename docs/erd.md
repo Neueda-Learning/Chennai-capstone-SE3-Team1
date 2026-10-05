@@ -18,36 +18,65 @@ to, if a field has no column, or if a `CHECK` vocabulary differs from the Java
 enum it stands for. Adding a field to an entity without a migration breaks the
 build, and so does the reverse.
 
+Every table lives in the default `public` schema except `users` and
+`refresh_tokens`, which live in `auth_db` (`018_users_to_auth_db_schema.sql`) —
+the credential store, structurally separated from the trading tables. Nothing
+that reads or writes them needs to say so explicitly: the database's default
+`search_path` includes both schemas, so `FROM users` still resolves.
+
+`clients` carries no email or phone of its own: migration 021 moved both to
+`auth_db.users`, the one place either is stored - `clients.name` is the only
+contact-shaped column left on the trading side.
+
 ## Entity relationship diagram
 
 ```mermaid
 erDiagram
+    %% USERS and REFRESH_TOKENS live in the auth_db schema (018_users_to_auth_db_schema.sql);
+    %% every other table here is in public.
     BANK_ACCOUNT {
         varchar   account_number  PK
-        bigint    client_id       FK
-        varchar   name
-        varchar   phone
-        varchar   email
+        bigint    client_id       FK,UK "NULL while unclaimed"
         decimal   account_balance
         varchar   bank_name
         varchar   ifsc_code
     }
     CLIENTS {
         bigint    client_id       PK
-        varchar   account_number  FK
         varchar   name
-        varchar   email           UK
-        varchar   phone
         timestamp created_on
         varchar   account_state
         decimal   wallet_balance
     }
-    AUTH {
-        varchar   email           PK,FK
+    WALLET_TRANSFERS {
+        uuid      transfer_id     PK
+        bigint    client_id       FK
+        varchar   account_number  FK
+        varchar   direction       "BANK_TO_WALLET | WALLET_TO_BANK"
+        decimal   amount
+        varchar   idempotency_key UK
+        timestamp created_at
+    }
+    USERS {
+        uuid      id              PK
+        varchar   username        UK
+        varchar   email           UK
+        varchar   phone           "NULL until set via the Trade API's profile-update route"
+        bigint    account_id      FK,UK "NULL until a bank account is linked"
+        text      roles
         varchar   password_hash
-        timestamp created
-        timestamp updated
+        int       params_version
         int       version
+        timestamp created_on
+        timestamp updated
+    }
+    REFRESH_TOKENS {
+        uuid      id              PK
+        uuid      user_id         FK
+        char      token_hash      UK
+        timestamp expires_at
+        timestamp revoked_at
+        timestamp created_at
     }
     INSTRUMENTS {
         varchar   instrument_id   PK
@@ -107,8 +136,11 @@ erDiagram
         timestamp updated_at
     }
 
-    CLIENTS              ||--o| BANK_ACCOUNT        : owns
-    CLIENTS              ||--o| AUTH                : authenticates
+    CLIENTS              |o--o| BANK_ACCOUNT        : claims
+    USERS                |o--o| CLIENTS             : trades
+    USERS                ||--o{ REFRESH_TOKENS      : issues
+    CLIENTS              ||--o{ WALLET_TRANSFERS    : moves
+    BANK_ACCOUNT         ||--o{ WALLET_TRANSFERS    : funds
     CLIENTS              ||--o{ ORDERS              : places
     ORDERS               ||--o{ ORDER_HISTORY       : audited_by
     ORDERS               }o--|| INSTRUMENTS         : trades
@@ -131,8 +163,11 @@ way. Keep it if you edit the file.
 
 | From | To | Cardinality | Meaning |
 |---|---|---|---|
-| `CLIENTS` | `BANK_ACCOUNT` | 1 → 0..1 | Funding account |
-| `CLIENTS` | `AUTH` | 1 → 0..1 | Credentials, keyed on email |
+| `CLIENTS` | `BANK_ACCOUNT` | 0..1 → 0..1 | Funding account; an unclaimed bank account has no client |
+| `USERS` | `CLIENTS` | 0..1 → 0..1 | Login; `users.account_id` is set when a bank account is linked |
+| `USERS` | `REFRESH_TOKENS` | 1 → 0..N | Rotated on every refresh; both tables live in `auth_db` |
+| `CLIENTS` | `WALLET_TRANSFERS` | 1 → 0..N | Money moved into or out of the wallet |
+| `BANK_ACCOUNT` | `WALLET_TRANSFERS` | 1 → 0..N | The bank account each transfer used |
 | `CLIENTS` | `ORDERS` | 1 → 0..N | Orders placed |
 | `ORDERS` | `ORDER_HISTORY` | 1 → 0..N | Audit trail of status changes |
 | `ORDERS` | `INSTRUMENTS` | N → 1 | Instrument traded |
@@ -141,17 +176,26 @@ way. Keep it if you edit the file.
 | `PORTFOLIO_HOLDING` | `INSTRUMENTS` | N → 1 | What is held |
 | `PORTFOLIO_POSITIONS` | `INSTRUMENTS` | N → 1 | What is positioned in |
 
-### Clients and bank accounts point at each other
+### A bank account names its client; the client does not name it back
 
-`Client.accountNumber` and `BankAccount.clientId` both exist in the entities, so
-both exist as columns, and both carry a foreign key. That is a cycle: neither
-table can be loaded first if both keys are checked immediately.
+Ownership runs one way: `bank_account.client_id` references `clients`, and is
+unique, so a client has at most one bank account. Until migration 015 `clients`
+also carried `account_number` back to `bank_account`, a cycle that forced
+`fk_bank_account_client` to be deferred to `COMMIT`. That column is gone and the
+key is checked at `INSERT`, so `clients` is always written first: the seed loads
+`010_clients.csv` before `020_bank_account.csv`, and linking a bank account
+inserts the client row, then the bank account that names it.
+`tests/test_migrations.py` asserts the key is immediate and that `clients`
+references nothing in `bank_account`.
 
-`fk_bank_account_client` is therefore `DEFERRABLE INITIALLY DEFERRED` — checked
-at `COMMIT` rather than at `INSERT`. The seed loader and the docker init script
-both load every CSV inside one transaction for this reason, and
-`tests/test_migrations.py` asserts that loading `bank_account` on its own fails,
-so nobody can quietly split that transaction back up.
+Since migration 017 `client_id` may also be NULL: bank accounts exist before anyone
+owns them, and the seed loads six claimed and six unclaimed. Onboarding claims one
+by account number: it creates the client from the claiming user's username
+(migrations 019 and 020 dropped `bank_account.phone`/`email`/`name`, so the bank
+account carries no identity of its own beyond `client_id`), then sets this row's
+`client_id`. Unclaimed rows simply stay unclaimed. `clients` itself carries no email
+or phone (migration 021 moved both to `auth_db.users` - see above); the Trade API
+reads and writes either only by reaching across to `users`.
 
 ## Instruments are keyed by their symbol
 

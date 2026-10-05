@@ -42,6 +42,28 @@ def test_the_check_vocabulary_matches_the_enum(built_db, conname, enum_name):
     assert in_sql == V.enum_constants(enum_name)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _acceptance_order_data(built_db):
+    """Acceptance checks C/D read orders, history and books, but the seed
+    ships none (orders are runtime data). Simulate a deterministic batch
+    into the throwaway test database so fresh builds are green."""
+    import random
+    import sys
+    from pathlib import Path
+
+    etl_trades = (Path(V.__file__).resolve().parent.parent
+                  / "Application" / "ETL" / "etl-trades")
+    if str(etl_trades) not in sys.path:
+        sys.path.insert(0, str(etl_trades))
+    from simulate_orders import Simulation
+
+    sim = Simulation(built_db, random.Random(7), 30)
+    sim.load_reference()
+    sim.generate(30, 0.0, 0.05)
+    built_db.run_or_die("seeding acceptance orders", script=sim.script())
+    built_db.run_or_die("settling acceptance books", script=sim.settle_script())
+
+
 @pytest.mark.parametrize("section,name,check", V.CHECKS,
                          ids=[s + " " + n for s, n, _ in V.CHECKS])
 def test_acceptance_check(built_db, section, name, check):
