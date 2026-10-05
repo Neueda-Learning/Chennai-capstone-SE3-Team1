@@ -322,54 +322,110 @@ trigger this".
 
 ## 7. Dependency injection and stores
 
-### 7.1 The idea
+### 7.1 The problem it solves
 
-Instead of a class creating the things it needs (`new SessionStore()`), it **asks Angular** for
-them:
+`LoginPage`, the auth guard, the HTTP interceptor and the shell all need to agree on one fact:
+*is the user signed in, and what is the token?* There must be **one** object holding that answer.
+If each class created its own, the login page would store the token in its copy, and the guard
+would look in an empty one and bounce the user back to login.
 
+You could create one object and pass it from class to class by hand, but that gets messy fast.
+**Dependency injection (DI)** fixes it: you don't create or pass the object, you **ask Angular
+for it**, and Angular hands you the shared one.
+
+*Analogy:* a kitchen has one shared recipe book. You ask the waiter (Angular) for it; you don't
+buy your own copy. The waiter creates it the first time anyone asks, then reuses it.
+
+### 7.2 The two lines that do it
+
+**1. Declare that it can be shared** (`session.store.ts`):
+```ts
+@Injectable({ providedIn: 'root' })
+export class SessionStore { ... }
+```
+- `@Injectable` = Angular may create and hand out this class.
+- `providedIn: 'root'` = make **one** instance for the whole app.
+
+**2. Ask for it** (in any class):
 ```ts
 private readonly session = inject(SessionStore);
 ```
+Every class that writes this gets the **same object**.
 
-Angular creates the object (once, if it is `providedIn: 'root'`) and hands the *same instance* to
-everyone who asks. That's how the login page, the guard, the interceptor and the shell all see
-the same login state.
+**What this buys at sign-in**, with nothing passed around by hand:
+1. `LoginPage` calls `session.signIn(...)`, which sets signals inside the store.
+2. The guard calls `session.isSignedIn()` and sees `true` immediately.
+3. The interceptor reads `session.accessToken()` for the next request.
+4. The shell's effect sees `isSignedIn` change and starts loading the profile and notifications.
+
+### 7.3 What a "store" is
+
+A **store** is not a special Angular feature. It is an ordinary `@Injectable({ providedIn: 'root' })`
+class that (1) **holds state in signals** and (2) **exposes methods** to change it safely.
 
 ```ts
-@Injectable({ providedIn: 'root' })   // "one shared instance for the whole app"
-export class SessionStore { ... }
+private readonly token = signal<string | null>(null);        // private: only the store sets it
+readonly isSignedIn = computed(() => this.token() !== null); // public: anyone may read
+signIn(...) { ... }    signOut() { ... }                     // the only ways to change it
 ```
 
-### 7.2 Why this is used (not just a style choice)
+The signal holding the token is `private`. Everyone else reads through `isSignedIn()` and
+`accessToken()` and changes things only through `signIn`/`signOut`. That keeps all the rules
+(saving to `localStorage`, decoding `accountId` from the JWT) in one place.
 
-1. **Shared state without passing props around.** The session is needed in ~10 places.
-2. **Testability.** In a test you can swap the real thing for a fake. Look at `session.store.ts`:
-   ```ts
-   export const LOCAL_STORAGE = new InjectionToken<Storage>(
-     'Storage for sessions', { factory: () => localStorage });
-   ```
-   An `InjectionToken` is a named slot for something that isn't a class (here: the browser's
-   `localStorage`). Production fills it with the real `localStorage`; tests can fill it with a fake.
-   `NOTIFICATION_POLL_MS` and `THEME_STORAGE` do the same so tests needn't wait 10 real seconds.
-3. **Functions can inject too.** `inject()` works inside a guard or interceptor function (while it
-   is running), not only in classes. Note the comment in `bearer.interceptor.ts`: `inject` must
-   be called up front, "not once RxJS calls back".
-
-### 7.3 The "store" pattern
-
-A **store** is just an injectable service that holds state in signals and exposes methods to change it.
-This project has several; knowing them is half the architecture:
-
-| Store | Holds | Persists in | Key methods |
+| Store | What it remembers | Persists in | Used by |
 |---|---|---|---|
-| `SessionStore` | access token, refresh token, accountId, `isSignedIn` | `localStorage` (`trading-ui.session`) | `signIn`, `signOut`, `adoptTokens` |
-| `UserProfileStore` | name, email, phone of who's signed in | memory | `load(accountId)`, `clear()` |
-| `NotificationStore` | the bell list, toasts, unread count; polls every 10 s | read-IDs in `localStorage` | `start`, `stop`, `refresh`, `markRead` |
-| `ThemeService` | light/dark | `localStorage` | `toggle`, `set` |
-| `ReturnUrlStore` | "where were you trying to go" | memory | `capture`, `consume` |
+| `SessionStore` | access token, refresh token, accountId, `isSignedIn` | `localStorage` (`trading-ui.session`) | login, guard, interceptor, shell, most pages |
+| `UserProfileStore` | name, email, phone | memory | shell, My Account |
+| `NotificationStore` | bell list, toasts, unread count; polls every 10 s | read-IDs in `localStorage` | shell, dashboard, order page |
+| `ThemeService` | light/dark | `localStorage` | app root, charts |
+| `ReturnUrlStore` | page you were heading to before login | memory | guard, login |
 
-The shell ties them together with one effect (in `shell.ts`): when the session changes, start or
-stop loading the profile and polling notifications. **The session drives everything.**
+The shell ties them together with one effect (`shell.ts`): when the session changes, start or stop
+loading the profile and polling notifications. **The session drives everything.**
+
+### 7.4 `InjectionToken`: sharing things that aren't classes
+
+`inject(SessionStore)` works because `SessionStore` is a class. The store also needs the browser's
+`localStorage`, which isn't a class you wrote. An `InjectionToken` is a **named slot** for it:
+
+```ts
+export const LOCAL_STORAGE = new InjectionToken<Storage>(
+  'Storage for sessions',
+  { factory: () => localStorage }     // default: fill the slot with the real localStorage
+);
+
+// inside SessionStore:
+private readonly store = inject(LOCAL_STORAGE);
+```
+
+The store doesn't say "use `localStorage`"; it says "give me whatever fills the `LOCAL_STORAGE`
+slot". In the real app that's the browser's storage. In a test the slot can hold a fake in-memory
+object, so no test touches real browser storage or affects another. The project does the same for
+timing: `NOTIFICATION_POLL_MS` is 10 s in production but tests can set it tiny, and
+`THEME_STORAGE` works like `LOCAL_STORAGE`.
+
+### 7.5 `inject()` also works in functions, with one rule
+
+The guard and interceptor are plain functions, and they use `inject` too:
+```ts
+export const authGuard: CanActivateFn = () => { const session = inject(SessionStore); ... };
+```
+**Rule:** `inject` only works *while Angular is running that code*: in a constructor, a field
+initializer, or at the top of a guard/interceptor, **not later inside a callback**. That's why
+`bearer.interceptor.ts` calls `inject(AuthService)` up front ("not once RxJS calls back").
+
+### 7.6 Why not just a global variable?
+
+`export const session = new SessionStore()` would also share one object. DI additionally gives you:
+1. **Testing:** swap in a fake without editing code.
+2. **Controlled creation:** created only when first asked for, with its own dependencies
+   (like `LOCAL_STORAGE`) filled in automatically.
+3. **A shared convention:** anyone who knows Angular reads `inject(...)` as "shared dependency".
+
+**One-sentence review answer:** "Shared state lives in root-provided stores obtained with
+`inject()`, so there's one session for the whole app; browser storage and timers come in through
+`InjectionToken`s so tests can replace them."
 
 ---
 
