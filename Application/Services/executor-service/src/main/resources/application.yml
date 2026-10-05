@@ -72,7 +72,7 @@ fauxnance:
   retry-backoff-ms: 1000
 
 executor:
-  poll-interval-seconds: 120
+  poll-interval-seconds: 60
   optimistic-lock-max-retries: 3
   
   # Dead-letter and retry configuration

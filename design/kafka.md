@@ -135,7 +135,7 @@ numbers below work.
 | **60s** | **1440** | **Our setting.** Fits, with 60 spare on the poller budget and the 500 reserve untouched |
 | 120s | 720 | Fits with room, at the cost of a two-minute-old price |
 
-**Our configuration: `executor.poll-interval-seconds=120`, 50 symbols in the universe, 2 batches per poll, 1440 requests/day = 96% of the poller budget and 72% of the whole key's allowance.** (At 60s, 50 symbols would cost 2880 requests/day and the budget would be gone in 12h30m, so the interval doubled when the universe grew from 7 symbols to 50.)
+**Our configuration: `executor.poll-interval-seconds=60`, 50 symbols in the universe, 2 batches of 25 per poll, 2880 requests/day.** That is above the 1500 poller budget by design: the poller's budget check skips cycles once 1500 requests are spent (about 12.5 hours after 00:00 UTC), leaving the 500-request fill-path reserve untouched, and polling resumes after the daily reset.
 
 The floor of 58 seconds is derived, not picked: `ceil(86400 / 1500) = 57.6`, so
 58 is the fastest interval that keeps one batch per poll inside 1500/day. It is
@@ -187,7 +187,7 @@ The poller polls every active (tradable) instrument. Against the seeded data tha
 is 50 symbols (large-cap NSE names; see `seeds/040_instruments.csv` and migration `025_instruments_top_50.sql`). `TATAMOTORS` (Fauxnance returns no price for it) and `LEGACYCORP` are inactive and excluded.
 
 This used to be "only what somebody holds", which kept the quota down but left
-the UI's market screen with no price for any ticker nobody owned yet. The 50-symbol universe is two batches of 25, so a cycle costs two requests: 1440 requests/day at 120s, inside the 1500 poller budget.
+the UI's market screen with no price for any ticker nobody owned yet. The 50-symbol universe is two batches of 25, so a cycle costs two requests: 2880 requests/day at 60s, so the poller pauses once its 1500 budget is spent and resumes at 00:00 UTC.
 `SymbolUniverse` remains the seam for narrowing it again (a watchlist, or only
 what is held) — one clause in `SymbolMapper.xml` — if the instrument table ever
 outgrows the poller budget.

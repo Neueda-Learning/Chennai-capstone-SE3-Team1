@@ -5,8 +5,8 @@ BEGIN;
 --
 -- The executor's poller fetches every active instrument (SymbolMapper.findPolledSymbols), so
 -- widening the market is a data change: add the instruments, and quotes for them start flowing
--- on the next cycle. 50 symbols is two Fauxnance batches (25 each) per cycle, so the poll
--- interval moves from 60s to 120s to stay inside the poller's daily request budget.
+-- on the next cycle. 50 symbols is two Fauxnance batches (25 each) per cycle, so at the 60s interval
+-- the poller spends its daily request budget in about 12.5 hours and then pauses until 00:00 UTC.
 --
 -- TATAMOTORS never returned a quote from Fauxnance (every tick arrived with a null price), so it
 -- is retired from the active set rather than polled for nothing. It is deactivated, not deleted:

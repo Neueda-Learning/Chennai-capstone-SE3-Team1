@@ -6,10 +6,10 @@
       Every instrument that is still tradable. This used to be "only what somebody holds", which
       left the market screen with nothing to chart until a first order had been filled and made
       a price the order ticket must show impossible to know before the first trade. The tradable
-      universe is 50 instruments today: two batches of the Fauxnance endpoint, so two requests
-      per cycle, 1440 requests/day at the 120s interval, inside the 1500 poller budget. Growing
-      past 50 means lengthening executor.poll-interval-seconds, or MarketDataPoller's budget check
-      starts skipping cycles.
+      universe is 50 instruments today: two batches of 25, so two requests per cycle and 2880
+      requests/day at the 60s interval. That exceeds the 1500 poller budget on purpose:
+      MarketDataPoller skips cycles once the budget is spent (about 12.5 hours into the UTC day),
+      which protects the fill-path reserve.
 
       Inactive instruments are still skipped: they cannot be traded, so a quote for one feeds
       nothing. Ordered so that the batches a poll produces are stable between cycles and a log
