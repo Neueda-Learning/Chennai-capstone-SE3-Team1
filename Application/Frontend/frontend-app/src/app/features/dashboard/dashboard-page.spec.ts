@@ -228,6 +228,21 @@ describe('DashboardPage', () => {
       expect(page).not.toContain('Partially Filled');
       expect(page).not.toContain('Crypto');
     });
+
+    it('formats the helper values used by the summary cards', () => {
+      setUp();
+      const fixture = create();
+      const page = fixture.componentInstance as any;
+
+      expect(page.iconFor(order({ side: 'BUY' }))).toBe('bi-arrow-up-circle');
+      expect(page.iconFor(order({ side: 'SELL' }))).toBe('bi-arrow-down-circle');
+      expect(page.formatWhen('not-a-date')).toBe('');
+      expect(page.trendClass(null)).toBe('trend-flat');
+      expect(page.trendClass(0)).toBe('trend-flat');
+      expect(page.trendClass(1)).toBe('trend-up');
+      expect(page.trendClass(-1)).toBe('trend-down');
+      expect(page.share(page.counts().filled)).toBe(40);
+    });
   });
 
   it('points "View portfolio" at the portfolio page', () => {

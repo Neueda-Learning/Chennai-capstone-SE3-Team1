@@ -142,6 +142,54 @@ describe('Shell', () => {
     expect(one(fixture, '.sidebar-wrapper')?.classList.contains('show')).toBe(true);
   });
 
+  it('keeps the fullscreen and drawer handlers in sync with teardown', () => {
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+    const shell = fixture.componentInstance as any;
+    const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+    const exitFullscreen = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: requestFullscreen
+    });
+    Object.defineProperty(document, 'exitFullscreen', {
+      configurable: true,
+      value: exitFullscreen
+    });
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      value: null,
+      writable: true
+    });
+
+    shell.toggleSidebarMinimized();
+    expect(document.body.classList.contains('sidebar-minimized')).toBe(true);
+
+    shell.toggleMobileNav();
+    expect(document.body.classList.contains('nav-open')).toBe(true);
+
+    shell.onDocumentKeydown({ key: 'Escape' } as KeyboardEvent);
+    expect(document.body.classList.contains('nav-open')).toBe(false);
+
+    shell.toggleFullscreen();
+    expect(requestFullscreen).toHaveBeenCalled();
+
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      value: document.documentElement,
+      writable: true
+    });
+    shell.onFullscreenChange();
+    expect(shell.isFullscreen()).toBe(true);
+
+    shell.toggleFullscreen();
+    expect(exitFullscreen).toHaveBeenCalled();
+
+    fixture.destroy();
+    expect(document.body.classList.contains('sidebar-minimized')).toBe(false);
+  });
+
   describe('who is signed in', () => {
     it("shows the account holder's name and the login's email, not a demo user", () => {
       const fixture = signInAndCreate();

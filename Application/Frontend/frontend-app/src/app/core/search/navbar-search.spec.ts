@@ -155,6 +155,23 @@ describe('NavbarSearch', () => {
     expect(api.count('/orders')).toBe(0);
   });
 
+  it('closes after blur once the click delay has elapsed', () => {
+    vi.useFakeTimers();
+    try {
+      setUp();
+      type('tcs');
+      input().dispatchEvent(new Event('blur'));
+      fixture.detectChanges();
+
+      vi.advanceTimersByTime(150);
+      fixture.detectChanges();
+
+      expect(root().querySelector('[data-testid="search-results"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('survives the market endpoint failing', () => {
     setUp();
     api.set('/market/quotes', { errorCode: 'X', message: 'down' }, 500);

@@ -142,6 +142,17 @@ describe('PortfolioPage', () => {
     expect(link.getAttribute('href')).toBe('/orders?symbol=RELIANCE');
   });
 
+  it('maps portfolio changes to the tone classes used in the table', () => {
+    setUp();
+    const fixture = create();
+    const page = fixture.componentInstance as any;
+
+    expect(page.tone(null)).toBe('');
+    expect(page.tone(0)).toBe('');
+    expect(page.tone(10)).toBe('text-gain');
+    expect(page.tone(-10)).toBe('text-loss');
+  });
+
   it('shows the intraday book separately, shorts included', () => {
     setUp();
     api.set(`/accounts/${ACCOUNT_ID}/portfolio`, {

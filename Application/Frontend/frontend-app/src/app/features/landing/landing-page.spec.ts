@@ -126,6 +126,21 @@ describe('LandingPage', () => {
     }
   });
 
+  it('scrolls to a section when it exists', () => {
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+    const scrollIntoView = vi.fn();
+    const getElementById = vi.spyOn(document, 'getElementById').mockReturnValue({
+      scrollIntoView
+    } as unknown as HTMLElement);
+
+    fixture.componentInstance.scrollToSection('features');
+
+    expect(getElementById).toHaveBeenCalledWith('features');
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
+    getElementById.mockRestore();
+  });
+
   it('renders a drawer entry per feature plus the highlights block', async () => {
     const fixture = await setup();
     const instance = fixture.componentInstance;
