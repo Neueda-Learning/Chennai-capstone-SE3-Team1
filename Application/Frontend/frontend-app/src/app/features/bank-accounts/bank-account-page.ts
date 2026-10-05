@@ -123,6 +123,13 @@ export class BankAccountPage {
   protected readonly bankAmount = signal<number | null>(null);
 
   /**
+   * How many of the two balance reads are still to answer. While it is above zero a missing
+   * balance means "not here yet", not "could not load", which is what the card says only
+   * once both have come back.
+   */
+  protected readonly balancesPending = signal(0);
+
+  /**
    * The authoritative bank row, balance included. Null until it is read, which is
    * why the card can show a bank name before it can show a bank balance: the
    * name arrives from the account read, the money needs the bank-account read.
@@ -276,14 +283,17 @@ export class BankAccountPage {
   private loadBalances(accountId: number): void {
     console.info(`[bank] reading both balances for accountId=${accountId}`, { accountId });
 
+    this.balancesPending.set(2);
+
     this.bankReader.getLinkedBankAccount(accountId).subscribe({
       next: (bank) => {
         this.bankAccount.set(bank);
         this.bankAmount.set(bank.balance);
-       
+        this.balanceSettled();
       },
       error: (error) => {
         this.bankAmount.set(null);
+        this.balanceSettled();
         console.error('[bank] could not read the bank account', {
           accountId,
           status: error.status,
@@ -298,9 +308,11 @@ export class BankAccountPage {
       next: (balance) => {
         this.walletAmount.set(balance.cashBalance);
         this.walletCurrency.set(balance.currency);
+        this.balanceSettled();
       },
       error: (error) => {
         this.walletAmount.set(null);
+        this.balanceSettled();
         console.error('[bank] could not read the wallet balance', {
           accountId,
           status: error.status,
@@ -309,6 +321,10 @@ export class BankAccountPage {
         });
       }
     });
+  }
+
+  private balanceSettled(): void {
+    this.balancesPending.update((pending) => Math.max(0, pending - 1));
   }
 
   /** Turns what the trader typed into the uppercase form the API pattern wants. */
@@ -340,16 +356,19 @@ export class BankAccountPage {
           console.info('[bank] 201 linked', linked);
           this.justLinked.set(linked);
           this.linkState.set('done');
+          this.balancesPending.set(2);
           // The claim itself succeeded, so the bank is linked and the page has to
           // say so. The refresh below is a separate concern: it decides whether
           // *transfers* work, and gating the linked view on it would hide a
           // successful one-time setup behind a token-refresh problem.
           this.bankState.set('linked');
-          this.adoptRefreshedSession(linked);
           // The claim response names the bank but carries no balance, so the two
-          // balances are read here too. Done on the new account's own id rather
-          // than the session's, which is null at this point by definition.
-          this.loadBalances(linked.accountId);
+          // balances have to be read - and not yet: both reads are owner-guarded on the
+          // token's accountId claim, which the token held right now predates. Read before
+          // the refresh lands, they are refused and the card is left saying it could not
+          // load them until the page is reloaded. adoptRefreshedSession reads them once
+          // the new token is in place (or, when it cannot get one, as a last attempt).
+          this.adoptRefreshedSession(linked);
         },
         error: (error) => {
           this.linkState.set('failed');
@@ -379,6 +398,7 @@ export class BankAccountPage {
         'Bank account linked, but this session has no refresh token to update it. ' +
           'Sign out and sign in again to finish setting up transfers.'
       );
+      this.loadBalances(linked.accountId);
       return;
     }
 
@@ -388,12 +408,15 @@ export class BankAccountPage {
       next: (token) => {
         this.session.adoptTokens(token.accessToken, linked.accountId, token.refreshToken ?? refreshToken);
         console.info('[bank] session refreshed, accountId now', linked.accountId);
+        // Done on the new account's own id, and only now that the token carries it.
+        this.loadBalances(linked.accountId);
       },
       error: (error) => {
         this.sessionWarning.set(
           'Bank account linked, but the session could not be refreshed. ' +
             'Sign out and sign in again before transferring money.'
         );
+        this.loadBalances(linked.accountId);
         console.error('[bank] refresh after link failed', {
           status: error.status,
           statusText: error.statusText,

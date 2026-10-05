@@ -125,11 +125,33 @@ describe('Shell', () => {
     expect(links).toEqual(['Dashboard', 'Portfolio', 'Market & Trade', 'Blotter', 'Bank Account Details']);
   });
 
-  it('links Portfolio to /portfolio and Market & Trade to /orders', () => {
+  it('links each entry straight to its page under /app', () => {
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
     const hrefs = Array.from(root(fixture).querySelectorAll('.sidebar-menu-link')).map((el) => el.getAttribute('href'));
-    expect(hrefs).toEqual(['/dashboard', '/portfolio', '/orders', '/blotter', '/bank-accounts']);
+    expect(hrefs).toEqual(['/app/dashboard', '/app/portfolio', '/app/orders', '/app/blotter', '/app/bank-accounts']);
+  });
+
+  it('highlights the entry for the page being shown, and only that one', async () => {
+    const router = TestBed.inject(Router);
+    router.resetConfig([{ path: '**', children: [] }]);
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+
+    const activeLabels = () =>
+      Array.from(root(fixture).querySelectorAll('.sidebar-menu-link.active')).map((el) => el.textContent?.trim());
+
+    for (const [url, label] of [
+      ['/app/dashboard', 'Dashboard'],
+      ['/app/portfolio', 'Portfolio'],
+      ['/app/orders', 'Market & Trade'],
+      ['/app/blotter', 'Blotter'],
+      ['/app/bank-accounts', 'Bank Account Details']
+    ]) {
+      await router.navigateByUrl(url);
+      fixture.detectChanges();
+      expect(activeLabels()).toEqual([label]);
+    }
   });
 
   it('should open the mobile sidebar on toggle', () => {

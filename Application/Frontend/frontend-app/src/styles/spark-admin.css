@@ -4163,3 +4163,206 @@ html[data-bs-theme="dark"] .forgot-password-link:hover {
 html[data-bs-theme="dark"] .sidebar-overlay {
     background-color: rgba(0, 0, 0, 0.6);
 }
+
+/* ---------------------------------------------------------------------
+   27. Dark theme: text contrast
+   The template colours a lot of text with --brand-forest-medium / --brand-forest-dark, which are
+   dark greens: right on a light page, close to invisible on a dark one (1.1:1 for "Mark all
+   read", 1.5:1 for the profile name once its menu is open). The dark block above redefines the
+   variables for the surfaces that use them as a background, so the text rules are repointed
+   here at the lime accent instead. Every ratio below was measured, not eyeballed: body text
+   needs 4.5:1, and these are all at least that on their surface.
+--------------------------------------------------------------------- */
+html[data-bs-theme="dark"] {
+    --text-accent: var(--brand-lime);
+}
+
+/* Links and link-like buttons that carried the dark-green text colour */
+html[data-bs-theme="dark"] .btn-clear-all,
+html[data-bs-theme="dark"] .notification-footer,
+html[data-bs-theme="dark"] .item-status.completed,
+html[data-bs-theme="dark"] .footer-logo i,
+html[data-bs-theme="dark"] .login-input-group:focus-within i.input-icon {
+    color: var(--text-accent);
+}
+
+html[data-bs-theme="dark"] .btn-clear-all:hover {
+    color: var(--brand-lime-hover);
+}
+
+html[data-bs-theme="dark"] .btn-clear-all:disabled {
+    color: var(--text-muted-green);
+    opacity: 0.8;
+}
+
+/* Hover colours that turned text dark green on a surface that stays dark */
+html[data-bs-theme="dark"] .navbar-action-btn:hover,
+html[data-bs-theme="dark"] .btn-desktop-toggle:hover,
+html[data-bs-theme="dark"] .navbar-profile-btn:hover .navbar-profile-name,
+html[data-bs-theme="dark"] .navbar-profile-btn:hover .navbar-profile-caret,
+html[data-bs-theme="dark"] .dropdown-menu-quick-action .dropdown-item:hover,
+html[data-bs-theme="dark"] .dropdown-menu-quick-action .dropdown-item:hover i,
+html[data-bs-theme="dark"] .dropdown-menu-profile .dropdown-item:hover i,
+html[data-bs-theme="dark"] .table-footer-control .pagination .page-link:hover,
+html[data-bs-theme="dark"] .footer-link:hover {
+    color: var(--brand-lime);
+}
+
+html[data-bs-theme="dark"] .navbar-profile-btn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+html[data-bs-theme="dark"] .table-footer-control .pagination .page-link,
+html[data-bs-theme="dark"] .btn-table-action,
+html[data-bs-theme="dark"] .table-btn-action,
+html[data-bs-theme="dark"] .btn-custom-light,
+html[data-bs-theme="dark"] .btn-custom-light:hover,
+html[data-bs-theme="dark"] .btn-custom-outline-secondary {
+    color: var(--text-main);
+}
+
+html[data-bs-theme="dark"] .btn-custom-outline-secondary {
+    border-color: var(--border-light);
+}
+
+html[data-bs-theme="dark"] .alert-custom-primary,
+html[data-bs-theme="dark"] .error-title-huge {
+    color: var(--text-main);
+}
+
+html[data-bs-theme="dark"] .forgot-password-link:hover,
+html[data-bs-theme="dark"] .login-footer-text a:hover {
+    color: var(--brand-lime-hover);
+}
+
+/* Muted text that was dimmed twice: once by colour, once more by opacity */
+html[data-bs-theme="dark"] .sidebar-menu-title,
+html[data-bs-theme="dark"] .sidebar-profile-email,
+html[data-bs-theme="dark"] .alert-green-date {
+    opacity: 1;
+}
+
+html[data-bs-theme="dark"] .alert-green-date {
+    color: rgba(230, 238, 233, 0.78);
+}
+
+html[data-bs-theme="dark"] .sidebar-menu-title {
+    color: #9DB0A6;
+}
+
+html[data-bs-theme="dark"] .sidebar-profile-email {
+    color: #9DB0A6;
+}
+
+html[data-bs-theme="dark"] .footer-separator {
+    color: var(--text-muted-green);
+    opacity: 0.8;
+}
+
+/* Placeholders: dimmed by opacity on top of an already muted colour */
+html[data-bs-theme="dark"] .navbar-search-input::placeholder,
+html[data-bs-theme="dark"] .login-input::placeholder,
+html[data-bs-theme="dark"] .form-control-custom::placeholder,
+html[data-bs-theme="dark"] .search-input::placeholder {
+    color: #8FA498;
+    opacity: 1;
+}
+
+/* Bootstrap's success/danger text colours are fixed mid-tones that miss 4.5:1 on a dark card */
+html[data-bs-theme="dark"] .text-success {
+    color: #4ADE80 !important;
+}
+
+html[data-bs-theme="dark"] .text-danger {
+    color: #F87171 !important;
+}
+
+html[data-bs-theme="dark"] .badge-table.failed {
+    color: #F87171;
+}
+
+/* ---------------------------------------------------------------------
+   28. Layout fixes at every width and zoom level
+   Written after measuring the real pages at 320-1920px (browser zoom shrinks the CSS viewport the
+   same way: 150% on a 1920px screen is a 1280px layout). Each rule says what it was fixing.
+--------------------------------------------------------------------- */
+
+/* The navbar was a 1fr / 480px / 1fr grid. The right-hand 1fr could end up narrower than the
+   buttons it holds, so they spilled left over the search box at any desktop width under about
+   1700px. The side columns now never shrink below their content and the search takes the rest,
+   down to a floor, instead of being a fixed 480px that everything else had to fit around. */
+.navbar-inner {
+    grid-template-columns: minmax(max-content, 1fr) minmax(160px, 480px) minmax(max-content, 1fr);
+}
+
+.navbar-actions {
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+/* Hover colour on a red outline button: white on #EF4444 is 3.8:1, which is under 4.5:1 for text. */
+.btn-custom-outline-danger:hover {
+    background-color: #DC2626;
+    border-color: #DC2626;
+}
+
+/* Ticker rows: the symbol and the price sat in a flex row whose left side was allowed to shrink
+   but not to clip, so a long symbol ran into the price, and "-1.21%" dropped below its arrow. The
+   price block keeps its natural width, the name side gives way (the name already ellipsises). */
+.ticker-main {
+    flex: 1 1 auto;
+}
+
+.ticker-quote {
+    flex: 0 0 auto;
+}
+
+.ticker-symbol,
+.ticker-price,
+.ticker-change {
+    white-space: nowrap;
+}
+
+.ticker-symbol {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The list is now 50 tickers long: it scrolls inside its card instead of pushing the order ticket
+   a few thousand pixels down the page. */
+.ticker-list {
+    max-height: min(68vh, 720px);
+    overflow-y: auto;
+    padding: 3px 0.4rem 3px 3px;
+    overscroll-behavior: contain;
+}
+
+/* Phones: big figures (a 21-character account number at 2rem) broke mid-number, and the
+   two-way transfer switch wrapped its own labels. */
+@media (max-width: 575.98px) {
+    .stat-value {
+        font-size: 1.6rem;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Tablet widths: three stat cards side by side are ~210px wide, too narrow for a 2rem amount, which
+   broke before its decimals ("₹1,34,500 / .50"). The size follows the viewport down to a floor. */
+@media (min-width: 576px) and (max-width: 1199.98px) {
+    .stat-value {
+        font-size: clamp(1.3rem, 2.8vw, 2rem);
+    }
+}
+
+/* The theme switch on the sign-in pages was position: fixed, so on a phone it stayed pinned over
+   the card (and over its fields while scrolling). It now sits in the page's top corner and scrolls
+   away with it, and the card starts below it on narrow screens instead of underneath it. */
+.theme-toggle-floating {
+    position: absolute;
+}
+
+@media (max-width: 575.98px) {
+    .login-wrapper {
+        padding-top: 4.5rem;
+    }
+}

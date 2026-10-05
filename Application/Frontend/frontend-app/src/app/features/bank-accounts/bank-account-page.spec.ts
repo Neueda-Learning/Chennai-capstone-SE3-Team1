@@ -299,6 +299,34 @@ describe('BankAccountPage', () => {
       expect(TestBed.inject(SessionStore).accessToken()).toBe('fresh-token');
     });
 
+    it('reads the balances only once the refreshed token is in place, and shows them straight away', () => {
+      setUp({ accountId: null, refreshToken: 'old-refresh' });
+      const fixture = TestBed.createComponent(BankAccountPage);
+      fixture.detectChanges();
+
+      fill(fixture, '#accountNumber', 'IN45HDFC0000001234567');
+      submit(fixture, 'form');
+
+      http.expectOne(LINK_URL).flush(linkedOf());
+      fixture.detectChanges();
+
+      // The token in hand still predates the account, so the owner-guarded reads would be
+      // refused. Nothing may be asked yet, and the card says it is loading, not that it failed.
+      http.expectNone(BANK_ACCOUNT_URL);
+      http.expectNone(BALANCE_URL);
+      expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('Loading');
+      expect(textOf(fixture, '[data-testid="wallet-balance"]')).toContain('Loading');
+
+      flushRefresh();
+      fixture.detectChanges();
+      flushBalances(bankAccountOf({ balance: 150000 }), balanceOf({ cashBalance: 0 }));
+      fixture.detectChanges();
+
+      expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('150,000');
+      // A brand new wallet is empty: that is a balance of zero, not a failed read.
+      expect(textOf(fixture, '[data-testid="wallet-balance"]')).toContain('0.00');
+    });
+
     it('reveals the linked bank details after a successful link', () => {
       setUp({ accountId: null, refreshToken: 'old-refresh' });
       const fixture = TestBed.createComponent(BankAccountPage);

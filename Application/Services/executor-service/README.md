@@ -19,7 +19,7 @@ Secrets come from the TrustMe vault, not from environment variables or a `.env` 
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | Database connection |
 | `JWT_SECRET` | Shared token-signing key |
 
-The poll interval (60s), symbol suffix (`.NS`) and port (8083) are fixed in `application.yml`. The one
+The poll interval (120s: 50 symbols are two batches per cycle), symbol suffix (`.NS`) and port (8083) are fixed in `application.yml`. The one
 environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`), because where Kafka is
 differs between machines.
 

@@ -5,12 +5,14 @@ import com.team1.eventbus.Envelope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Publishes an {@link OrderPlacedEvent} to the {@code orders} Kafka topic, wrapped in the
@@ -44,6 +46,17 @@ public class KafkaOrderEventPublisher {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void publish(OrderPlacedEvent event) {
+        send(event);
+        log.info("Published {} for order {} to topic {} keyed by account {}",
+                OrderPlacedEvent.EVENT_TYPE, event.orderUuid(), OrderPlacedEvent.TOPIC, event.accountId());
+    }
+
+    /**
+     * Sends the event and hands back the broker's answer, for callers that need to know whether it
+     * arrived. {@link #publish} fires and forgets, as it always has; the startup replay of orders
+     * that never left (see {@link PendingOrderRepublisher}) waits on this to learn which ones did.
+     */
+    public CompletableFuture<SendResult<String, Envelope>> send(OrderPlacedEvent event) {
         Envelope envelope = new Envelope(
                 UUID.randomUUID().toString(),
                 OrderPlacedEvent.EVENT_TYPE,
@@ -51,8 +64,6 @@ public class KafkaOrderEventPublisher {
                 SOURCE,
                 SCHEMA_VERSION,
                 objectMapper.valueToTree(event));
-        kafkaTemplate.send(OrderPlacedEvent.TOPIC, event.key(), envelope);
-        log.info("Published {} for order {} to topic {} keyed by account {}",
-                OrderPlacedEvent.EVENT_TYPE, event.orderUuid(), OrderPlacedEvent.TOPIC, event.accountId());
+        return kafkaTemplate.send(OrderPlacedEvent.TOPIC, event.key(), envelope);
     }
 }

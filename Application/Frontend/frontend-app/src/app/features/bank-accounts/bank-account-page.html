@@ -125,8 +125,10 @@
 
             <div class="stat-label mt-3">Bank Account Balance</div>
             <div class="stat-value" data-testid="bank-balance">
-              @if (bankAmount(); as balance) {
-                {{ balance | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              @if (bankAmount() !== null) {
+                {{ bankAmount() | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              } @else if (balancesPending() > 0) {
+                <span class="text-muted">Loading…</span>
               } @else {
                 <span class="text-muted">Could not load bank balance</span>
               }
@@ -134,8 +136,10 @@
 
             <div class="stat-label mt-3">Trading Wallet Balance</div>
             <div class="stat-value" data-testid="wallet-balance">
-              @if (walletAmount(); as balance) {
-                {{ balance | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              @if (walletAmount() !== null) {
+                {{ walletAmount() | currency: walletCurrency() : 'symbol' : '1.2-2' }}
+              } @else if (balancesPending() > 0) {
+                <span class="text-muted">Loading…</span>
               } @else {
                 <span class="text-muted">Could not load wallet balance</span>
               }

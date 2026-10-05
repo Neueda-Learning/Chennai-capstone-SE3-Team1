@@ -71,6 +71,23 @@ public interface OrderMapper {
     Optional<OrderRow> findByUuid(@Param("orderUuid") String orderUuid);
 
     /**
+     * Every order still waiting in the live book, oldest first. An order is filed at NEW in the
+     * same transaction that accepts it and leaves the book only when the executor settles it or
+     * the owner cancels it, so a row that is still NEW is an order nobody has finished with. That
+     * includes one whose ORDER_PLACED event never reached Kafka.
+     */
+    @Select("""
+            SELECT order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
+                   instrument_id AS symbol, order_type AS orderType, side, quantity, price,
+                   executed_price AS executedPrice, status,
+                   idempotency_key AS idempotencyKey, created_at AS createdAt
+            FROM orders
+            WHERE status = 'NEW'
+            ORDER BY created_at
+            """)
+    List<OrderRow> findNew();
+
+    /**
      * Whether this key was already used by an order that has since settled.
      *
      * <p>orders.idempotency_key is UNIQUE and still refuses a duplicate while the order is

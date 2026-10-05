@@ -771,3 +771,23 @@
     --landing-navbar-bg: rgba(17, 27, 21, 0.92);
     --landing-scrim: rgba(0, 0, 0, 0.6);
 }
+
+/* Dark mode, buttons: the forest-green fill and text are the light theme's colours. On a dark
+   page the primary button turns lime like it does everywhere else, and the secondary one's
+   label takes the accent (it was dark green on a dark card, 1.4:1). */
+:host-context([data-bs-theme="dark"]) .btn-primary {
+    background-color: var(--brand-lime);
+    color: var(--brand-forest-dark);
+}
+
+:host-context([data-bs-theme="dark"]) .btn-primary:hover {
+    background-color: var(--brand-lime-hover);
+}
+
+:host-context([data-bs-theme="dark"]) .btn-secondary {
+    color: var(--landing-accent-text);
+}
+
+:host-context([data-bs-theme="dark"]) .btn-secondary:hover {
+    border-color: var(--landing-accent-text);
+}
