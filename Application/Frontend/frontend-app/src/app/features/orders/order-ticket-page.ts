@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
@@ -103,6 +103,7 @@ export class OrderTicketPage implements OnDestroy {
   private readonly errorMessages = inject(OrderErrorMessages);
   private readonly notifications = inject(NotificationStore);
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router, { optional: true });
 
   protected readonly formatMoney = formatMoney;
   protected readonly formatSignedPercent = formatSignedPercent;
@@ -242,6 +243,7 @@ export class OrderTicketPage implements OnDestroy {
       this.preferredSymbol = wanted;
       if (this.quotes().some((quote) => quote.symbol === wanted)) {
         this.select(wanted);
+        this.bringTicketIntoView();
       }
     });
 
@@ -295,6 +297,32 @@ export class OrderTicketPage implements OnDestroy {
   protected select(symbol: string): void {
     this.selectedSymbol.set(symbol);
     this.outcome.set(null);
+    this.syncUrl(symbol);
+  }
+
+  /**
+   * Keeps ?symbol= equal to what is selected. The navbar search navigates to ?symbol=TCS, and a
+   * navigation to the URL already shown does nothing: after picking another ticker by hand the
+   * URL still said TCS, so searching TCS again was silently ignored.
+   */
+  private syncUrl(symbol: string): void {
+    if (this.router === null || this.route === null || this.route.snapshot?.queryParamMap?.get('symbol') === symbol) {
+      return;
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { symbol },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
+
+  /** On a narrow screen the ticket is below the ticker list, so a search result would look like nothing happened. */
+  private bringTicketIntoView(): void {
+    if (typeof window === 'undefined' || window.innerWidth >= 992) {
+      return;
+    }
+    setTimeout(() => document.querySelector('[data-testid="selected-symbol"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   }
 
   protected openChart(): void {
