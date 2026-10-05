@@ -11,7 +11,6 @@ import { ThemeService } from '../../core/theme/theme.service';
 
 const FONT = 'Plus Jakarta Sans, sans-serif';
 
-/** Overlay colours. Mid-tones that read on both the light and the dark card. */
 const COLORS = {
   sma20: '#F59E0B',
   sma50: '#3B82F6',
@@ -24,13 +23,6 @@ const COLORS = {
 
 type Pane = 'main' | 'volume' | 'rsi' | 'macd';
 
-/**
- * The price chart and its indicator panes.
- *
- * The main pane shows candles or a line, with any of the moving-average overlays and Bollinger
- * Bands drawn over it. Volume, RSI and MACD each get a pane of their own underneath, on the same
- * time axis. Everything is computed here from the candles it is given; nothing is fetched.
- */
 @Component({
   selector: 'tui-price-chart',
   templateUrl: './price-chart.html'
@@ -39,7 +31,6 @@ export class PriceChart implements OnDestroy {
   readonly candles = input.required<readonly Candle[]>();
   readonly style = input<'candles' | 'line'>('candles');
   readonly indicators = input<readonly IndicatorId[]>([]);
-  /** Daily and longer candles carry traded volume; intraday ones do not. */
   readonly hasVolume = input(false);
 
   private readonly theme = inject(ThemeService);
@@ -61,8 +52,6 @@ export class PriceChart implements OnDestroy {
   });
 
   constructor() {
-    // Runs after the DOM is updated, so a pane that has just been un-hidden has a real width to
-    // draw into, and again whenever the candles, the style, the indicators or the theme change.
     afterRenderEffect(() => {
       const candles = this.candles();
       const palette = chartPalette(this.theme.isDark());
@@ -97,8 +86,6 @@ export class PriceChart implements OnDestroy {
     this.charts.set(pane, chart);
     chart.render().catch((error: unknown) => console.error(`[chart] could not draw the ${pane} pane`, error));
   }
-
-  // ---- options per pane
 
   private base(id: string, height: number, palette: ReturnType<typeof chartPalette>): ApexOptions {
     return {
@@ -151,8 +138,6 @@ export class PriceChart implements OnDestroy {
     }
 
     const line = (name: string, values: (number | null)[], color: string, width = 1.5) => {
-      // {x, y} points, not [x, y] pairs: ApexCharts silently drops a line series that follows a
-      // candlestick series unless it is given in that form.
       series.push({ name, type: 'line', data: values.map((v, i) => ({ x: times[i], y: v })) });
       colors.push(color);
       widths.push(width);
@@ -167,8 +152,6 @@ export class PriceChart implements OnDestroy {
       line('BB lower', b.lower, COLORS.bollinger, 1);
     }
 
-    // Fit the axis to what is drawn (candles and any overlay), with a little air. Left to itself
-    // the chart rounds out to "nice" numbers, which for a year of prices wastes half the pane.
     const drawn: number[] = candles.flatMap((c) => [c.low, c.high]);
     series.slice(1).forEach((s) => (s.data as unknown[]).forEach((d) => {
       const v = (d as { y?: unknown }).y;

@@ -38,14 +38,6 @@ import { OrderErrorMessages } from './order-error-messages';
 import { PriceChart } from './price-chart';
 import { wholeQuantity } from './order-validators';
 
-/**
- * How far outside the current price a market order's protective limit sits. Orders here always
- * execute at the live price: the Trade API still takes a `price` with every order and files it
- * as the order's limit, so the page sends the current price padded by this much in the
- * trader's unfavourable direction. That keeps a price that moves a little between click and
- * fill from rejecting the order, while the executor still fills at the live ask (buy) or bid
- * (sell), never at the limit.
- */
 export const PRICE_PROTECTION = 0.02;
 
 const QUOTE_REFRESH_MS = 30_000;
@@ -56,7 +48,6 @@ type Load = 'idle' | 'loading' | 'ready' | 'failed';
 interface OrderAccepted {
   kind: 'accepted';
   order: OrderResponse;
-  /** What the trader asked for, to describe it without presenting the protective limit as a price. */
   summary: string;
 }
 
@@ -67,7 +58,6 @@ interface OrderRefused {
 
 type OrderOutcome = OrderAccepted | OrderRefused;
 
-/** Messages for the rules the form blocks on its own. */
 const FIELD_MESSAGES: Record<string, string> = {
   required: 'Enter how many units.',
   wholeQuantity: 'Quantity must be a whole number of units.',
@@ -78,15 +68,6 @@ const FIELD_MESSAGES: Record<string, string> = {
   notEnoughCash: 'Not enough cash in your wallet for this order.'
 };
 
-/**
- * The market and the order ticket in one screen.
- *
- * Left: every tradable ticker with its latest polled price (the poller runs about once a
- * minute). The ticket sits beside the list, so buying never needs a scroll; the price
- * history opens as a dialog from the ticket or from any ticker row. Orders carry no
- * price field and no order type: they execute at the current market price, which is shown, and
- * a sell shows how many units of the ticker can be sold.
- */
 @Component({
   selector: 'tui-order-ticket-page',
   imports: [ReactiveFormsModule, PriceChart],
@@ -116,10 +97,8 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly quotes = signal<MarketQuote[]>([]);
   protected readonly quotesState = signal<Load>('idle');
   protected readonly selectedSymbol = signal<string | null>(null);
-  /** The trend dialog. Candles load on selection either way; this only controls the popup. */
   protected readonly chartOpen = signal(false);
 
-  // ---- the chart: what to draw, remembered per browser
   protected readonly ranges = RANGES;
   protected readonly indicatorOptions = INDICATORS;
   private readonly savedPrefs = loadPreferences();
@@ -132,7 +111,6 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly intervals = computed(() => intervalsFor(this.range()));
   protected readonly candles = signal<Candle[]>([]);
   protected readonly candlesState = signal<Load>('idle');
-  /** Daily and longer candles carry volume; the intraday ones, built from polled prices, do not. */
   protected readonly hasVolume = computed(() => this.interval().kind === 'daily');
 
   protected readonly balance = signal<BalanceResponse | null>(null);
@@ -141,7 +119,6 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly accountState = signal<Load>('idle');
   private readonly portfolio = signal<Portfolio | null>(null);
 
-  /** The account comes from the token, so it is shown and never offered as a field. */
   protected readonly accountId = this.session.accountId;
   protected readonly hasAccount = computed(() => this.accountId() !== null);
 
@@ -154,10 +131,8 @@ export class OrderTicketPage implements OnDestroy {
     () => this.quotes().find((quote) => quote.symbol === this.selectedSymbol()) ?? null
   );
 
-  /** The price the order executes at, as far as anyone can know before it fills. */
   protected readonly currentPrice = computed(() => this.selected()?.price ?? null);
 
-  /** Units of the selected ticker that can be sold: the holding the API checks a sell against. */
   protected readonly unitsAvailable = computed(() => {
     const symbol = this.selectedSymbol();
     return this.portfolio()?.holdings.find((holding) => holding.symbol === symbol)?.quantity ?? 0;
@@ -168,7 +143,6 @@ export class OrderTicketPage implements OnDestroy {
     return /^\d+$/.test(text) ? Number(text) : null;
   });
 
-  /** The side's reference price: buys fill at the ask, sells at the bid. */
   private readonly referencePrice = computed(() => {
     const quote = this.selected();
     if (quote === null || quote.price === null) {
@@ -177,7 +151,6 @@ export class OrderTicketPage implements OnDestroy {
     return (this.side() === 'BUY' ? quote.ask : quote.bid) ?? quote.price;
   });
 
-  /** The protective limit sent with the order. See {@link PRICE_PROTECTION}. */
   protected readonly protectedLimit = computed(() => {
     const reference = this.referencePrice();
     if (reference === null) {
@@ -196,14 +169,12 @@ export class OrderTicketPage implements OnDestroy {
     return quantity !== null && quantity > 0 && price !== null ? roundToPaise(quantity * price) : null;
   });
 
-  /** The most a buy can reserve: the quantity at the protective limit, which the API checks the wallet against. */
   private readonly maxBuyCost = computed(() => {
     const quantity = this.quantity();
     const limit = this.protectedLimit();
     return quantity !== null && quantity > 0 && limit !== null ? roundToPaise(quantity * limit) : null;
   });
 
-  /** The reason the order cannot be sent yet, if there is one. Shown under the quantity. */
   protected readonly blocker = computed<string | null>(() => {
     if (!this.hasAccount()) {
       return FIELD_MESSAGES['noAccount'];
@@ -213,7 +184,7 @@ export class OrderTicketPage implements OnDestroy {
     }
     const quantity = this.quantity();
     if (quantity === null || quantity <= 0) {
-      return null; // the form's own validation speaks for an empty or malformed quantity
+      return null;
     }
     if (this.side() === 'SELL' && quantity > this.unitsAvailable()) {
       return FIELD_MESSAGES['notEnoughUnits'];
@@ -231,10 +202,6 @@ export class OrderTicketPage implements OnDestroy {
   private candleRequest: Subscription | null = null;
 
   constructor() {
-    // A type="number" input hands the form a number once it parses, so normalise to text.
-    // The navbar search (and the portfolio's Trade buttons) link here with ?symbol=. This page is
-    // already open when that happens from the market screen itself, so follow the URL, not just
-    // its value at creation.
     this.route?.queryParamMap?.pipe(takeUntilDestroyed()).subscribe((params) => {
       const wanted = params.get('symbol');
       if (wanted === null) {
@@ -249,17 +216,13 @@ export class OrderTicketPage implements OnDestroy {
 
     this.form.controls.quantity.valueChanges.subscribe((value) => this.quantityText.set(String(value ?? '')));
 
-    // Quotes are account-independent, so they load for as long as the page is open.
     this.startQuotePolling();
 
-    // The wallet card, the sell limit and the linked bank follow the account.
     effect(() => {
       const accountId = this.accountId();
       untracked(() => this.loadAccountData(accountId));
     });
 
-    // An order fills (or is refused) a few seconds after it is accepted, and that is when the
-    // cash and the units held actually move, so reload them when the notification arrives.
     effect(() => {
       const changes = this.notifications.changes();
       untracked(() => {
@@ -269,7 +232,6 @@ export class OrderTicketPage implements OnDestroy {
       });
     });
 
-    // The candles follow the selected ticker, the range and the candle size.
     effect(() => {
       const symbol = this.selectedSymbol();
       const range = this.range();
@@ -277,7 +239,6 @@ export class OrderTicketPage implements OnDestroy {
       untracked(() => this.loadCandles(symbol, interval, range));
     });
 
-    // Remember the chart setup between visits.
     effect(() => {
       const prefs: ChartPreferences = {
         range: this.range().value,
@@ -300,11 +261,6 @@ export class OrderTicketPage implements OnDestroy {
     this.syncUrl(symbol);
   }
 
-  /**
-   * Keeps ?symbol= equal to what is selected. The navbar search navigates to ?symbol=TCS, and a
-   * navigation to the URL already shown does nothing: after picking another ticker by hand the
-   * URL still said TCS, so searching TCS again was silently ignored.
-   */
   private syncUrl(symbol: string): void {
     if (this.router === null || this.route === null || this.route.snapshot?.queryParamMap?.get('symbol') === symbol) {
       return;
@@ -317,7 +273,6 @@ export class OrderTicketPage implements OnDestroy {
     });
   }
 
-  /** On a narrow screen the ticket is below the ticker list, so a search result would look like nothing happened. */
   private bringTicketIntoView(): void {
     if (typeof window === 'undefined' || window.innerWidth >= 992) {
       return;
@@ -354,7 +309,6 @@ export class OrderTicketPage implements OnDestroy {
 
   protected selectRange(range: ChartRange): void {
     this.range.set(range);
-    // Keep the candle size when it still fits the new range, else take that range's default.
     this.interval.set(reconcileInterval(range, this.interval()));
   }
 
@@ -417,7 +371,6 @@ export class OrderTicketPage implements OnDestroy {
     const symbol = this.selectedSymbol();
     const limit = this.protectedLimit();
 
-    // The account is not a form control, so it is checked here rather than by form validity.
     if (accountId === null) {
       this.outcome.set({ kind: 'refused', message: FIELD_MESSAGES['noAccount'] });
       return;
@@ -435,8 +388,6 @@ export class OrderTicketPage implements OnDestroy {
     const approx = this.currentPrice();
     this.submitting.set(true);
 
-    // Full response, not just the body: the console log for a trade carries the
-    // HTTP status with it, and that only arrives on the response envelope.
     this.orders
       .placeOrder(
         {
@@ -446,8 +397,6 @@ export class OrderTicketPage implements OnDestroy {
             side,
             quantity,
             price: limit,
-            // Fresh per attempt, so a double submit is a second order rather than a replay the
-            // API would answer ORD-409 to.
             idempotencyKey: crypto.randomUUID()
           }
         },
@@ -463,8 +412,6 @@ export class OrderTicketPage implements OnDestroy {
             this.outcome.set({ kind: 'refused', message });
             return;
           }
-          // The console carries the status and what happened, and nothing else:
-          // no account, price, token or payload may be logged here.
           console.info(`[order] ${response.status} ${side === 'BUY' ? 'BOUGHT' : 'SOLD'} [${symbol}, ${quantity}]`);
           this.outcome.set({
             kind: 'accepted',
@@ -474,7 +421,6 @@ export class OrderTicketPage implements OnDestroy {
             }`
           });
           this.form.reset({ quantity: '' });
-          // The cash, the units held and the notification list all move once the order fills.
           this.loadAccountData(accountId);
           this.notifications.refresh();
         },
@@ -488,7 +434,6 @@ export class OrderTicketPage implements OnDestroy {
       });
   }
 
-  /** `NEW` is accepted and still working, not accepted and finished. */
   protected statusTone(status: OrderStatus): 'success' | 'pending' | 'failed' {
     switch (status) {
       case 'FILLED':
@@ -507,7 +452,6 @@ export class OrderTicketPage implements OnDestroy {
       .pipe(switchMap(() => this.marketApi.getQuotes().pipe(catchError(() => of(null)))))
       .subscribe((quotes) => {
         if (quotes === null) {
-          // Keep the last good list on screen; only a page that never loaded is a failure.
           if (this.quotesState() !== 'ready') {
             this.quotesState.set('failed');
           }
@@ -521,7 +465,6 @@ export class OrderTicketPage implements OnDestroy {
           const wanted = quotes.find((quote) => quote.symbol === this.preferredSymbol);
           this.selectedSymbol.set((wanted ?? quotes.find((quote) => quote.price !== null) ?? quotes[0])?.symbol ?? null);
         } else {
-          // A fresh quote means a fresh point on the chart.
           this.loadCandles(current, this.interval(), this.range());
         }
       });
@@ -549,7 +492,6 @@ export class OrderTicketPage implements OnDestroy {
     });
   }
 
-  /** Balance, linked bank and what is held, all keyed on the account. */
   private loadAccountData(accountId: number | null): void {
     if (accountId === null) {
       this.balance.set(null);
@@ -568,8 +510,6 @@ export class OrderTicketPage implements OnDestroy {
       account: this.accounts.getAccount({ id: accountId }).pipe(catchError(() => of(null))),
       portfolio: this.portfolioApi.getPortfolio(accountId).pipe(catchError(() => of(null)))
     }).subscribe(({ balance, account, portfolio }) => {
-      // A balance that will not load is a real answer, not a blank card: the trader needs to
-      // know the number they are trading against is unknown.
       this.balance.set(balance);
       this.balanceState.set(balance === null ? 'failed' : 'ready');
       this.account.set(account);
@@ -601,6 +541,5 @@ function savePreferences(prefs: ChartPreferences): void {
   try {
     localStorage.setItem(CHART_PREFS_KEY, JSON.stringify(prefs));
   } catch {
-    // Not remembering the chart setup is harmless.
   }
 }

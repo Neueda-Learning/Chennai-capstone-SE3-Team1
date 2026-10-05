@@ -4,10 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The interval floor is enforced in the code, not documented and hoped for. These tests are the
- * difference between the two.
- */
 class PollerPropertiesTest {
 
     @Test
@@ -21,7 +17,6 @@ class PollerPropertiesTest {
 
     @Test
     void thirtySecondsIsClampedToo() {
-        // 30s is the interval the notes warn about: it survives an afternoon and not a night.
         assertThat(new PollerProperties(30).effectiveIntervalSeconds()).isEqualTo(58);
     }
 

@@ -38,11 +38,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-/**
- * Unit tests of the account read endpoints against mocked mappers. Every read proves existence,
- * token reachability and activeness before answering, all through the domain's own
- * {@code canTrade()} decision.
- */
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
 
@@ -182,7 +177,6 @@ class AccountServiceTest {
                 assertThat(holding.getAverageCost()).isEqualByComparingTo(new BigDecimal("25.50"));
                 assertThat(holding.getOverallGains()).isEqualByComparingTo(new BigDecimal("310.00"));
             });
-            // the intraday book comes back in the same answer, shorts and all
             assertThat(portfolio.getPositions()).singleElement().satisfies(position -> {
                 assertThat(position.getSymbol()).isEqualTo("HDFCBANK");
                 assertThat(position.getQuantity()).isEqualTo(-30);

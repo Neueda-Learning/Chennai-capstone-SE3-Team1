@@ -6,34 +6,25 @@ interface Route {
   body: unknown;
 }
 
-/**
- * A tiny stand-in backend for component specs: register what each URL answers, then `flush()`
- * answers every request the component has made so far. A request nobody registered a route for
- * fails the test, which is the point - a component asking for something unexpected is a bug.
- */
 export class FakeApi {
   private readonly routes: Route[] = [];
   readonly requested: string[] = [];
 
   constructor(private readonly http: HttpTestingController) {}
 
-  /** Answers any GET whose URL ends with `suffix` (query string ignored). */
   get(suffix: string, body: unknown, status = 200): this {
     return this.on((r) => r.request.method === 'GET' && r.request.url.endsWith(suffix), body, status);
   }
 
   on(matches: (request: TestRequest) => boolean, body: unknown, status = 200): this {
-    // Later registrations win, so a test can override a default.
     this.routes.unshift({ matches, status, body });
     return this;
   }
 
-  /** Replaces whatever a URL suffix answered before. */
   set(suffix: string, body: unknown, status = 200): this {
     return this.get(suffix, body, status);
   }
 
-  /** Answers everything outstanding, repeatedly, until the page goes quiet. Returns how many. */
   flush(): number {
     let answered = 0;
     for (let round = 0; round < 8; round++) {
@@ -42,7 +33,6 @@ export class FakeApi {
         break;
       }
       for (const request of open) {
-        // Answering one request can cancel its siblings (a failed forkJoin drops the rest).
         if (request.cancelled) {
           continue;
         }

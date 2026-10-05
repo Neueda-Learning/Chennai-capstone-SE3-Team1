@@ -6,11 +6,6 @@ import com.team1.trading.domain.entity.types.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * One entry of {@code GET /api/v1/accounts/{id}/orders}, as fixed by contracts/trade-api.yaml.
- * The audit trail: every order recorded against the account, including rejected and cancelled
- * ones, newest first.
- */
 public class OrderHistoryEntry {
 
     private String orderId;
@@ -23,7 +18,6 @@ public class OrderHistoryEntry {
     private OrderStatus status;
     private String idempotencyKey;
     private LocalDateTime createdOn;
-    /** Why a REJECTED order was refused. Null for every other status. */
     private String reason;
 
     public OrderHistoryEntry() {

@@ -5,15 +5,8 @@ const trustme = require('trustme-secrets');
 const app = express();
 app.use(express.json());
 
-// Shared secret - the Trade API and executor validate tokens signed with this exact value. It is
-// the JWT_SECRET entry in the TrustMe vault, the same one they read, and is never a literal
-// here: start this with --trustme-key-file=<file.TM> --trustme-password=<password> (or let it
-// prompt). It is fetched once at startup, below.
 let SECRET;
 
-// A stub, not a real user store - two hardcoded accounts is enough to
-// demonstrate "valid token in, protected data out" and "no token, or the
-// wrong one, in -> rejected".
 const USERS = {
   alice: { password: 'mission123', roles: ['MISSION_OPERATOR'] },
   bob: { password: 'wrongpermissions', roles: ['GUEST'] },

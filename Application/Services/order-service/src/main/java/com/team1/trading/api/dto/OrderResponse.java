@@ -5,11 +5,6 @@ import com.team1.trading.domain.entity.types.OrderStatus;
 
 import java.math.BigDecimal;
 
-/**
- * Response body for {@code POST /api/v1/orders} and {@code DELETE /api/v1/orders/{id}}, as
- * fixed by contracts/trade-api.yaml. The identifier is the stored UUID displayed with an
- * {@code ORD-} prefix.
- */
 public class OrderResponse {
 
     private String orderId;

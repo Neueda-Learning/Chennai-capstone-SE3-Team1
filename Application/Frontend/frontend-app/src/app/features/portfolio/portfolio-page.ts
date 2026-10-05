@@ -15,11 +15,6 @@ const REFRESH_MS = 60_000;
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
 
-/**
- * What the account owns: every holding and intraday position, valued at the latest polled
- * price, with the gain on each and a total. Reached from the dashboard's "View portfolio" and
- * the sidebar. Selling starts from here: each row links to its ticker on the Market page.
- */
 @Component({
   selector: 'tui-portfolio-page',
   imports: [RouterLink],
@@ -65,7 +60,6 @@ export class PortfolioPage {
       untracked(() => this.startLoading(accountId));
     });
 
-    // An order filled or money moved: reload now rather than waiting for the minute timer.
     effect(() => {
       const changes = this.notifications.changes();
       untracked(() => {
@@ -97,13 +91,11 @@ export class PortfolioPage {
       return;
     }
 
-    // Keep showing the numbers already there while a reload is in flight.
     if (this.state() !== 'ready') {
       this.state.set('loading');
     }
     this.subscription = timer(0, REFRESH_MS)
       .pipe(
-        // Failure is a value, not an error, so one dropped request does not end the refreshing.
         switchMap(() =>
           forkJoin({
             balance: this.accounts.getBalance({ id: accountId }),

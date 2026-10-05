@@ -3,9 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * A completed transfer and both balances straight after it.
- */
 public class TransferResponse {
 
     private String transferId;

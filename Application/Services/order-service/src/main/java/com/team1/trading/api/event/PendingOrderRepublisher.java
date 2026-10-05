@@ -16,23 +16,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Sends {@code ORDER_PLACED} again for every order still sitting at {@code NEW}, once at startup.
- *
- * <p>The event is published after the order's transaction commits (see
- * {@link KafkaOrderEventPublisher}), so an order can be committed and never published: Kafka or
- * this service was down at that moment. Nothing else ever sends it, and the row stays at
- * {@code NEW} forever. This is the recovery the publisher's own notes promise ("replayed from the
- * order table").
- *
- * <p>Re-sending is safe. The executor treats an order that is no longer {@code NEW} as already
- * settled and publishes nothing for it, and claims a {@code NEW} one with a guarded delete, so a
- * duplicate message costs one log line, never a second fill.
- *
- * <p>The replay runs on its own thread: with the broker down a send blocks until the producer
- * gives up, and startup must not wait on that. Orders that could not be sent are retried a few
- * times, since the broker is as likely to be coming up alongside this service as before it.
- */
 @Component
 @ConditionalOnProperty(name = "orders.republish-on-startup", havingValue = "true", matchIfMissing = true)
 public class PendingOrderRepublisher {
@@ -64,7 +47,6 @@ public class PendingOrderRepublisher {
         worker.start();
     }
 
-    /** One pass per attempt over what is still pending; returns the number of orders left unsent. */
     void republishPending() {
         Set<String> sent = new HashSet<>();
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {

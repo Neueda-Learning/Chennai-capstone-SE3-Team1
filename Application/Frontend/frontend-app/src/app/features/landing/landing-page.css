@@ -1,24 +1,12 @@
-/* Landing Page Styles
-   ---------------------------------------------------------------------------
-   Everything that has to change between light and dark is a custom property
-   declared here on :host and overridden in one :host-context block at the
-   bottom. A component stylesheet is scoped by Angular and cannot be outranked
-   from the global sheet, so the theme has to be answered in here - the same
-   escape hatch the blotter uses. */
-
 :host {
     --landing-max-width: 1280px;
     --landing-navbar-h: 74px;
     --landing-navbar-bg: rgba(244, 246, 245, 0.92);
 
-    /* Lime on white is about 1.9:1, which is a highlight colour, not a text
-       colour. Anything that carries words uses these two instead. */
     --landing-accent-text: var(--brand-forest-medium);
     --landing-gradient-from: var(--brand-forest-dark);
     --landing-gradient-to: var(--brand-forest-medium);
 
-    /* The one place the overlay tint lives, so the backdrop and the bar behind
-       it cannot disagree. */
     --landing-scrim: rgba(11, 19, 15, 0.45);
 }
 
@@ -28,15 +16,12 @@
     overflow: hidden;
 }
 
-/* One measure for the whole page, so the navbar, the feature grid, the about
-   block and the footer all start on the same vertical line at any window size. */
 .section-container {
     width: 100%;
     max-width: var(--landing-max-width);
     margin-inline: auto;
 }
 
-/* Navigation Bar */
 .landing-navbar {
     position: sticky;
     top: 0;
@@ -104,8 +89,6 @@
     background-color: var(--brand-forest-dark);
 }
 
-/* Sits beside Sign In rather than replacing it: the drawer holds detail, the
-   link is the action. */
 .btn-nav-details {
     display: inline-flex;
     align-items: center;
@@ -131,10 +114,6 @@
     outline-offset: 2px;
 }
 
-/* Hero Section
-   The navbar is sticky and already takes a screen's worth of vertical space, so
-   the hero is sized against what is left. `100vh` here is what used to force a
-   scroll before the visitor had seen anything below the fold. */
 .landing-hero {
     position: relative;
     min-height: calc(100vh - var(--landing-navbar-h));
@@ -311,10 +290,6 @@
     font-weight: 500;
 }
 
-/* Features Section
-   A 320px minimum means two columns at 1280px and three only once the window is
-   wide enough to keep the text readable; the page shows one line per card and
-   the drawer carries the paragraph. */
 .landing-features {
     padding: 3.5rem 2rem;
     background: linear-gradient(180deg, transparent 0%, rgba(180, 241, 5, 0.05) 100%);
@@ -400,7 +375,6 @@
     margin-top: 2rem;
 }
 
-/* About Section */
 .landing-about {
     padding: 3.5rem 2rem;
     background-color: var(--card-background);
@@ -485,7 +459,6 @@
     font-weight: 700;
 }
 
-/* CTA Section */
 .landing-cta {
     padding: 3.5rem 2rem;
     background: linear-gradient(135deg, var(--brand-forest-medium), var(--brand-forest-dark));
@@ -522,7 +495,6 @@
     box-shadow: 0 12px 32px rgba(180, 241, 5, 0.4);
 }
 
-/* Footer */
 .landing-footer {
     background-color: var(--brand-forest-dark);
     color: #FFFFFF;
@@ -558,10 +530,6 @@
     color: var(--brand-lime);
 }
 
-/* Details drawer
-   Off the right edge, full height, and out of the document flow so opening it
-   never reflows the page behind it. Width is capped so the text inside keeps a
-   readable measure on a wide monitor. */
 .drawer-backdrop {
     position: fixed;
     inset: 0;
@@ -706,13 +674,11 @@
     flex-shrink: 0;
 }
 
-/* Animations */
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-4px); }
 }
 
-/* Responsive Design */
 @media (max-width: 992px) {
     .about-container {
         grid-template-columns: 1fr;
@@ -729,8 +695,6 @@
         gap: 0.75rem;
     }
 
-    /* The two text links are the first thing to go: the drawer holds the same
-       detail, and the Sign In button is the one thing that must stay reachable. */
     .nav-link {
         display: none;
     }
@@ -759,11 +723,6 @@
     }
 }
 
-/* Dark mode
-   One block, because every themed value on this page is a custom property set
-   in :host above. Lime is the accent that actually reads on a dark surface, and
-   the navbar has to tint toward the dark body colour to stay glassy rather than
-   flashing a pale bar over a dark page. */
 :host-context([data-bs-theme="dark"]) {
     --landing-accent-text: var(--brand-lime);
     --landing-gradient-from: var(--brand-lime);
@@ -772,9 +731,6 @@
     --landing-scrim: rgba(0, 0, 0, 0.6);
 }
 
-/* Dark mode, buttons: the forest-green fill and text are the light theme's colours. On a dark
-   page the primary button turns lime like it does everywhere else, and the secondary one's
-   label takes the accent (it was dark green on a dark card, 1.4:1). */
 :host-context([data-bs-theme="dark"]) .btn-primary {
     background-color: var(--brand-lime);
     color: var(--brand-forest-dark);

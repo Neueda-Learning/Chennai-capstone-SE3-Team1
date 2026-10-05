@@ -2,8 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.team1.executor.mapper.PositionMapper">
 
-    <!-- PositionRow is a record: no setters, so map through its canonical constructor.
-         Args are positional and must stay in component order. -->
     <resultMap id="positionResultMap" type="com.team1.executor.model.PositionRow">
         <constructor>
         <idArg column="holding_id" javaType="java.lang.Long"/>
@@ -37,11 +35,6 @@
         VALUES (#{clientId}, #{instrumentId}, #{quantity}, #{pricePerUnit}, 0, now(), now())
     </insert>
 
-    <!-- Weighted average cost. Every SET expression reads the row as it was before the
-         statement, so `quantity` here is the pre-trade quantity in both places: it is the
-         weight for the existing average, and the divisor is pre-trade + this fill. Writing
-         it as `/ quantity` (as if the first SET had already applied) understates the
-         average on every buy into an existing holding. -->
     <update id="updateHoldingBuy">
         UPDATE portfolio_holding
         SET quantity = quantity + #{quantity},

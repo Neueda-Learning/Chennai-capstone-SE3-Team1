@@ -47,11 +47,6 @@ export class OtpRepository {
     return mapRow(result.rows[0]);
   }
 
-  /**
-   * The newest code for an email+purpose that is neither consumed nor expired.
-   * Expiry is asked of the database clock rather than the Node clock so a code
-   * cannot be stretched by a skewed application host.
-   */
   async findActive(
     email: string,
     purpose: OtpPurpose,
@@ -84,11 +79,6 @@ export class OtpRepository {
     ]);
   }
 
-  /**
-   * Burns every code still waiting for an email+purpose. Issuing a replacement
-   * must invalidate the previous one, otherwise an old email keeps working after
-   * the user asked for a new code.
-   */
   async consumeAllActive(email: string, purpose: OtpPurpose): Promise<void> {
     await this.pool.query(
       `UPDATE otp_codes

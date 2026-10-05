@@ -16,12 +16,10 @@ export class HealthService {
     const checks: Promise<HealthIndicatorResult>[] = [];
 
     if (probe === 'liveness') {
-      // Liveness only checks if the process is alive
       checks.push(this.databaseIndicator.isHealthy('database'));
     }
 
     if (probe === 'readiness' || probe === 'startup') {
-      // Readiness and startup check all dependencies
       checks.push(this.databaseIndicator.isHealthy('database'));
       checks.push(this.kafkaIndicator.isHealthy('kafka'));
     }

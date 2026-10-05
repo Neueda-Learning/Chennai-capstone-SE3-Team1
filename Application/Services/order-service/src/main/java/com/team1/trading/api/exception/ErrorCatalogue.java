@@ -5,15 +5,6 @@ import org.springframework.http.HttpStatus;
 import java.util.Collections;
 import java.util.Map;
 
-/**
- * Maps every documented error code to the HTTP status it is served under, as fixed by
- * contracts/trade-api.yaml.
- *
- * <p>This is the single source of truth for the error catalogue. Clients branch on the code,
- * never on the status alone, because 404 and 409 each carry more than one code. The
- * {@link GlobalExceptionHandler} resolves every {@code DomainException} through this table, so
- * adding a code anywhere else is a drift that review should catch.
- */
 public final class ErrorCatalogue {
 
     public static final String ACC_404 = "ACC-404";
@@ -29,7 +20,6 @@ public final class ErrorCatalogue {
 
     public static final String INTERNAL_500 = "INTERNAL-500";
 
-    // Map.ofEntries: the catalogue outgrew Map.of's ten pairs.
     private static final Map<String, HttpStatus> STATUS_BY_CODE = Map.ofEntries(
             Map.entry(ACC_404, HttpStatus.NOT_FOUND),
             Map.entry(ACC_403, HttpStatus.FORBIDDEN),
@@ -47,21 +37,10 @@ public final class ErrorCatalogue {
     private ErrorCatalogue() {
     }
 
-    /**
-     * The HTTP status a documented error code is served under.
-     *
-     * <p>Two codes are served under 404 ({@code ACC-404}, {@code INS-404}) and one under 409
-     * ({@code ORD-409}), which is why clients must branch on the code rather than the status.
-     * An unknown code is treated as an internal error rather than silently mapped to a
-     * documented status that would lie to the client.
-     */
     public static HttpStatus statusFor(String errorCode) {
         return STATUS_BY_CODE.getOrDefault(errorCode, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    /**
-     * Read-only view of the catalogue, one entry per code.
-     */
     public static Map<String, HttpStatus> asMap() {
         return Collections.unmodifiableMap(STATUS_BY_CODE);
     }

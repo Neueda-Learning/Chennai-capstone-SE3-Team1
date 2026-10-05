@@ -53,7 +53,7 @@ describe('priceEntries', () => {
   it('recovers the price from the stored gain when there is no quote', () => {
     const [priced] = priceEntries([entry({ overallGains: 500 })], 'HOLDING', []);
 
-    expect(priced.lastPrice).toBe(1300); // 1250 + 500 / 10
+    expect(priced.lastPrice).toBe(1300);
     expect(priced.priceIsLive).toBe(false);
     expect(priced.dayChange).toBeNull();
     expect(priced.name).toBe('RELIANCE');
@@ -97,7 +97,7 @@ describe('summarise', () => {
     expect(summary.cost).toBe(12500 + 17000);
     expect(summary.totalValue).toBe(5000 + 30500);
     expect(summary.unrealised).toBe(1000);
-    expect(summary.dayPnl).toBe(0); // +100 on RELIANCE, -100 on TCS
+    expect(summary.dayPnl).toBe(0);
   });
 
   it('reports no day move at all when no quote covers anything', () => {
@@ -129,7 +129,7 @@ describe('countOrders', () => {
 });
 
 describe('bucketOrders', () => {
-  const now = new Date(2026, 9, 2, 15, 30); // 2 Oct 2026, local time
+  const now = new Date(2026, 9, 2, 15, 30);
 
   it('is one bucket a day for a week, ending today', () => {
     const flow = bucketOrders(

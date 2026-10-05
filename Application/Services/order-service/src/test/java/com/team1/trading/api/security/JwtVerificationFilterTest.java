@@ -20,19 +20,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
-
- Integration tests for JWT verification through the filter and global exception handler.
-
- <p>Tests verify that:
- All JWT verification failures return AUTH-401
- All four failure modes (missing header, wrong scheme, expired, forged) return identical
-
- error responses
-
- Valid tokens pass through the filter
- The error message does not reveal which specific failure occurred
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -133,24 +120,20 @@ class JwtVerificationFilterTest {
         void all_failures_return_same_generic_message() throws Exception {
             String genericMessage = "Unauthorized";
 
-            // Missing header
             String response1 = mockMvc.perform(get("/api/v1/accounts/1"))
                     .andExpect(status().isUnauthorized())
                     .andReturn().getResponse().getContentAsString();
 
-            // Wrong scheme
             String response2 = mockMvc.perform(get("/api/v1/accounts/1")
                             .header("Authorization", "Basic wrong"))
                     .andExpect(status().isUnauthorized())
                     .andReturn().getResponse().getContentAsString();
 
-            // Expired token
             String response3 = mockMvc.perform(get("/api/v1/accounts/1")
                             .header("Authorization", TestJwtBuilder.forAccount(1L).buildExpired()))
                     .andExpect(status().isUnauthorized())
                     .andReturn().getResponse().getContentAsString();
 
-            // All should contain the generic message
             assert response1.contains(genericMessage);
             assert response2.contains(genericMessage);
             assert response3.contains(genericMessage);
@@ -177,9 +160,6 @@ class JwtVerificationFilterTest {
 
         @Test
         void allows_request_with_valid_token() throws Exception {
-            // Valid token should pass the filter and reach the controller
-            // The controller may return 404 if account doesn't exist, but that's different
-            // from 401 (Unauthorized)
             mockMvc.perform(get("/api/v1/accounts/1")
                             .header("Authorization", validToken))
                     .andExpect(result ->
@@ -189,9 +169,6 @@ class JwtVerificationFilterTest {
 
         @Test
         void stores_claims_in_request_context() throws Exception {
-            // With a valid token, the filter should populate JwtRequestContext
-            // We can't directly test the context in MockMvc, but we can verify
-            // the request reaches the controller (doesn't get rejected at filter level)
             mockMvc.perform(get("/api/v1/accounts/1")
                             .header("Authorization", validToken))
                     .andExpect(result ->
@@ -216,7 +193,6 @@ class JwtVerificationFilterTest {
 
         @Test
         void skips_filter_for_non_api_routes() throws Exception {
-            // Non-API routes should not require authorization
             mockMvc.perform(get("/health"))
                     .andExpect(result ->
                             assertThat(result.getResponse().getStatus(), not(401))

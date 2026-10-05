@@ -37,17 +37,15 @@ describe('PriceChart', () => {
     TestBed.configureTestingModule({ imports: [Host], providers: [{ provide: THEME_STORAGE, useValue: window.sessionStorage }] });
   });
 
-  /** Lets Angular finish, then gives ApexCharts' own asynchronous render a moment to put its SVG in. */
   async function settle(fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) {
     fixture.detectChanges();
-    TestBed.inject(ApplicationRef).tick(); // runs the after-render effects that draw the panes
+    TestBed.inject(ApplicationRef).tick();
     await fixture.whenStable();
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   async function render() {
     const fixture = TestBed.createComponent(Host);
-    // Attached to the application, so the after-render effects that draw the panes run as they do for real.
     fixture.autoDetectChanges(true);
     await settle(fixture);
     return fixture;
@@ -85,7 +83,7 @@ describe('PriceChart', () => {
     const fixture = await render();
     fixture.componentInstance.indicators.set(['volume']);
     await settle(fixture);
-    expect(drawn(fixture, 'volume')).toBe(false); // intraday: no volume to draw
+    expect(drawn(fixture, 'volume')).toBe(false);
 
     fixture.componentInstance.candles.set(candles(120, true));
     fixture.componentInstance.hasVolume.set(true);

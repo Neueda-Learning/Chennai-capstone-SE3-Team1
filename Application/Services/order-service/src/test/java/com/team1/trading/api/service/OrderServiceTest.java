@@ -44,12 +44,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-/**
- * Unit tests of the order rules and the acceptance (write at NEW, publish {@code ORDER_PLACED}),
- * against mocked mappers. The rule table of contracts/trade-api.yaml is exercised in order - the
- * first failure wins - and every rejection is the domain's own exception, so the HTTP layer needs
- * no container to be proven correct here.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
@@ -370,7 +364,6 @@ class OrderServiceTest {
                     .willReturn(Optional.of(newOrderRow()));
             given(orderMapper.deleteIfNew("6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e")).willReturn(1);
 
-            // every response carries orderId as ORD-<uuid>, so echoing it back is the normal case
             var response = orderService.cancel("ORD-6f2b1c2a-6a1e-4a4f-9c0d-2f7a1b3c4d5e", ACCOUNT_ID);
 
             assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
@@ -382,7 +375,6 @@ class OrderServiceTest {
         void cancelRejectsAMalformedId() {
             assertThatThrownBy(() -> orderService.cancel("not-an-order", ACCOUNT_ID))
                     .isInstanceOf(OrderNotFoundException.class);
-            // it must not reach the database and fail there as a 500
             verify(orderMapper, never()).findByUuid(any());
             verify(orderMapper, never()).deleteIfNew(any());
         }
@@ -404,8 +396,6 @@ class OrderServiceTest {
         @Test
         @DisplayName("An unknown order is ORD-409 OrderNotFoundException")
         void cancelUnknownOrder() {
-            // a well-formed id that matches nothing, so this exercises the lookup rather
-            // than the id check that cancelRejectsAMalformedId covers
             String absent = "00000000-0000-4000-8000-000000000000";
             given(orderMapper.findByUuid(absent)).willReturn(Optional.empty());
 

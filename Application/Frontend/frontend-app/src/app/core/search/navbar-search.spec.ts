@@ -77,7 +77,6 @@ describe('NavbarSearch', () => {
       expect.stringContaining('TATAMOTORS')
     ]);
     type('reli');
-    // the ticker first, then the order placed in it
     expect(hits()).toHaveLength(2);
     expect(hits()[0]).toContain('Reliance Industries');
     expect(hits()[1]).toContain('ORD-aaa-111');
@@ -160,7 +159,6 @@ describe('NavbarSearch', () => {
     api.set('/market/quotes', { errorCode: 'X', message: 'down' }, 500);
     type('tcs');
 
-    // no tickers (the quotes never arrived), but the order list still works
     expect(hits()).toEqual([expect.stringContaining('ORD-bbb-222')]);
     type('zzz');
     expect(root().querySelector('[data-testid="search-empty"]')).not.toBeNull();

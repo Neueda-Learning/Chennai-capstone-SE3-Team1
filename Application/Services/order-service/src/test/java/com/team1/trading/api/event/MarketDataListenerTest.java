@@ -25,9 +25,6 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-/**
- * The market-data listener, which is what keeps overall_gains from being permanently zero.
- */
 @ExtendWith(MockitoExtension.class)
 class MarketDataListenerTest {
 
@@ -77,7 +74,7 @@ class MarketDataListenerTest {
                 {"symbol":"RELIANCE","price":1244.09}"""), ack);
 
         verify(positionMapper, never()).markToMarket(any(), any());
-        verify(ack).acknowledge();   // committing it stops the partition stalling on it
+        verify(ack).acknowledge();
     }
 
     @Test
@@ -109,8 +106,6 @@ class MarketDataListenerTest {
         listener.onQuote(record("QUOTE", """
                 {"symbol":"RELIANCE","price":1244.09}"""), ack);
 
-        // the next cycle republishes a fresher price a minute later, so dropping this one
-        // costs less than blocking every later quote for the symbol
         verify(ack).acknowledge();
     }
 

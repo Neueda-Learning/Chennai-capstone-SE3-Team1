@@ -4,9 +4,6 @@ import com.team1.trading.domain.exception.DomainException;
 
 import java.math.BigDecimal;
 
-/**
- * An amount that is not a positive sum of money with at most two decimal places: {@code VAL-422}.
- */
 public class InvalidAmountException extends DomainException {
 
     private final BigDecimal amount;

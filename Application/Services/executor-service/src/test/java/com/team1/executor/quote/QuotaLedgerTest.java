@@ -10,10 +10,6 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * One counter, two callers. The reason the poller lives inside the executor rather than in a
- * container of its own is that these two spends have to be visible to each other.
- */
 class QuotaLedgerTest {
 
     private static final Instant WEDNESDAY_LATE = Instant.parse("2026-09-17T23:59:00Z");
@@ -85,8 +81,6 @@ class QuotaLedgerTest {
         ledger.record("market-poller", PollingSchedule.POLLER_DAILY_BUDGET);
         ledger.record("fill-path");
 
-        // The ledger counts the fill path, it does not gate it: an order rejected for want of a
-        // price is a worse outcome than a missing quote tick.
         assertThat(ledger.spentToday()).isEqualTo(PollingSchedule.POLLER_DAILY_BUDGET + 1);
     }
 

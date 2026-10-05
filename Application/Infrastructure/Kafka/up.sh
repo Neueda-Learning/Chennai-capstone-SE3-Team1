@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Brings Kafka up with KAFKA_ADVERTISED_HOST auto-detected, so .env never has to be edited
-# by hand on a normal single-NIC box (EC2 or otherwise). Safe to re-run - .env is created
-# once and left alone after that unless KAFKA_ADVERTISED_HOST is still at the localhost
-# default, in which case detection is retried.
-#
-#   bash Application/Infrastructure/Kafka/up.sh   # from anywhere
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 log() { printf '[kafka] %s\n' "$*"; }
@@ -17,9 +10,6 @@ if [ ! -f .env ]; then
     log ".env created from .env.example"
 fi
 
-# Only touches the file if it's still at the .env.example default (or missing entirely),
-# so a deliberate manual override always wins. Every detection attempt can fail without
-# aborting the script under set -e - "|| ip=" on the assignment itself, not on a pipeline.
 if ! grep -q '^KAFKA_ADVERTISED_HOST=' .env || grep -q '^KAFKA_ADVERTISED_HOST=localhost$' .env; then
     ip=""
     ip=$(curl -fsS --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null) || ip=""

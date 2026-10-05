@@ -3,7 +3,6 @@ import { Component, inject } from '@angular/core';
 import { NotificationStore } from '../../core/notifications/notification.store';
 import { ThemeName, ThemeService } from '../../core/theme/theme.service';
 
-/** Preferences that live in this browser: the theme, and whether notifications pop up. */
 @Component({
   selector: 'tui-settings-page',
   templateUrl: './settings-page.html',

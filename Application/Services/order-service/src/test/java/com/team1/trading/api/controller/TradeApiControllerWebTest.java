@@ -49,12 +49,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Slice test of the two {code /api/v1} controllers against the exact shapes of
- * contracts/trade-api.yaml. Services are mocked; the real {@code GlobalExceptionHandler}
- * keeps running, so a thrown domain exception and a body that fails validation both leave the
- * documented envelope over HTTP. No database or other container is started.
- */
 @WebMvcTest(controllers = {OrderController.class, AccountController.class},
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtVerificationFilter.class))
 @TestPropertySource(properties = {

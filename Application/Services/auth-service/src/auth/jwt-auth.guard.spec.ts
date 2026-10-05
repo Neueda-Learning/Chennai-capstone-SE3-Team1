@@ -76,7 +76,6 @@ describe('JwtAuthGuard', () => {
     const ctx = makeContext('Bearer forged.token.here');
     const request = ctx.switchToHttp().getRequest();
     expect(() => guard.canActivate(ctx)).toThrow(AuthServiceException);
-    // Never trust an unverified payload: no user is ever attached on failure.
     expect(request.user).toBeUndefined();
   });
 });

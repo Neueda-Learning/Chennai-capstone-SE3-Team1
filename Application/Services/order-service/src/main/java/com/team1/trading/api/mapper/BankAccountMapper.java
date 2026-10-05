@@ -20,10 +20,6 @@ public interface BankAccountMapper {
             """)
     Optional<BankAccount> findByAccountNumber(@Param("accountNumber") String accountNumber);
 
-    /**
-     * Locks the row for the rest of the transaction, so two users claiming the same unclaimed
-     * account serialise here and the second sees it already claimed.
-     */
     @Select("""
             SELECT client_id, account_number, account_balance, bank_name, ifsc_code
             FROM bank_account
@@ -32,10 +28,6 @@ public interface BankAccountMapper {
             """)
     Optional<BankAccount> findByAccountNumberForUpdate(@Param("accountNumber") String accountNumber);
 
-    /**
-     * Gives an unclaimed bank account to a client. Guarded on {@code client_id IS NULL}: 0 rows
-     * means someone else already holds it.
-     */
     @Update("""
             UPDATE bank_account
             SET client_id = #{clientId}
@@ -71,10 +63,6 @@ public interface BankAccountMapper {
             """)
     int credit(@Param("accountNumber") String accountNumber, @Param("amount") java.math.BigDecimal amount);
 
-    /**
-     * Guarded in the statement itself, so the balance check and the write cannot be split by a
-     * concurrent request: 0 rows means the account does not hold the amount.
-     */
     @Update("""
             UPDATE bank_account
             SET account_balance = account_balance - #{amount}

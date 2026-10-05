@@ -1,7 +1,3 @@
--- Seed data for unit and integration tests.
--- Matches the seed CSV files under /seed/ and the test fixtures in the mapper tests.
-
--- Clients (matches seed/010_clients.csv); email/phone live only on users (migration 021).
 INSERT INTO clients (client_id, name, account_state, wallet_balance, version, updated_on)
 VALUES (1, 'Aarav Mehta', 'ACTIVE', 125000.00, 0, CURRENT_TIMESTAMP);
 INSERT INTO clients (client_id, name, account_state, wallet_balance, version, updated_on)
@@ -15,10 +11,8 @@ VALUES (5, 'Vikram Rao', 'ACTIVE', 92750.25, 0, CURRENT_TIMESTAMP);
 INSERT INTO clients (client_id, name, account_state, wallet_balance, version, updated_on)
 VALUES (6, 'Sanya Kapoor', 'CLOSED', 0.00, 0, CURRENT_TIMESTAMP);
 
--- Move the identity past the explicit ids, as fn_resync_sequences() does after the real seed.
 ALTER TABLE clients ALTER COLUMN client_id RESTART WITH 7;
 
--- Bank accounts (matches seed/020_bank_account.csv); no name of its own, client_id is the link.
 INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
 VALUES ('IN45HDFC0000001234567', 1, 0.00, 'HDFC Bank', 'HDFC0001234');
 INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
@@ -31,13 +25,11 @@ INSERT INTO bank_account (account_number, client_id, account_balance, bank_name,
 VALUES ('IN45KKBK0000005678901', 5, 0.00, 'Kotak Mahindra', 'KKBK0005678');
 INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
 VALUES ('IN45YESB0000006789012', 6, 0.00, 'Yes Bank', 'YESB0006789');
--- Unclaimed bank accounts (client_id NULL), as in seed/020_bank_account.csv.
 INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
 VALUES ('IN45HDFC0000007890123', NULL, 150000.00, 'HDFC Bank', 'HDFC0007890');
 INSERT INTO bank_account (account_number, client_id, account_balance, bank_name, ifsc_code)
 VALUES ('IN45ICIC0000008901234', NULL, 92500.00, 'ICICI Bank', 'ICIC0008901');
 
--- Users (matches seed/030_users.csv); each owns the client with the same id.
 INSERT INTO users (username, email, account_id, password_hash)
 VALUES ('aarav.mehta', 'aarav.mehta@example.com', 1, 'seed-placeholder-hash');
 INSERT INTO users (username, email, account_id, password_hash)
@@ -51,7 +43,6 @@ VALUES ('vikram.rao', 'vikram.rao@example.com', 5, 'seed-placeholder-hash');
 INSERT INTO users (username, email, account_id, password_hash)
 VALUES ('sanya.kapoor', 'sanya.kapoor@example.com', 6, 'seed-placeholder-hash');
 
--- Instruments (matches seed/040_instruments.csv)
 INSERT INTO instruments (instrument_id, instrument_name, active, updated_on)
 VALUES ('RELIANCE', 'Reliance Industries', TRUE, NULL);
 INSERT INTO instruments (instrument_id, instrument_name, active, updated_on)

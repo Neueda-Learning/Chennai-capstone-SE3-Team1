@@ -19,10 +19,6 @@ const row = (overrides: Partial<BlotterRow>): BlotterRow => ({
   ...overrides
 });
 
-/**
- * Orders go in at the market with a protective limit a little off the price, so the limit is not
- * the price a trade happened at. The blotter must lead with what a filled order executed at.
- */
 describe('BlotterPage price column', () => {
   function render(rows: BlotterRow[]): HTMLElement {
     TestBed.configureTestingModule({

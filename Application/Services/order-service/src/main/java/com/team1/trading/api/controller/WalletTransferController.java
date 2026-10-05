@@ -14,11 +14,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code POST /api/v1/accounts/{id}/transfers}: moves money between the account's wallet and its
- * linked bank account, in the direction the body names. Under {@code /api/v1/}, so the token has
- * been verified before this runs; the service checks it owns the account.
- */
 @RestController
 @RequestMapping("/api/v1/accounts/{id}/transfers")
 public class WalletTransferController {

@@ -36,13 +36,12 @@ describe('LoginRateLimiter', () => {
     limiter.recordFailure('alice');
     limiter.recordFailure('alice');
     limiter.recordFailure('alice');
-    expect(limiter.check('alice').allowed).toBe(true); // only 3 failures
-    expect(limiter.check('bob').allowed).toBe(true); // no failures
+    expect(limiter.check('alice').allowed).toBe(true);
+    expect(limiter.check('bob').allowed).toBe(true);
   });
 
   it('resets after window expires', () => {
     const limiter2 = new LoginRateLimiter();
-    // Manually set old timestamp
     const username = 'olduser';
     // @ts-expect-error - access private for test
     limiter2.attempts.set(username, {

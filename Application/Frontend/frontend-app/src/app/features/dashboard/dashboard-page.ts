@@ -30,11 +30,6 @@ const RECENT_ORDERS = 5;
 type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
 type RangeDays = 7 | 30 | 90;
 
-/**
- * The home screen: everything on it is computed from the signed-in account's real data - the
- * wallet balance, the portfolio, the order history and the latest polled quotes - and refreshed
- * once a minute, which is how often the quotes themselves change.
- */
 @Component({
   selector: 'tui-dashboard-page',
   imports: [RouterLink],
@@ -60,7 +55,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
 
   protected readonly accountId = this.session.accountId;
   protected readonly state = signal<LoadState>('idle');
-  /** A refresh failed after data had already loaded; what is shown is the last good answer. */
   protected readonly refreshFailed = signal(false);
 
   protected readonly rangeOptions: readonly { label: string; days: RangeDays }[] = [
@@ -97,7 +91,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     () => this.orderFlow().buys.reduce((a, b) => a + b, 0) + this.orderFlow().sells.reduce((a, b) => a + b, 0)
   );
 
-  /** Allocation slices: each holding by value, then cash. Shorts do not count towards allocation. */
   protected readonly allocation = computed(() => {
     const palette = chartPalette(this.theme.isDark());
     const slices = this.entries()
@@ -132,15 +125,11 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   private refreshSubscription: Subscription | null = null;
 
   constructor() {
-    // Load whenever the account becomes known, then keep it fresh. Restarting on an account
-    // change (a bank account being linked swaps the token) drops the old subscription.
     effect(() => {
       const accountId = this.accountId();
       untracked(() => this.startLoading(accountId));
     });
 
-    // Something happened to the account (an order filled, money moved): reload now rather
-    // than waiting for the minute timer.
     effect(() => {
       const changes = this.notifications.changes();
       untracked(() => {
@@ -150,7 +139,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       });
     });
 
-    // Redraw the charts when their data or the theme changes.
     effect(() => {
       this.orderFlow();
       this.allocation();
@@ -197,7 +185,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     );
   }
 
-  /** Width of a progress bar, as a share of all orders. */
   protected share(count: number): number {
     const total = this.counts().total;
     return total === 0 ? 0 : Math.round((count / total) * 100);
@@ -221,14 +208,11 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Keep showing the numbers already there while a reload is in flight.
     if (this.state() !== 'ready') {
       this.state.set('loading');
     }
     this.refreshSubscription = timer(0, REFRESH_MS)
       .pipe(
-        // A failed cycle is answered with null, not allowed to error: an error would end the
-        // timer, and one dropped request would then stop the dashboard refreshing for good.
         switchMap(() =>
           forkJoin({
             balance: this.accounts.getBalance({ id: accountId }),
@@ -240,8 +224,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       )
       .subscribe((result) => {
         if (result === null) {
-          // Nothing ever loaded: a plain failure. Otherwise keep what is on screen and say
-          // it may be out of date.
           if (this.state() === 'ready') {
             this.refreshFailed.set(true);
           } else {

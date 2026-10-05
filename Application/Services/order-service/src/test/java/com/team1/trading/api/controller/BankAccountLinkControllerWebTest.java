@@ -25,11 +25,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * {@code POST /api/v1/bank-accounts} over HTTP, with the real {@code JwtVerificationFilter}
- * in front of it: the route is reachable with a token that has no {@code accountId} yet, and
- * the user it links is the token's {@code sub}, never anything in the body.
- */
 @WebMvcTest(controllers = BankAccountLinkController.class)
 @Import(JwtValidator.class)
 @TestPropertySource(properties = {

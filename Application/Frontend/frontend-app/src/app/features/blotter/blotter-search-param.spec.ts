@@ -19,7 +19,6 @@ const row = (orderId: string, symbol: string): BlotterRow => ({
   isWorking: false
 });
 
-/** The navbar search sends people here with ?q=<order id>; the blotter should open already filtered. */
 describe('BlotterPage ?q= filter', () => {
   it('filters to the order named in the URL, and follows later changes of it', () => {
     const params = new BehaviorSubject(convertToParamMap({ q: 'ORD-bbb' }));
@@ -44,6 +43,6 @@ describe('BlotterPage ?q= filter', () => {
     expect(page.filteredRows().map((r) => r.orderId)).toEqual(['ORD-aaa']);
 
     params.next(convertToParamMap({}));
-    expect(page.filteredRows()).toHaveLength(1); // no q: the filter the user has is left alone
+    expect(page.filteredRows()).toHaveLength(1);
   });
 });

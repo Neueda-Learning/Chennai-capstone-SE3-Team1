@@ -9,10 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * Read side of the polled market data: the latest quote per tradable instrument and a symbol's
- * recent price history. Writes happen in {@link com.team1.trading.api.event.MarketDataListener}.
- */
 @Service
 public class MarketService {
 
@@ -31,10 +27,6 @@ public class MarketService {
         return marketQuoteMapper.latestForActiveInstruments();
     }
 
-    /**
-     * @param limit how many of the newest points to return; clamped to 1..500, 120 when absent
-     * @throws InstrumentNotFoundException ({@code INS-404}) for an unknown or delisted symbol
-     */
     public List<MarketPoint> history(String symbol, Integer limit) {
         String normalised = symbol == null ? "" : symbol.trim().toUpperCase();
         boolean tradable = instrumentMapper.findRowBySymbol(normalised)

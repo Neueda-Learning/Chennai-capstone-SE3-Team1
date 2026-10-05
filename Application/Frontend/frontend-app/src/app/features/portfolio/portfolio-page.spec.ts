@@ -21,7 +21,7 @@ const PORTFOLIO = {
   holdings: [
     { accountId: ACCOUNT_ID, symbol: 'RELIANCE', quantity: 10, averageCost: 1250, overallGains: 1500 },
     { accountId: ACCOUNT_ID, symbol: 'TCS', quantity: 5, averageCost: 3400, overallGains: -500 },
-    { accountId: ACCOUNT_ID, symbol: 'INFY', quantity: 20, averageCost: 1400, overallGains: 1000 } // no quote for this one
+    { accountId: ACCOUNT_ID, symbol: 'INFY', quantity: 20, averageCost: 1400, overallGains: 1000 }
   ],
   positions: []
 };
@@ -90,12 +90,12 @@ describe('PortfolioPage', () => {
 
     expect(holdings[0]).toContain('RELIANCE');
     expect(holdings[0]).toContain('Reliance Industries');
-    expect(holdings[0]).toContain('₹1,250.00'); // average cost
-    expect(holdings[0]).toContain('₹1,400.00'); // last price
-    expect(holdings[0]).toContain('₹14,000.00'); // value
-    expect(holdings[0]).toContain('+₹1,500.00'); // gain
+    expect(holdings[0]).toContain('₹1,250.00');
+    expect(holdings[0]).toContain('₹1,400.00');
+    expect(holdings[0]).toContain('₹14,000.00');
+    expect(holdings[0]).toContain('+₹1,500.00');
     expect(holdings[0]).toContain('+12.00%');
-    expect(holdings[0]).toContain('+₹100.00'); // today: 10 x +10
+    expect(holdings[0]).toContain('+₹100.00');
 
     expect(holdings[1]).toContain('TCS');
     expect(holdings[1]).toContain('-₹500.00');
@@ -106,11 +106,9 @@ describe('PortfolioPage', () => {
     setUp();
     const fixture = create();
 
-    // invested: 14,000 + 16,500 + (1400 + 1000/20) x 20 = 29,000 -> 59,500; cash 10,000
     expect(text(fixture, 'invested')).toContain('59,500.00');
     expect(text(fixture, 'cash')).toContain('10,000.00');
     expect(text(fixture, 'total-value')).toContain('69,500.00');
-    // unrealised: 1,500 - 500 + 1,000
     expect(text(fixture, 'unrealised')).toContain('+₹2,000.00');
   });
 
@@ -131,7 +129,7 @@ describe('PortfolioPage', () => {
     const infy = rows(fixture, 'holding-row')[2];
     expect(infy).toContain('INFY');
     expect(infy).toContain('est.');
-    expect(infy).toContain('₹1,450.00'); // 1400 + 1000 / 20
+    expect(infy).toContain('₹1,450.00');
   });
 
   it('links each holding to its ticker on the market page, to sell it from there', () => {
@@ -154,7 +152,7 @@ describe('PortfolioPage', () => {
     const positions = rows(fixture, 'position-row');
     expect(positions).toHaveLength(1);
     expect(positions[0]).toContain('-2');
-    expect(positions[0]).toContain('+₹200.00'); // short from 3400, now 3300
+    expect(positions[0]).toContain('+₹200.00');
   });
 
   it('does not show an intraday table when there are no positions', () => {

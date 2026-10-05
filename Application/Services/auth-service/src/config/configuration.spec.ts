@@ -1,8 +1,5 @@
 const secrets: Record<string, string> = {};
 
-// The real package is ESM-only (see configuration.ts), so Jest never loads it; the factory
-// stands in for the vault, answering from `secrets` and refusing what it does not hold - which is
-// what the real client does for a missing entry.
 jest.mock('trustme-secrets', () => ({
   __esModule: true,
   default: {

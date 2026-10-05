@@ -59,14 +59,12 @@ class AccountReadControllerTest {
 
     @BeforeEach
     void setUp() {
-        // Default behavior for resolver when no Authorization header is present
         given(tokenAccountIdResolver.resolve(any())).willReturn(null);
     }
 
     @Test
     @DisplayName("Path 1: Account, balance, positions and order history returned successfully")
     void testAllReadEndpointsSuccess() throws Exception {
-        // Setup Account Response
         AccountResponse accountResponse = new AccountResponse(
                 ACCOUNT_ID, "ACC-000001", "Aarav Mehta", "HDFC Bank", new BigDecimal("485200.00"),
                 AccountStatus.ACTIVE.name(), 0, LocalDateTime.now()
@@ -80,7 +78,6 @@ class AccountReadControllerTest {
                 .andExpect(jsonPath("$.holderName", is("Aarav Mehta")))
                 .andExpect(jsonPath("$.bankName", is("HDFC Bank")));
 
-        // Setup Balance Response
         BalanceResponse balanceResponse = new BalanceResponse(ACCOUNT_ID, new BigDecimal("485200.00"), "USD", LocalDateTime.now());
         given(accountService.getBalance(eq(ACCOUNT_ID), any())).willReturn(balanceResponse);
 
@@ -90,7 +87,6 @@ class AccountReadControllerTest {
                 .andExpect(jsonPath("$.cashBalance", is(485200.00)))
                 .andExpect(jsonPath("$.currency", is("USD")));
 
-        // Setup Portfolio Response: both books in one answer
         PositionResponse holding = new PositionResponse(ACCOUNT_ID, "INFY", 100, new BigDecimal("1500.00"), new BigDecimal("2500.00"));
         PositionResponse shortPosition = new PositionResponse(ACCOUNT_ID, "HDFCBANK", -30, new BigDecimal("1698.50"), new BigDecimal("450.00"));
         given(accountService.getPortfolio(eq(ACCOUNT_ID), any()))
@@ -104,12 +100,10 @@ class AccountReadControllerTest {
                 .andExpect(jsonPath("$.holdings[0].quantity", is(100)))
                 .andExpect(jsonPath("$.holdings[0].averageCost", is(1500.00)))
                 .andExpect(jsonPath("$.holdings[0].overallGains", is(2500.00)))
-                // a short is a negative quantity and must survive the round trip as one
                 .andExpect(jsonPath("$.positions", hasSize(1)))
                 .andExpect(jsonPath("$.positions[0].symbol", is("HDFCBANK")))
                 .andExpect(jsonPath("$.positions[0].quantity", is(-30)));
 
-        // Setup Order History Response
         OrderHistoryEntry historyEntry = new OrderHistoryEntry(
                 "ORD-12345", ACCOUNT_ID, "INFY", OrderSide.BUY, 100, new BigDecimal("1500.00"),
                 new BigDecimal("1500.00"), OrderStatus.FILLED, "IDEM-1", LocalDateTime.now(), null

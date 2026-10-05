@@ -29,15 +29,13 @@ describe('PasswordService', () => {
   it('does not use MD5/SHA - uses argon2id', async () => {
     const hash = await service.hash('password');
     expect(hash).toMatch(/^\$argon2id\$/);
-    expect(hash).not.toMatch(/^[a-f0-9]{32}$/); // MD5
-    expect(hash).not.toMatch(/^[a-f0-9]{40}$/); // SHA1
-    expect(hash).not.toMatch(/^[a-f0-9]{64}$/); // SHA256
+    expect(hash).not.toMatch(/^[a-f0-9]{32}$/);
+    expect(hash).not.toMatch(/^[a-f0-9]{40}$/);
+    expect(hash).not.toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('verification takes ~100ms (defensible cost)', async () => {
     const hash = await service.hash('password');
-    // Median of three runs so a single scheduler stall under parallel-suite load
-    // does not flip the assertion. argon2id with m=65536,t=3,p=4 targets ~100ms.
     const samples: number[] = [];
     for (let i = 0; i < 3; i++) {
       const start = Date.now();

@@ -11,7 +11,6 @@ import {
 
 export interface AccessTokenClaims {
   sub: string;
-  /** null until the user has linked a bank account; the Trade REST API refuses account routes. */
   accountId: number | null;
   roles: string[];
   iat: number;
@@ -35,11 +34,6 @@ export class TokenService {
     this.issuer = configService.get<string>('app.jwt.issuer') ?? DEFAULT_ISSUER;
   }
 
-  /**
-   * Signs an exact-claim-set access token: sub, accountId, roles, iat, exp, iss.
-   * No `expiresIn` option is passed so `jsonwebtoken` cannot add extra claims;
-   * iat/exp are set explicitly, exp == iat + 900.
-   */
   signAccessToken(claims: {
     sub: string;
     accountId: number | null;

@@ -215,7 +215,6 @@
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.75rem;
-  /* A 40-character id does not fit a phone-width card: let it wrap instead of running out of it. */
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: left;
@@ -615,10 +614,6 @@
   .modal-footer { gap: 0.5rem; flex-wrap: wrap; }
   .page-selector { display: none; }
 
-  /* Below this width eight columns cannot be read side by side, and a table that
-     has to be dragged sideways is worse than no table. Each row becomes a card
-     and every cell carries its own label, so the same information fits the
-     window instead of being cut off. */
   .table-custom,
   .table-custom tbody,
   .table-custom tr,
@@ -654,8 +649,6 @@
     border-bottom: none;
   }
 
-  /* The label comes from the data-label the template puts on each cell, so the
-     two cannot fall out of step. */
   .table-custom td {
     min-width: 0;
   }
@@ -689,10 +682,6 @@
   .btn-pagination { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 }
 
-/* ---------------------------------------------------------------------
-   Dark theme. These live here, not in spark-admin.css, because Angular scopes this file's
-   selectors with an attribute that a global rule cannot outrank.
---------------------------------------------------------------------- */
 :host-context([data-bs-theme="dark"]) .filter-section,
 :host-context([data-bs-theme="dark"]) .table-wrapper,
 :host-context([data-bs-theme="dark"]) .pagination-section,

@@ -9,14 +9,6 @@ import org.apache.ibatis.annotations.Update;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * The statements behind a transfer between a client's bank account and wallet.
- *
- * <p>Each debit is a single guarded UPDATE ({@code ... AND balance >= amount}), so the check
- * and the write cannot be separated by a concurrent request: 0 rows means the balance could
- * not cover it. The wallet updates also bump {@code clients.version}, which is what makes an
- * optimistic writer elsewhere (order settlement) notice the balance moved under it.
- */
 @Mapper
 public interface WalletTransferMapper {
 

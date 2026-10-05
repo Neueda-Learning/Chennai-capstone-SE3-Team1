@@ -3,11 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * Response body for {@code GET /api/v1/accounts/{id}}, as fixed by contracts/trade-api.yaml.
- * {@link #accountId} is the one field in the contract where the name means the string business
- * identifier ({@code ACCOUNTS.account_id}) and not the numeric key; {@link #id} is the key.
- */
 public class AccountResponse {
 
     private Long id;

@@ -20,11 +20,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Who may use the pre-v1 {@code /api/clients} and {@code /api/bank-accounts} routes, end to end:
- * real filter, guard, controllers, services and mappers over the H2 test data, where client 1
- * (Aarav) owns bank account IN45HDFC0000001234567 and client 2 (Diya) owns IN45ICIC0000002345678.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -212,7 +207,6 @@ class LegacyRoutesAccessTest {
 
         @Test
         void a_customer_cannot_change_their_own_account_state() throws Exception {
-            // Client 4 is SUSPENDED in the test data: lifting that is not theirs to do.
             mockMvc.perform(put("/api/clients/4/activate").header("Authorization", customer(4)))
                     .andExpect(status().isForbidden());
             mockMvc.perform(put("/api/clients/1/close").header("Authorization", customer(1)))
@@ -247,7 +241,6 @@ class LegacyRoutesAccessTest {
                                     """))
                     .andExpect(status().isOk());
 
-            // email/phone live only on users since migration 021 - clients carries neither.
             assertThat(jdbc.queryForObject("SELECT email FROM users WHERE account_id = 6", String.class))
                     .isEqualTo("sanya.k@example.com");
             assertThat(jdbc.queryForObject("SELECT phone FROM users WHERE account_id = 6", String.class))

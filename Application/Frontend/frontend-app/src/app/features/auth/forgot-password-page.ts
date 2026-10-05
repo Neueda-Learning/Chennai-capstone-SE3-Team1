@@ -40,8 +40,6 @@ export class ForgotPasswordPage {
     this.submitting.set(true);
 
     this.verification.forgotPassword({ emailRequest: { email } }).subscribe({
-      // The service answers 200 whether or not the address is on file, so the
-      // next screen can be shown either way - it never reveals which was which.
       next: () => void this.router.navigate(['/reset-password'], { queryParams: { email } }),
       error: (failure: HttpErrorResponse) => {
         this.submitting.set(false);

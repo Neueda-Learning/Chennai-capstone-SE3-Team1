@@ -42,12 +42,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Integration tests for OrderConsumer.
- * 
- * These tests verify the happy path (successful processing) and key error execution routes.
- * For deep retry and dead-letter scenarios, see OrderConsumerRetryAndDLTTest.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderConsumerIntegrationTest {
 
@@ -201,7 +195,6 @@ class OrderConsumerIntegrationTest {
 
     @Test
     void permanentFauxnanceErrorRejectsOrderWithoutRetry() {
-        // Stub classifier to return QUOTE_FETCH_PERMANENT context
         Mockito.when(errorClassifier.classify(any(Exception.class), anyString()))
                .thenReturn(new ErrorContext(
                    ErrorCategory.QUOTE_FETCH_PERMANENT,
@@ -227,14 +220,12 @@ class OrderConsumerIntegrationTest {
         InstrumentRow instrument = new InstrumentRow(symbol, "ACME Corp", true, null);
         when(instrumentMapper.findBySymbol(symbol)).thenReturn(Optional.of(instrument));
 
-        // Simulate quota exhausted (permanent error)
         when(quoteClient.getQuote(symbol))
             .thenThrow(new FauxnanceQuoteClient.QuotaExhausted("Daily quota exhausted"));
 
         consumer.consume(record, ack, 0, 0L);
 
         verify(ack).acknowledge();
-        // Should publish ORDER_REJECTED directly without retry or DLT
         verify(kafkaTemplate).send(eq("trade-events"), eq(String.valueOf(accountId)), envelopeCaptor.capture());
         verify(deadLetterService, never()).sendToDLT(anyString(), any(Envelope.class), any());
 
@@ -270,7 +261,6 @@ class OrderConsumerIntegrationTest {
         consumer.consume(record, ack, 0, 0L);
 
         verify(ack).acknowledge();
-        // On replay: no duplicate trade event, no DLT
         verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
         verify(deadLetterService, never()).sendToDLT(anyString(), any(Envelope.class), any());
     }

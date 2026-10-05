@@ -24,14 +24,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Read endpoints for contracts/trade-api.yaml: account details, cash balance, positions and the
- * order history audit trail.
- *
- * <p>Every read first proves the account exists and is reachable with the caller's token
- * ({@code ACC-404}/{@code ACC-403}), then answers from the tables. Activeness is decided by the
- * domain's {@link Client#canTrade()} method, never reimplemented here.
- */
 @Service
 public class AccountService {
 
@@ -77,12 +69,6 @@ public class AccountService {
         return new BalanceResponse(row.getClientId(), row.getWalletBalance(), currency, LocalDateTime.now());
     }
 
-    /**
-     * The account's whole portfolio: the delivery book and the intraday book together.
-     *
-     * <p>They are read in one call because a caller asking "what do I hold" means both, and
-     * making it two round trips would let the answers disagree with each other.
-     */
     public PortfolioResponse getPortfolio(Long accountId, Long tokenAccountId) {
         resolve(accountId, tokenAccountId);
         return new PortfolioResponse(accountId,
@@ -104,11 +90,6 @@ public class AccountService {
     static final int DEFAULT_NOTIFICATIONS = 30;
     static final int MAX_NOTIFICATIONS = 100;
 
-    /**
-     * What has happened to the account lately - orders placed, filled, rejected or cancelled and
-     * money moved to or from the bank - newest first. Derived from the order and transfer
-     * records themselves, so it cannot drift from them. {@code limit} is clamped to 1..100.
-     */
     public List<NotificationResponse> getNotifications(Long accountId, Long tokenAccountId, Integer limit) {
         resolve(accountId, tokenAccountId);
         int size = limit == null ? DEFAULT_NOTIFICATIONS : Math.max(1, Math.min(limit, MAX_NOTIFICATIONS));
@@ -135,13 +116,9 @@ public class AccountService {
         return value == null ? "-" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
-    /**
-     * The shared existence, reachability and activeness check behind every read.
-     */
     private AccountRow resolve(Long accountId, Long tokenAccountId) {
         AccountRow row = accountMapper.findRow(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
-        // A null claim is a user who has not linked a bank account yet: they own no account.
         if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
             throw new AccountNotActiveException(accountId, "TOKEN");
         }
@@ -152,9 +129,6 @@ public class AccountService {
         return row;
     }
 
-    /**
-     * An unknown status value on the query string is invalid input, {@code VAL-422}.
-     */
     private static OrderStatus parseStatus(String status) {
         if (status == null) {
             return null;

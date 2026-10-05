@@ -5,18 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Reads {@code executor.poll-interval-seconds} and enforces the floor on it.
- *
- * <p>The floor is enforced here rather than documented somewhere and hoped for. A README saying
- * "do not go below 58 seconds" does not survive somebody tuning an env var at 2am to make a demo
- * feel snappier, and the cost of that is a dead key for the whole team until 00:00 UTC.
- *
- * <p>We clamp rather than refuse to start. The poller is a passenger in the executor's process,
- * and a passenger must not be able to stop the fill path from consuming orders over a
- * misconfiguration whose safe resolution is unambiguous. The warning is loud and the effective
- * value is logged either way, so a clamp is visible at the top of the log rather than silent.
- */
 @Component("pollerProperties")
 public class PollerProperties {
 
@@ -59,7 +47,6 @@ public class PollerProperties {
         return effectiveIntervalSeconds;
     }
 
-    /** Referenced by SpEL from {@code MarketDataPoller}'s {@code @Scheduled} annotation. */
     public long getEffectiveIntervalMillis() {
         return effectiveIntervalSeconds * 1000L;
     }

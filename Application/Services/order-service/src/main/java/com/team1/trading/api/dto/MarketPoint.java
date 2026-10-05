@@ -3,7 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-/** One point of a symbol's price history: {@code GET /api/v1/market/quotes/{symbol}/history}. */
 public class MarketPoint {
 
     private OffsetDateTime at;

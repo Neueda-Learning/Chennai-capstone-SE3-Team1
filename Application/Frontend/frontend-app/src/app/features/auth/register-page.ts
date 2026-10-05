@@ -31,12 +31,6 @@ export class RegisterPage {
   protected readonly confirmPassword = signal('');
   protected readonly error = signal<string | null>(null);
 
-  /**
-   * Live validation, shown only after the trader starts typing. The rules come
-   * from `password-rules.ts`, which mirrors `PasswordPolicy` in
-   * `Services/auth-service` exactly, so the page never disagrees with the
-   * VAL-422 the service returns.
-   */
   protected readonly showPasswordHelp = computed(() => this.password() !== '');
   protected readonly passwordRequirements = computed(() =>
     rulesForPassword(this.password())
@@ -107,12 +101,6 @@ export class RegisterPage {
     });
   }
 
-  /**
-   * Registration returns no tokens by design, and the account is PENDING until
-   * the emailed code is spent - so the next stop is the verification screen, not
-   * sign-in. The email travels in the query string so the trader does not retype
-   * it; the server treats it as a claim, not as proof, and still checks the code.
-   */
   private onRegistered(): void {
     void this.router.navigate(['/verify-otp'], {
       queryParams: { email: this.email().trim() }

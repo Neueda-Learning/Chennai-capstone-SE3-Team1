@@ -14,11 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * The polled market data under {@code /api/v1/market}. Needs a valid bearer token like every
- * other {@code /api/v1} route (the JWT filter covers the prefix), but the data is not specific
- * to any account, so there is no account check.
- */
 @RestController
 @RequestMapping("/api/v1/market")
 public class MarketController {
@@ -42,11 +37,6 @@ public class MarketController {
         return ResponseEntity.ok(marketService.history(symbol, limit));
     }
 
-    /**
-     * OHLC candles for the price chart. {@code interval}: {@code 1m 5m 15m 30m 1h} (built from polled
-     * quotes, over {@code range} {@code 1h 3h 8h 1d 3d 1w}) or {@code 1d 1w 1mo} (from stored daily
-     * history, over {@code 1mo 3mo 6mo ytd 1y}). Anything else is {@code VAL-422}.
-     */
     @GetMapping("/quotes/{symbol}/candles")
     public ResponseEntity<List<CandleResponse>> candles(@PathVariable("symbol") String symbol,
                                                         @RequestParam(value = "interval", defaultValue = "5m") String interval,

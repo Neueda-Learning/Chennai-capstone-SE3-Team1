@@ -28,10 +28,9 @@ class OrderMapperTest {
     @Autowired
     private OrderMapper orderMapper;
 
-    // Standardized test fixtures matching seed data
-    private static final Long VALID_CLIENT_ID = 1L;        // Aarav Mehta
-    private static final Long VALID_ACCOUNT_ID = 1L;       // IN45HDFC0000001234567
-    private static final String VALID_INSTRUMENT_ID = "INFY"; // Active instrument
+    private static final Long VALID_CLIENT_ID = 1L;
+    private static final Long VALID_ACCOUNT_ID = 1L;
+    private static final String VALID_INSTRUMENT_ID = "INFY";
 
     private OrderMapper.OrderInsert createSampleInsert(String uuidStr, String idempotencyKey) {
         OrderMapper.OrderInsert insert = new OrderMapper.OrderInsert();
@@ -39,11 +38,11 @@ class OrderMapperTest {
         insert.setClientId(VALID_CLIENT_ID);
         insert.setAccountId(VALID_ACCOUNT_ID);
         insert.setInstrumentId(VALID_INSTRUMENT_ID);
-        insert.setOrderType("POSITION");                   // Satisfies chk_orders_order_type
+        insert.setOrderType("POSITION");
         insert.setSide(OrderSide.BUY);
         insert.setQuantity(10);
         insert.setPrice(new BigDecimal("1500.00"));
-        insert.setExecutedPrice(new BigDecimal("1500.00")); // Required when status = 'FILLED'
+        insert.setExecutedPrice(new BigDecimal("1500.00"));
         insert.setStatus("FILLED");
         insert.setIdempotencyKey(idempotencyKey);
         insert.setExternalOrderId("EXT-12345");
@@ -57,11 +56,9 @@ class OrderMapperTest {
         String key = "IDEM-" + UUID.randomUUID();
         OrderMapper.OrderInsert insert = createSampleInsert(uuidStr, key);
 
-        // Verify affected row count is 1 (Not void)
         int rowsAffected = orderMapper.insert(insert);
         assertThat(rowsAffected).isEqualTo(1);
 
-        // Verify retrievable by UUID
         Optional<OrderMapper.OrderRow> retrieved = orderMapper.findByUuid(uuidStr);
         assertThat(retrieved).isPresent();
         assertThat(retrieved.get().getSymbol()).isEqualTo(VALID_INSTRUMENT_ID);
@@ -75,10 +72,8 @@ class OrderMapperTest {
         String uuidStr2 = UUID.randomUUID().toString();
         String duplicateKey = "DUP-KEY-" + UUID.randomUUID();
 
-        // Insert first row
         orderMapper.insert(createSampleInsert(uuidStr1, duplicateKey));
 
-        // Insert second row with duplicate key - Exception MUST propagate
         OrderMapper.OrderInsert duplicateInsert = createSampleInsert(uuidStr2, duplicateKey);
         assertThatThrownBy(() -> orderMapper.insert(duplicateInsert))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -90,22 +85,17 @@ class OrderMapperTest {
         String uuidStr = UUID.randomUUID().toString();
         String key = "CANCEL-" + UUID.randomUUID();
 
-        // Prepare NEW order (executedPrice must be null for NEW orders)
         OrderMapper.OrderInsert insert = createSampleInsert(uuidStr, key);
         insert.setStatus("NEW");
         insert.setExecutedPrice(null);
 
         orderMapper.insert(insert);
 
-        // The delete claims the order; only then is the history row written from what was
-        // read, because the orders row no longer exists by that point.
         OrderMapper.OrderRow row = orderMapper.findByUuid(uuidStr).orElseThrow();
         int cancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(cancelCount).isEqualTo(1);
         orderMapper.archiveCancelled(row);
 
-        // Repeat cancel attempt: the order has left the live book, so the guard reports zero
-        // and nothing is archived a second time - which is what keeps the unique key intact.
         int secondCancelCount = orderMapper.deleteIfNew(uuidStr);
         assertThat(secondCancelCount).isEqualTo(0);
     }
@@ -117,7 +107,6 @@ class OrderMapperTest {
         String key = "SEC-" + UUID.randomUUID();
         orderMapper.insert(createSampleInsert(uuidStr, key));
 
-        // Attempt SQL Injection parameter filtering
         OrderMapper.OrderHistoryFilter filter = new OrderMapper.OrderHistoryFilter();
         filter.setClientId(VALID_CLIENT_ID);
         filter.setStatus(OrderStatus.FILLED);

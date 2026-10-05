@@ -44,14 +44,9 @@ interface AuthLogger {
 @Injectable()
 export class AuthService {
   private readonly CURRENT_PARAMS_VERSION = 1;
-  // Pre-computed valid argon2id hash used for dummy verification so an unknown
-  // username costs the same as a wrong password (prevents user enumeration).
-  // argon2id hash of "dummy" with m=65536,t=3,p=4, salt="dummy_salt_16by"
   private readonly DUMMY_HASH =
     '$argon2id$v=19$m=65536,t=3,p=4$ZHVtbXlfc2FsdF8xNmJ5$Uu3oqR1zeXZUQXEVme3U5DfdcY3G5TmW79MFNbkPtqI';
 
-  // One sentence, kept in step with PasswordPolicy: the UI shows the same rules
-  // as a live checklist, so this is the fallback for a caller that skipped it.
   private readonly POLICY_MESSAGE =
     'Password does not meet security requirements (minimum 12 characters, at least one number or special character, and no "password" or run of 4 sequential or keyboard characters)';
 
@@ -83,8 +78,6 @@ export class AuthService {
     }
 
     const hash = await this.password.hash(request.password);
-    // Public registration: never accept a self-declared role. No trading account is
-    // created here; account_id stays null until the user links a bank account.
     const user = await this.createUser(request, hash, [Role.CUSTOMER]);
 
     this.logger.log('credential_created', 'register', {
@@ -92,8 +85,6 @@ export class AuthService {
       username: user.username,
     });
 
-    // The account is PENDING until this code is verified; the code itself is only
-    // ever in the outbox, never in this log line.
     await this.otp.issue(user.email, 'REGISTER');
     this.logger.log('registration_otp_issued', 'register', { userId: user.id });
 
@@ -110,7 +101,6 @@ export class AuthService {
     const user = await this.users.findByUsername(request.username);
 
     if (!user) {
-      // Constant-time dummy verification to prevent user enumeration
       await this.timingSafeVerify(request, this.DUMMY_HASH);
       this.rateLimiter.recordFailure(request.username);
       this.logger.warn('login_failed', 'login', { username: request.username });
@@ -131,9 +121,6 @@ export class AuthService {
     this.rateLimiter.recordSuccess(request.username);
 
     if (user.status === 'PENDING') {
-      // Only reachable with the right password, so this says nothing an attacker
-      // does not already know, and it keeps a half-registered account out of the
-      // session. Not a failure: recordSuccess above stands.
       this.logger.warn('login_blocked_pending_verification', 'login', {
         userId: user.id,
       });
@@ -172,7 +159,6 @@ export class AuthService {
     const now = new Date();
 
     if (record.revokedAt) {
-      // A consumed token was presented again: theft. Revoke the whole chain.
       await this.refreshTokens.revokeAllForUser(record.userId);
       this.logger.warn('refresh_token_theft_detected', 'refresh', {
         userId: record.userId,
@@ -193,7 +179,6 @@ export class AuthService {
       throw AuthServiceException.unauthorised();
     }
 
-    // Rotate: the presented token stops working immediately.
     await this.refreshTokens.revoke(record.id);
 
     const pair = this.tokens.createTokenPair(this.claimsFrom(user));
@@ -207,12 +192,6 @@ export class AuthService {
     return this.toTokenResponse(pair);
   }
 
-  /**
-   * Revokes only the presented refresh token, so other sessions the user is logged into
-   * elsewhere stay signed in. The access token (via JwtAuthGuard) proves who is calling;
-   * the refresh token must be theirs, or this looks the same as an unknown token - AUTH-401
-   * either way, so a caller can't probe whose session a given token belongs to.
-   */
   async logout(
     identity: AccessTokenClaims,
     request: RefreshRequestDto,
@@ -224,8 +203,6 @@ export class AuthService {
       throw AuthServiceException.unauthorised();
     }
 
-    // revoke() only touches a row still revoked_at IS NULL, so logging out twice with the
-    // same token is a harmless no-op the second time, not an error.
     await this.refreshTokens.revoke(record.id);
 
     this.logger.log('logout', 'logout', { userId: identity.sub });
@@ -239,12 +216,6 @@ export class AuthService {
     return this.toUserResponse(user);
   }
 
-  /**
-   * Completes a registration: the right code flips the account to ACTIVE, so the
-   * next sign-in succeeds. An unknown email, an already-active account and a
-   * wrong code are all AUTH-410 - the UI sends the user back to the login screen
-   * either way rather than telling them which case they hit.
-   */
   async verifyOtp(
     request: VerifyOtpRequestDto,
   ): Promise<OtpVerifiedResponseDto> {
@@ -260,11 +231,6 @@ export class AuthService {
     return { verified: true };
   }
 
-  /**
-   * Emails a password-reset code. Answers { sent: true } whether or not the
-   * address is on file: a 404 here would turn this route into an account
-   * directory. The user only learns the outcome by trying the code.
-   */
   async forgotPassword(request: EmailRequestDto): Promise<OtpSentResponseDto> {
     const user = await this.users.findByEmail(request.email);
     if (user) {
@@ -276,7 +242,6 @@ export class AuthService {
     return { sent: true };
   }
 
-  /** Re-sends the registration code, replacing any earlier one still waiting. */
   async resendOtp(request: EmailRequestDto): Promise<OtpSentResponseDto> {
     const user = await this.users.findByEmail(request.email);
     if (user && user.status === 'PENDING') {
@@ -288,12 +253,6 @@ export class AuthService {
     return { sent: true };
   }
 
-  /**
-   * Swaps the password once a RESET code matches, then revokes every refresh
-   * token: whoever prompted the reset should not be left signed in. The policy
-   * runs before the code is spent, so a rejected password can be corrected
-   * without asking for another email.
-   */
   async resetPassword(
     request: ResetPasswordRequestDto,
   ): Promise<PasswordResetResponseDto> {
@@ -337,7 +296,6 @@ export class AuthService {
       });
     } catch (error) {
       if (UserRepository.isUniqueViolation(error)) {
-        // Lost a race with a concurrent registration after the pre-checks passed.
         throw UserRepository.violatedConstraint(error) === 'uq_users_email'
           ? AuthServiceException.emailTaken()
           : AuthServiceException.usernameTaken();

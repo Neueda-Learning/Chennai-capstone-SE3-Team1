@@ -203,9 +203,6 @@ def apply_migrations(cfg: DbConfig, allow_modified=False, dry_run=False,
     return {"applied": applied, "skipped": skipped, "total": len(files)}
 
 
-# users/refresh_tokens live in auth_db (018_users_to_auth_db_schema.sql); every other seeded
-# table is still public. validate_seed_file() needs the real schema to look columns up -
-# unlike a plain INSERT/\copy, information_schema introspection isn't resolved by search_path.
 TABLE_SCHEMA = {"users": "auth_db", "refresh_tokens": "auth_db"}
 
 

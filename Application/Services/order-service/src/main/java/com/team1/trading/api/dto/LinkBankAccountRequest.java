@@ -3,12 +3,6 @@ package com.team1.trading.api.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
-/**
- * Body of {@code POST /api/v1/bank-accounts}: the number of an existing, unclaimed bank account.
- * The bank details are already on the bank account, and the new client is named from the
- * claiming user's username; who is claiming it comes from the verified token, never from the
- * body.
- */
 public class LinkBankAccountRequest {
 
     @NotBlank

@@ -5,12 +5,10 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[4]  # tests -> etl-live -> ETL -> Application -> repo root
+REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-# Layout moved ETL_Analysis/ to Application/ETL/etl-live/ (Phase 1). The test
-# modules still import the old package name, so alias it to the new location.
 ETL_LIVE = Path(__file__).resolve().parents[1]
 if "ETL_Analysis" not in sys.modules:
     import importlib.util

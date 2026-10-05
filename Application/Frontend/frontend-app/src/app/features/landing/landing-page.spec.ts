@@ -18,8 +18,6 @@ describe('LandingPage', () => {
   const isOpen = (fixture: ReturnType<typeof TestBed.createComponent<LandingPage>>) =>
     el(fixture, 'details-drawer').classList.contains('show');
 
-  /** Everything here goes through the DOM rather than the component's methods, so the
-      template wiring is part of what is under test. */
   async function open(fixture: ReturnType<typeof TestBed.createComponent<LandingPage>>) {
     el(fixture, 'details-open').click();
     fixture.detectChanges();
@@ -83,8 +81,6 @@ describe('LandingPage', () => {
     }
 
     await open(fixture);
-    // On the element that carries the handler, which is what really happens: opening
-    // the drawer moves focus inside it, so the key event bubbles up through here.
     (fixture.nativeElement.querySelector('.landing-wrapper') as HTMLElement).dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
     );
@@ -120,8 +116,6 @@ describe('LandingPage', () => {
     expect(features.length).toBeGreaterThan(0);
     for (const feature of features) {
       expect(feature.blurb.length).toBeGreaterThan(0);
-      // The drawer paragraph is the reason the drawer exists; a feature with only a
-      // summary line would make the button pointless.
       expect(feature.detail.length).toBeGreaterThan(feature.blurb.length);
     }
   });

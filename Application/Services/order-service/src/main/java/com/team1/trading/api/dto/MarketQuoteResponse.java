@@ -3,14 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-/**
- * The latest polled quote for one tradable instrument, as served by
- * {@code GET /api/v1/market/quotes}.
- *
- * <p>An instrument the poller has not yet priced is still listed, with a null {@code price}:
- * the market screen can then show the ticker as "waiting for first quote" instead of silently
- * dropping it.
- */
 public class MarketQuoteResponse {
 
     private String symbol;
@@ -24,9 +16,7 @@ public class MarketQuoteResponse {
     private BigDecimal previousClose;
     private String marketState;
     private Boolean stale;
-    /** When the quote was produced upstream. */
     private OffsetDateTime quoteAsOf;
-    /** When this API received it, i.e. the poll cycle that fetched it. */
     private OffsetDateTime receivedAt;
 
     public MarketQuoteResponse() {

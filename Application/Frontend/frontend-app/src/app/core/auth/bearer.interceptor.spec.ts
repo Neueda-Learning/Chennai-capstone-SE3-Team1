@@ -9,8 +9,6 @@ import { provideApi } from '../../generated/auth-client';
 import { SessionStore } from './session.store';
 import { bearerInterceptor } from './bearer.interceptor';
 
-/** The redirect target when a session ends. A real route, so the navigation the
- *  interceptor performs resolves here instead of rejecting as an unmatched URL. */
 @Component({ selector: 'tui-stub-login', template: '' })
 class StubLoginPage {}
 
@@ -137,7 +135,6 @@ describe('bearerInterceptor', () => {
       const renewal = httpTesting.expectOne(REFRESH_URL);
       expect(renewal.request.method).toBe('POST');
       expect(renewal.request.body).toEqual({ refreshToken: 'refresh-1' });
-      // The renewal itself must not carry the expired access token.
       expect(renewal.request.headers.has('Authorization')).toBe(false);
       renewal.flush({
         accessToken: REFRESHED_TOKEN,
@@ -193,8 +190,6 @@ describe('bearerInterceptor', () => {
         .expectOne('http://trade.test/api/v1/accounts/2')
         .flush({}, { status: 401, statusText: 'Unauthorized' });
 
-      // A second renewal here would spend the token the first one just issued,
-      // which the service reads as theft and answers by revoking every session.
       httpTesting.expectOne(REFRESH_URL).flush({
         accessToken: REFRESHED_TOKEN,
         refreshToken: 'refresh-2',
@@ -243,7 +238,6 @@ describe('bearerInterceptor', () => {
         tokenType: 'Bearer',
         expiresIn: 900
       });
-      // A refusal the renewal cannot explain: the token is not merely stale.
       httpTesting.expectOne(TRADE_URL).flush({}, { status: 401, statusText: 'Unauthorized' });
 
       expect(session.isSignedIn()).toBe(false);
@@ -309,8 +303,6 @@ describe('bearerInterceptor', () => {
         expiresIn: 900
       });
       httpTesting.expectOne(TRADE_URL).flush({}, { status: 401, statusText: 'Unauthorized' });
-      // The replay was refused, so the session has already ended here; sign in
-      // again and prove the shared renewal reference was released.
       session.signIn(REFRESHED_TOKEN, null, 'refresh-3');
 
       http.get(TRADE_URL).subscribe({ error: () => undefined });

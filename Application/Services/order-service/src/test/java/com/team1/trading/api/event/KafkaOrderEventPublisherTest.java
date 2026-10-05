@@ -28,15 +28,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-/**
- * Pins the delivery guarantee the Sprint 7 ticket demands: {@code ORDER_PLACED} is published to
- * the {@code orders} Kafka topic only after the transaction that wrote the order has committed,
- * never from inside it, and a request that fails validation publishes nothing.
- *
- * <p>A full Spring context (H2 in memory, the {@code test} profile) is used so the
- * {@link KafkaOrderEventPublisher} listener is registered against the real transaction manager.
- * The {@code KafkaTemplate} is a mock: no broker is needed, the pin is about when the send happens.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:ordereventctx;DB_CLOSE_DELAY=-1")
@@ -109,7 +100,6 @@ class KafkaOrderEventPublisherTest {
         try {
             orderService.placeOrder(invalid, 1L);
         } catch (RuntimeException expected) {
-            // caller-visible rejection; the point of the test is that nothing is published
         }
 
         verify(kafkaTemplate, never()).send(any(), any(), any());

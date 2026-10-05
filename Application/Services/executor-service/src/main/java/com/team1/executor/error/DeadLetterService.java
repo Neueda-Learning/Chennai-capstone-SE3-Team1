@@ -17,17 +17,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Publishes messages to Kafka dead-letter topics with metadata headers.
- * 
- * Dead-letter message format:
- * - Topic: orders.DLT (or trade-events.DLT)
- * - Partition Key: same as original (accountId string)
- * - Message Value: original Envelope unchanged
- * - Headers: failure metadata (reason, details, attempt count, time)
- * 
- * Thread-safe and stateless.
- */
 @Service
 public class DeadLetterService {
     
@@ -45,19 +34,11 @@ public class DeadLetterService {
         this.deadLetterTopic = deadLetterTopic;
     }
 
-    /**
-     * Publishes a message to the dead-letter topic with error metadata as headers.
-     * 
-     * @param partitionKey The partition key (usually accountId as string)
-     * @param envelope The original Envelope to dead-letter
-     * @param errorContext Error classification and metadata
-     */
     public void sendToDLT(String partitionKey, Envelope envelope, ErrorContext errorContext) {
     try {
         log.info("Sending message to DLT: topic={}, key={}, reason={}, attempts={}",
             deadLetterTopic, partitionKey, errorContext.failureReason(), errorContext.attemptCount());
 
-        // Build headers for the record
         List<Header> headers = new ArrayList<>();
         headers.add(new RecordHeader("failure-reason", 
             errorContext.failureReason().getBytes(StandardCharsets.UTF_8)));
@@ -74,13 +55,12 @@ public class DeadLetterService {
         headers.add(new RecordHeader("dead-letter-time", 
             ISO_FORMATTER.format(Instant.now()).getBytes(StandardCharsets.UTF_8)));
 
-        // Match the KafkaTemplate type signature: ProducerRecord<String, Object>
         ProducerRecord<String, Object> record = new ProducerRecord<>(
             deadLetterTopic,
-            null,          // partition
-            partitionKey,  // key
-            envelope,      // value
-            headers        // headers
+            null,
+            partitionKey,
+            envelope,
+            headers
         );
 
         kafkaTemplate.send(record);

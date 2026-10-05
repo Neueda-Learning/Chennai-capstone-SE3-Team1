@@ -104,7 +104,6 @@ describe('ForgotPasswordPage', () => {
     setInput(fixture, 'ghost@example.com');
 
     submit(fixture);
-    // The service answers 200 with the same body whatever the address was.
     http.expectOne(FORGOT_URL).flush({ sent: true });
 
     expect(navigate).toHaveBeenCalledWith(['/reset-password'], {

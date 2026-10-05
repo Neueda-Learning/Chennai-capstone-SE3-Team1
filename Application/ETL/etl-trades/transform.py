@@ -140,7 +140,6 @@ def validate_row(row: Mapping[str, Any], dims: DimensionKeys) -> Union[CleanTrad
         order_created_at = _timestamp(row, "order_created_at")
         terminal_at = _timestamp(row, "terminal_at")
 
-        # referential integrity into all three dimensions
         if instrument_id not in dims.instrument_ids:
             raise _Reject("fk_instrument", "instrument " + instrument_id + " is not in dim_instrument")
         if client_id not in dims.client_ids:
@@ -149,7 +148,6 @@ def validate_row(row: Mapping[str, Any], dims: DimensionKeys) -> Union[CleanTrad
         if date_key not in dims.date_keys:
             raise _Reject("fk_date", "date " + str(date_key) + " is not in dim_date")
 
-        # vocabulary
         order_type = _text(row, "order_type")
         if order_type not in ORDER_TYPES:
             raise _Reject("valid_order_type", "order_type " + repr(order_type) + " not in " + str(ORDER_TYPES))
@@ -160,7 +158,6 @@ def validate_row(row: Mapping[str, Any], dims: DimensionKeys) -> Union[CleanTrad
         if status not in TERMINAL_STATUSES:
             raise _Reject("valid_status", "status " + repr(status) + " not in " + str(TERMINAL_STATUSES))
 
-        # measures
         quantity = _decimal(row, "quantity")
         if quantity <= 0:
             raise _Reject("positive_quantity", "quantity must be > 0, got " + str(quantity))

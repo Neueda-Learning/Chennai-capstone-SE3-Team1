@@ -39,10 +39,6 @@ ENTITY_TABLES = {
     "portfolio_positions": ("PortfolioPosition", {"portifolioid": "position_id"}),
 }
 
-# Since migration 010 an order lives in `orders` while it is NEW and becomes its terminal
-# order_history row on settlement, at which point the orders row is deleted. A check that
-# means "every order ever placed" has to read both halves; one that means "the live book"
-# reads orders alone.
 ALL_ORDERS = """(
     SELECT order_id, client_id, instrument_id, order_type, side, quantity, price,
            executed_price, status, idempotency_key, created_at
@@ -55,9 +51,6 @@ ALL_ORDERS = """(
 )"""
 
 ENUM_CONSTRAINTS = [
-    # chk_orders_status is intentionally absent: orders is the live book since migration
-    # 010 and may only hold NEW, so its CHECK is narrower than OrderStatus by design. The
-    # full vocabulary is still asserted on order_history, where settled orders now live.
     ("chk_orders_order_type", "OrderType"),
     ("chk_orders_side", "OrderSide"),
     ("chk_clients_account_state", "AccountStatus"),
@@ -422,7 +415,6 @@ def b03_idempotency_unique(v):
 
 def b04_foreign_keys_present(v):
     expected = {
-        # One direction only since migration 015: a client's bank account names the client.
         ("bank_account", "clients"),
         ("users", "clients"),
         ("refresh_tokens", "users"),
@@ -430,8 +422,6 @@ def b04_foreign_keys_present(v):
         ("wallet_transfers", "bank_account"),
         ("orders", "clients"),
         ("orders", "instruments"),
-        # order_history -> orders was dropped in migration 010. The history row survives
-        # the order it records, so it cannot reference a row that is deleted on settlement.
         ("portfolio_holding", "clients"),
         ("portfolio_holding", "instruments"),
         ("portfolio_positions", "clients"),
@@ -792,8 +782,6 @@ def c25_duplicate_settled_idempotency_key_rejected(v):
     )
     require(existing, "no settled order to test the idempotency guard with")
     v.expect_rejected(
-        # CANCELLED rather than FILLED so the row does not trip
-        # chk_order_history_filled_has_executed_price before reaching the unique index.
         "INSERT INTO order_history (order_id, event_type, previous_status, new_status, "
         "idempotency_key) VALUES ('00000000-0000-4000-8000-000000000000', 'CANCELLED', 'NEW', "
         "'CANCELLED', " + quote_literal(existing) + ");",
@@ -961,7 +949,6 @@ def d13_positions_matches_position_orders(v):
 
 
 def d14_every_client_has_a_bank_account(v):
-    # A clients row is created by linking a bank account, so none should be without one.
     missing = v.rows(
         "SELECT c.client_id FROM clients c "
         "WHERE NOT EXISTS (SELECT 1 FROM bank_account b WHERE b.client_id = c.client_id);"

@@ -16,27 +16,12 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 
-/**
- * Keeps {@code portfolio_holding.overall_gains} current from the {@code market-data} stream, and
- * records every quote in {@code market_quotes} so the market screen has a latest price and a chart.
- *
- * <p>Unrealised gain needs a market price, and the holding row has only what the stock cost.
- * The poller inside the Trade Executor already publishes a quote per symbol on every cycle,
- * so the price is on the bus; this marks holdings to it as the quotes arrive. The refresh
- * rate is therefore the poll interval - a minute by default - which is the resolution this
- * figure is wanted at.
- *
- * <p>Ordering is safe without any work here. {@code market-data} is keyed by symbol, so all
- * quotes for one instrument land on one partition and arrive in the order they were
- * published; an older price cannot overwrite a newer one.
- */
 @Component
 public class MarketDataListener {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataListener.class);
     private static final String QUOTE = "QUOTE";
 
-    /** How long a symbol's quotes are kept; older rows are trimmed as new ones arrive. */
     static final int RETENTION_DAYS = 14;
 
     private final PositionMapper positionMapper;
@@ -52,7 +37,7 @@ public class MarketDataListener {
         try {
             Envelope envelope = record.value();
             if (envelope == null || !QUOTE.equals(envelope.eventType())) {
-                return;                     // not ours; the finally block still commits it
+                return;
             }
 
             JsonNode payload = envelope.payload();
@@ -70,13 +55,9 @@ public class MarketDataListener {
                         holdings, positions, symbol, price);
             }
 
-            // After the mark, so a failure to record the quote can never stop gains refreshing.
             marketQuoteMapper.insert(toInsert(symbol, price, payload));
             marketQuoteMapper.deleteOlderThan(symbol, RETENTION_DAYS);
         } catch (Exception e) {
-            // A quote is worth less than the stream. Failing here would stop the partition
-            // and block every later quote for this symbol, so the price is dropped and the
-            // next cycle - a minute away - supersedes it anyway.
             log.error("Could not apply a quote from {}-{}@{}; skipping it",
                     record.topic(), record.partition(), record.offset(), e);
         } finally {
@@ -101,7 +82,6 @@ public class MarketDataListener {
         return insert;
     }
 
-    /** The upstream timestamp, or null when it is absent or not an RFC 3339 string. */
     private static OffsetDateTime instant(JsonNode payload, String field) {
         String value = text(payload, field);
         if (value == null) {

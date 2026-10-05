@@ -25,11 +25,6 @@ export class VerifyOtpPage {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
 
-  /**
-   * Carried over from the register page so the trader does not retype it. The
-   * service still checks the code against this address, so a hand-edited query
-   * string gets nothing but a rejection.
-   */
   protected readonly email = signal(
     this.route.snapshot.queryParamMap.get('email')?.trim() ?? ''
   );
@@ -66,10 +61,6 @@ export class VerifyOtpPage {
     });
   }
 
-  /**
-   * Asks for a replacement code. The service answers the same way whether or not
-   * it sent anything, so this is safe to show without a way to tell the truth.
-   */
   protected onResend(event: Event): void {
     event.preventDefault();
 

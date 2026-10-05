@@ -1,9 +1,5 @@
 package com.team1.trading.api.dto;
 
-/**
- * The trading account a successful link created. {@code accountId} is the value the caller's
- * next token carries in its {@code accountId} claim, once they call {@code /auth/refresh}.
- */
 public class LinkedBankAccountResponse {
 
     private Long accountId;

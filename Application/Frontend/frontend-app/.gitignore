@@ -1,21 +1,12 @@
-# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
-
-# Compiled output
 /dist
 /tmp
 /out-tsc
 /bazel-out
 
-# NOT ignored, on purpose: src/app/generated/ (the OpenAPI-generated auth and
-# trade API clients) is committed. It's generator output, not build output —
-# see src/app/generated/README.md before adding it here.
-
-# Node
 /node_modules
 npm-debug.log
 yarn-error.log
 
-# IDEs and editors
 .idea/
 .project
 .classpath
@@ -24,7 +15,6 @@ yarn-error.log
 .settings/
 *.sublime-workspace
 
-# Visual Studio Code
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -33,7 +23,6 @@ yarn-error.log
 !.vscode/mcp.json
 .history/*
 
-# Miscellaneous
 /.angular/cache
 .sass-cache/
 /connect.lock
@@ -43,17 +32,14 @@ testem.log
 /typings
 __screenshots__/
 
-# E2E Testing
 /test-results/
 /playwright-report/
 /playwright/.cache/
 /e2e/.auth/
 
-# Environment configuration (local overrides, never commit)
 .env.local
 .env.*.local
 .env.test
 
-# System files
 .DS_Store
 Thumbs.db

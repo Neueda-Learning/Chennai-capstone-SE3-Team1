@@ -3,10 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * Response body for {@code GET /api/v1/accounts/{id}/balance}, as fixed by contracts/trade-api.yaml.
- * Available cash only; it never includes the market value of holdings.
- */
 public class BalanceResponse {
 
     private Long accountId;

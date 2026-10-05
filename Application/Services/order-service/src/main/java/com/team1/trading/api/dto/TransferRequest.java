@@ -8,10 +8,6 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/**
- * Body of {@code POST /api/v1/accounts/{id}/transfers}. The bank account is always the one
- * linked to the account in the path, so the body never names it.
- */
 public class TransferRequest {
 
     @NotNull

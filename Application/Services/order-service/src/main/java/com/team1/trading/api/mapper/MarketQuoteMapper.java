@@ -12,10 +12,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/**
- * The statements behind {@code market_quotes}: appended to by the market-data listener, read by
- * the market endpoints. Parameterised throughout.
- */
 @Mapper
 public interface MarketQuoteMapper {
 
@@ -27,7 +23,6 @@ public interface MarketQuoteMapper {
             """)
     int insert(@Param("q") QuoteInsert quote);
 
-    /** Keeps the table a rolling window rather than an archive. */
     @Delete("""
             DELETE FROM market_quotes
             WHERE instrument_id = #{symbol}
@@ -35,10 +30,6 @@ public interface MarketQuoteMapper {
             """)
     int deleteOlderThan(@Param("symbol") String symbol, @Param("days") int days);
 
-    /**
-     * Every active instrument with its most recent quote. LEFT JOIN, so an instrument the poller
-     * has not priced yet still appears (with a null price) rather than vanishing.
-     */
     @Select("""
             SELECT i.instrument_id AS symbol, i.instrument_name AS name,
                    q.price, q.bid, q.ask, q.currency, q.day_change AS change,
@@ -57,7 +48,6 @@ public interface MarketQuoteMapper {
             """)
     List<MarketQuoteResponse> latestForActiveInstruments();
 
-    /** The newest {@code limit} points for one symbol, returned oldest first for charting. */
     @Select("""
             SELECT h."at", h.price FROM (
                 SELECT received_at AS "at", price, quote_id

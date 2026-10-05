@@ -37,8 +37,6 @@ DEFAULTS = {
     "port": "5432",
     "dbname": "trading_platform",
     "user": "postgres",
-    # No hardcoded fallback for password - see the check in resolve() below. It must come
-    # from the TrustMe vault (or an explicit override), never a guessable literal default.
 }
 
 ENV_KEYS = {
@@ -98,9 +96,6 @@ class DbConfig:
 
     @classmethod
     def resolve(cls, args=None):
-        # An explicit command-line flag wins (it is the caller saying so, not configuration); every
-        # other source is the TrustMe vault. There is no environment-variable or .env fallback:
-        # the connection details and the password live in one place.
         settings = {}
         for name, secret_name in ENV_KEYS.items():
             cli_value = getattr(args, name, None) if args is not None else None

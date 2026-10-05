@@ -8,20 +8,6 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.LocalDate;
 
-/**
- * The one place that counts what has been spent against the Fauxnance key.
- *
- * <p>Two callers share a single 2000-request day: the market-data poller and the fill path. The
- * reason they live in one process is precisely so that they can share one counter — two processes
- * holding the same credential, each spending correctly and neither able to see the other's spend,
- * is how a key dies before lunch with nobody at fault.
- *
- * <p>{@link FauxnanceQuoteClient} records every request it makes, including each retry attempt,
- * so this is a count of requests actually issued rather than of calls intended. The poller asks
- * {@link #pollerMaySpend(int)} before it calls and skips the cycle when the answer is no. The
- * fill path is never blocked: it records and proceeds, because an order rejected for want of a
- * price is worse than a missing quote tick.
- */
 @Component
 public class QuotaLedger {
 
@@ -41,7 +27,6 @@ public class QuotaLedger {
         this.day = LocalDate.now(clock);
     }
 
-    /** Records one request issued by {@code caller}. */
     public synchronized void record(String caller) {
         record(caller, 1);
     }
@@ -66,10 +51,6 @@ public class QuotaLedger {
         return Math.max(PollingSchedule.DAILY_QUOTA - spent, 0);
     }
 
-    /**
-     * Whether the poller may issue {@code requests} more requests without eating into the reserve
-     * the fill path depends on.
-     */
     public synchronized boolean pollerMaySpend(int requests) {
         rollOver();
         return spent + requests <= PollingSchedule.POLLER_DAILY_BUDGET;

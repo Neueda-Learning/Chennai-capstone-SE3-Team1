@@ -22,7 +22,6 @@ class AccountMapperTest {
     @Autowired
     private AccountMapper accountMapper;
 
-    // Matches Aarav Mehta from clients seed data
     private static final Long SEED_ACCOUNT_ID = 1L;
 
     @Test
@@ -34,7 +33,6 @@ class AccountMapperTest {
         AccountMapper.AccountRow row = accountOpt.get();
         assertThat(row.getClientId()).isEqualTo(SEED_ACCOUNT_ID);
         assertThat(row.getName()).isEqualTo("Aarav Mehta");
-        // Read from the client's bank_account row: clients has no account number column.
         assertThat(row.getAccountNumber()).isEqualTo("IN45HDFC0000001234567");
         assertThat(row.getAccountState()).isEqualTo("ACTIVE");
         assertThat(row.getWalletBalance()).isNotNull();
@@ -44,17 +42,14 @@ class AccountMapperTest {
     @Test
     @DisplayName("Execution Path 2: Guarded cash update succeeds with matching version and returns 1 affected row")
     void testUpdateCashGuardedSuccess() {
-        // Fetch initial state
         AccountMapper.AccountRow initial = accountMapper.findRow(SEED_ACCOUNT_ID).orElseThrow();
         BigDecimal newBalance = initial.getWalletBalance().add(new BigDecimal("500.00"));
 
-        // Execute guarded cash update using current Integer version
         AccountMapper.AccountCashUpdate update = new AccountMapper.AccountCashUpdate(
                 SEED_ACCOUNT_ID, newBalance, initial.getVersion());
 
         int rowsAffected = accountMapper.updateCashGuarded(update);
 
-        // Assert 1 row affected and wallet balance updated
         assertThat(rowsAffected).isEqualTo(1);
 
         AccountMapper.AccountRow updated = accountMapper.findRow(SEED_ACCOUNT_ID).orElseThrow();
@@ -66,14 +61,13 @@ class AccountMapperTest {
     @DisplayName("Execution Path 3: Guarded cash update fails (0 rows affected) if version changed concurrently")
     void testUpdateCashGuardedVersionMismatch() {
         AccountMapper.AccountRow initial = accountMapper.findRow(SEED_ACCOUNT_ID).orElseThrow();
-        Integer staleVersion = initial.getVersion() - 1; // Simulate stale Integer version
+        Integer staleVersion = initial.getVersion() - 1;
 
         AccountMapper.AccountCashUpdate update = new AccountMapper.AccountCashUpdate(
                 SEED_ACCOUNT_ID, new BigDecimal("999999.00"), staleVersion);
 
         int rowsAffected = accountMapper.updateCashGuarded(update);
 
-        // Assert 0 rows affected due to optimistic concurrency guard
         assertThat(rowsAffected).isEqualTo(0);
     }
 }

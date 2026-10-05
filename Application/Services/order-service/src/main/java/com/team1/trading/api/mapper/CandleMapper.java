@@ -12,19 +12,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Candle reads (built from polled quotes for intraday, from stored daily history for the rest)
- * and the writes that keep the daily history current. Parameterised throughout.
- */
 @Mapper
 public interface CandleMapper {
 
-    /**
-     * Intraday candles: the polled quotes since {@code since}, grouped into buckets of
-     * {@code bucketSeconds}. Open and close are the first and last price in the bucket. Buckets
-     * are aligned to Indian Standard Time so an hourly candle starts on the hour NSE traders read
-     * on their clocks, not 30 minutes off it.
-     */
     @Select("""
             SELECT b.bucket AS time,
                    (array_agg(b.price ORDER BY b.received_at ASC, b.quote_id ASC))[1]  AS open,
@@ -46,7 +36,6 @@ public interface CandleMapper {
                                   @Param("since") OffsetDateTime since,
                                   @Param("bucketSeconds") int bucketSeconds);
 
-    /** Stored daily candles from {@code from}, oldest first. */
     @Select("""
             SELECT (trade_date::timestamp AT TIME ZONE 'Asia/Kolkata') AS time,
                    open_price AS open, high_price AS high, low_price AS low, close_price AS close, volume
@@ -57,11 +46,6 @@ public interface CandleMapper {
             """)
     List<CandleResponse> daily(@Param("symbol") String symbol, @Param("from") LocalDate from);
 
-    /**
-     * Daily candles rolled up to weeks or months ({@code unit} is {@code week} or {@code month},
-     * never user input: the service passes one of two literals). Open is the first day's open,
-     * close the last day's close, volume the sum.
-     */
     @Select("""
             SELECT (g.period::timestamp AT TIME ZONE 'Asia/Kolkata') AS time,
                    (array_agg(g.open_price ORDER BY g.trade_date ASC))[1]  AS open,

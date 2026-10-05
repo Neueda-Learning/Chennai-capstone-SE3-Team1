@@ -1,23 +1,12 @@
-/**
- * What the price chart can show: which ranges, which candle sizes over each range, and which
- * indicators. The combinations mirror the Trade API's rules (`CandleService`): intraday candles
- * (built from the minute quotes it stores) over short ranges, daily and longer candles (from a year
- * of end-of-day history) over long ones, and never more than 2,000 candles in one response.
- */
 export interface ChartRange {
-  /** The label on the button. */
   label: string;
-  /** The API's `range` value. */
   value: string;
-  /** Intraday (candles built from minute quotes) or daily (from stored end-of-day history). */
   kind: 'intraday' | 'daily';
-  /** Seconds the range spans, for the intraday ones; used to rule out too many candles. */
   seconds?: number;
 }
 
 export interface ChartInterval {
   label: string;
-  /** The API's `interval` value. */
   value: string;
   seconds: number;
   kind: 'intraday' | 'daily';
@@ -50,7 +39,6 @@ export const INTERVALS: readonly ChartInterval[] = [
   { label: '1M', value: '1mo', seconds: 2_592_000, kind: 'daily' }
 ];
 
-/** Daily ranges are too short to show a month-long candle usefully, so these are the sensible ones. */
 const DAILY_INTERVALS_BY_RANGE: Record<string, string[]> = {
   '1mo': ['1d'],
   '3mo': ['1d', '1w'],
@@ -73,7 +61,6 @@ const DEFAULT_INTERVAL: Record<string, string> = {
   '1y': '1w'
 };
 
-/** The candle sizes that make sense over `range`: same family, and few enough candles to draw. */
 export function intervalsFor(range: ChartRange): ChartInterval[] {
   if (range.kind === 'daily') {
     const allowed = DAILY_INTERVALS_BY_RANGE[range.value] ?? ['1d'];
@@ -89,7 +76,6 @@ export function defaultIntervalFor(range: ChartRange): ChartInterval {
   return choices.find((interval) => interval.value === DEFAULT_INTERVAL[range.value]) ?? choices[0];
 }
 
-/** Keeps `interval` if it is valid over `range`, else the range's default. */
 export function reconcileInterval(range: ChartRange, interval: ChartInterval | null): ChartInterval {
   return interval !== null && intervalsFor(range).some((candidate) => candidate.value === interval.value)
     ? interval
@@ -102,9 +88,7 @@ export interface IndicatorOption {
   id: IndicatorId;
   label: string;
   hint: string;
-  /** Drawn over the price (true) or in a pane of its own underneath (false). */
   overlay: boolean;
-  /** Needs traded volume, which only daily and longer candles have. */
   needsVolume?: boolean;
 }
 
@@ -120,7 +104,6 @@ export const INDICATORS: readonly IndicatorOption[] = [
 
 export type ChartStyle = 'candles' | 'line';
 
-/** What the user picked, as saved in the browser. */
 export interface ChartPreferences {
   range: string;
   interval: string;

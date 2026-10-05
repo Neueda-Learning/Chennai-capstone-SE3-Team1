@@ -18,12 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Pre-v1 client routes. Every one needs a verified token ({@code JwtVerificationFilter}); a
- * customer reaches only their own client, and listing them all and changing an account's state
- * are for admins. A client is created only by linking a bank account
- * ({@code BankAccountLinkService}) - there is no create route here.
- */
 @RestController
 @RequestMapping("/api/clients")
 public class ClientController {
@@ -75,7 +69,6 @@ public class ClientController {
         return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
-    /** Admin only, like suspend and close: a suspended customer must not lift their own suspension. */
     @PutMapping("/{clientId}/activate")
     public ResponseEntity<Void> activateClient(@PathVariable Long clientId) {
         accessGuard.requireAdmin();
@@ -97,7 +90,6 @@ public class ClientController {
         return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
-    /** email/phone live only on auth_db.users (migration 021); fetched here, not on Client. */
     private ClientResponse mapToResponse(Client client) {
         Optional<UserMapper.ContactRow> contact = clientService.getContactByClientId(client.getClientId());
         return new ClientResponse(

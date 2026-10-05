@@ -3,7 +3,6 @@ export interface PolicyResult {
   errors: string[];
 }
 
-/** The letter and number rows of a QWERTY keyboard, used to spot patterns. */
 const KEYBOARD_ROWS = [
   '1234567890',
   'qwertyuiop',
@@ -11,12 +10,6 @@ const KEYBOARD_ROWS = [
   'zxcvbnm',
 ] as const;
 
-/**
- * True when the value contains a run of `minRun` characters that step by the
- * same amount in one direction, e.g. "345678", "987654", "abcdef". Runs are
- * only counted while the step keeps its sign, so alternating repeats like
- * "1212" are not false positives.
- */
 function hasSequentialRun(value: string, minRun = 4): boolean {
   for (let i = 0; i + minRun - 1 < value.length; i++) {
     const step = value.charCodeAt(i + 1) - value.charCodeAt(i);
@@ -37,11 +30,6 @@ function hasSequentialRun(value: string, minRun = 4): boolean {
   return false;
 }
 
-/**
- * True when the value contains a run of `minRun` keys that sit next to each
- * other on the same keyboard row, in either direction, e.g. "qwerty",
- * "poiuy", "345678", "dfghjk".
- */
 function hasKeyboardRun(value: string, minRun = 4): boolean {
   const lowered = value.toLowerCase();
   const rows = KEYBOARD_ROWS.map(

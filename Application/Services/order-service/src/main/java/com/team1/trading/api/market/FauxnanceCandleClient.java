@@ -17,16 +17,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Fetches daily history from Fauxnance's {@code GET /candles/{symbol}}.
- *
- * <p>That endpoint serves one symbol per request and daily candles only (there is no batch form of
- * it; only {@code /quotes} is batched), so one call returns the whole requested range for one
- * instrument. {@link CandleService} makes at most one such call per instrument per day.
- *
- * <p>The key goes in {@code x-api-key}; every body is {@code {"data": {"candles": [...]}, "meta":
- * ...}}; instruments are keyed {@code RELIANCE.NS} there and {@code RELIANCE} here.
- */
 @Component
 public class FauxnanceCandleClient {
 
@@ -51,11 +41,6 @@ public class FauxnanceCandleClient {
         this.symbolSuffix = symbolSuffix == null ? "" : symbolSuffix.trim();
     }
 
-    /**
-     * @return the candles in ascending date order; empty when Fauxnance has none for the range
-     * @throws CandleFetchException on a refusal (quota, unknown symbol), a 202 "backfill in
-     *                              progress", an unreadable body, or a network failure
-     */
     public List<DailyCandleWrite> fetchDaily(String symbol, LocalDate from, LocalDate to) {
         String remote = symbol.contains(".") || symbolSuffix.isEmpty() ? symbol : symbol + symbolSuffix;
         try {
@@ -109,8 +94,6 @@ public class FauxnanceCandleClient {
                 }
                 out.add(c);
             } catch (RuntimeException e) {
-                // One bad row (a missing price, a negative number, an odd date) must not cost the
-                // other 250. The chart simply has a gap there.
                 log.warn("Skipping an unusable candle for {}: {} ({})", symbol, node, e.getMessage());
             }
         }
@@ -125,7 +108,6 @@ public class FauxnanceCandleClient {
         return value.decimalValue();
     }
 
-    /** A fetch that could not produce candles; the cause is for the log, not for the client. */
     public static class CandleFetchException extends RuntimeException {
         public CandleFetchException(String message) {
             super(message);

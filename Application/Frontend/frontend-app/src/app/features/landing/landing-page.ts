@@ -22,16 +22,10 @@ import { RouterLink } from '@angular/router';
 })
 export class LandingPage {
   private readonly document = inject(DOCUMENT);
-  // afterNextRender is called from event handlers, which are outside the injection
-  // context, so it needs the injector handed to it explicitly.
   private readonly injector = inject(Injector);
   private readonly drawerClose = viewChild<ElementRef<HTMLButtonElement>>('drawerClose');
   private readonly detailsTrigger = viewChild<ElementRef<HTMLButtonElement>>('detailsTrigger');
 
-  /**
-   * The page shows one line per feature; the drawer carries the paragraph. Both read the same
-   * record, so the summary on the page can never drift from the detail beside it.
-   */
   readonly features = [
     {
       icon: 'bi-lightning-charge-fill',
@@ -84,7 +78,6 @@ export class LandingPage {
     'Mobile-first responsive design'
   ];
 
-  /** Shown on the page so the hero is not claiming a screen count it cannot back up. */
   readonly heroStats = [
     { value: 'Live', label: 'Market data' },
     { value: '1m', label: 'Quote refresh' },
@@ -97,7 +90,6 @@ export class LandingPage {
   );
 
   constructor() {
-    // The scroll lock is the only part that can be done from a signal effect.
     effect(() => {
       this.document.body.classList.toggle('landing-drawer-open', this.detailsOpen());
     });
@@ -109,9 +101,6 @@ export class LandingPage {
       return;
     }
     this.detailsOpen.set(true);
-    // Focus has to wait for the render that adds `.show`. Until then the drawer is still
-    // `visibility: hidden`, and a hidden element cannot take focus - asking earlier is a
-    // silent no-op, which leaves a keyboard user tabbing through the page behind the drawer.
     afterNextRender(() => this.drawerClose()?.nativeElement.focus(), { injector: this.injector });
   }
 
@@ -120,7 +109,6 @@ export class LandingPage {
       return;
     }
     this.detailsOpen.set(false);
-    // Hand focus back to the control that opened it rather than dropping it on <body>.
     afterNextRender(() => this.detailsTrigger()?.nativeElement.focus(), { injector: this.injector });
   }
 

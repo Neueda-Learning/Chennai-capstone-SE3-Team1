@@ -1,13 +1,5 @@
-/**
- * Technical indicators over a series of closing prices.
- *
- * Every function returns an array the same length as its input, with `null` where there is not
- * yet enough history to compute a value (the "warm-up"). That keeps each result index-aligned
- * with the candles it was computed from, so the chart can zip them together without bookkeeping.
- */
 export type Series = (number | null)[];
 
-/** Simple moving average over `period` closes. */
 export function sma(values: readonly number[], period: number): Series {
   const out: Series = new Array(values.length).fill(null);
   if (period < 1 || values.length < period) {
@@ -26,10 +18,6 @@ export function sma(values: readonly number[], period: number): Series {
   return out;
 }
 
-/**
- * Exponential moving average, seeded with the simple average of the first `period` values (the
- * usual convention) and smoothed with 2 / (period + 1) after that.
- */
 export function ema(values: readonly (number | null)[], period: number): Series {
   const out: Series = new Array(values.length).fill(null);
   if (period < 1) {
@@ -41,7 +29,7 @@ export function ema(values: readonly (number | null)[], period: number): Series 
   for (let i = 0; i < values.length; i++) {
     const value = values[i];
     if (value === null) {
-      continue; // warm-up of an upstream indicator: nothing to smooth yet
+      continue;
     }
     if (previous === null) {
       seed.push(value);
@@ -64,7 +52,6 @@ export interface Bollinger {
   lower: Series;
 }
 
-/** Bollinger Bands: the `period` average, and `multiplier` population standard deviations either side. */
 export function bollinger(values: readonly number[], period = 20, multiplier = 2): Bollinger {
   const middle = sma(values, period);
   const upper: Series = new Array(values.length).fill(null);
@@ -85,10 +72,6 @@ export function bollinger(values: readonly number[], period = 20, multiplier = 2
   return { middle, upper, lower };
 }
 
-/**
- * Relative Strength Index with Wilder's smoothing. 100 when there have been no losses over the
- * window, 0 when no gains; a flat series reads 50 rather than dividing by zero.
- */
 export function rsi(values: readonly number[], period = 14): Series {
   const out: Series = new Array(values.length).fill(null);
   if (values.length <= period) {
@@ -129,7 +112,6 @@ export interface Macd {
   histogram: Series;
 }
 
-/** MACD: the fast EMA minus the slow EMA, its own signal EMA, and the gap between the two. */
 export function macd(values: readonly number[], fast = 12, slow = 26, signalPeriod = 9): Macd {
   const fastEma = ema(values, fast);
   const slowEma = ema(values, slow);

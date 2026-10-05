@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 
 public class CreateBankAccountRequest {
 
-    /** Optional: leave it out to add an unclaimed bank account for onboarding to claim later. */
     private Long clientId;
 
     @NotBlank(message = "Account number is required")

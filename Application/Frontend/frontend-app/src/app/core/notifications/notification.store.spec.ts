@@ -91,8 +91,6 @@ describe('NotificationStore', () => {
     expect(store.toasts().map((t) => t.id)).toEqual(['c', 'd']);
     expect(store.unreadCount()).toBe(2);
 
-    // The first pair has timed out by the next poll; if the same ids were announced again,
-    // they would be on screen now.
     tick(10_000);
     expect(store.toasts()).toEqual([]);
   });
@@ -225,7 +223,7 @@ describe('NotificationStore', () => {
     expect(store.changes()).toBe(0);
 
     tick(10_000);
-    expect(store.changes()).toBe(0); // same ids again
+    expect(store.changes()).toBe(0);
 
     api.set('/notifications', [note('d'), note('a'), note('b')]);
     tick(10_000);

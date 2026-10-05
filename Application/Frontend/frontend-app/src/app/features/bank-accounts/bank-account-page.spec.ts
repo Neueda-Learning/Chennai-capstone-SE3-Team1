@@ -30,11 +30,6 @@ function balanceOf(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/**
- * The pre-v1 bank-account read, which is the only place a bank balance comes from.
- * `balance` is the key, not `accountBalance`: the route returns the entity, and
- * `getBalance()` is what Jackson names the field after.
- */
 function bankAccountOf(overrides: Record<string, unknown> = {}) {
   return {
     claimed: true,
@@ -105,12 +100,6 @@ function fill(fixture: PageFixture, selector: string, value: string): void {
   fixture.detectChanges();
 }
 
-/**
- * Closes a request the test only inspected, so `afterEach`'s verify() sees it as
- * handled. Failed rather than flushed on purpose: a success body would make the
- * component act on it, and the link path in particular would then open a second
- * request for the session refresh, leaking that one instead.
- */
 function closeQuietly(request: TestRequest): void {
   request.error(new ProgressEvent('error'), { status: 500, statusText: 'Server Error' });
 }
@@ -118,24 +107,11 @@ function closeQuietly(request: TestRequest): void {
 describe('BankAccountPage', () => {
   let http: HttpTestingController;
 
-  /**
-   * Signs in every time, including when `accountId` is null: a trader mid-onboarding
-   * is signed in with a token that carries no account claim, and that is exactly the
-   * state this page exists for. Skipping the sign-in for that case would leave no
-   * refresh token, and the post-link refresh is the one path that needs one.
-   *
-   * The token is not a real JWT, which is fine: the store falls back to a null
-   * account when the payload cannot be read.
-   */
   function setUp(
     options: { accountId?: number | null; refreshToken?: string | null } = {}
   ): void {
     const { accountId = ACCOUNT_ID, refreshToken = null } = options;
 
-    // Explicit reset so each test starts from an un-instantiated TestBed. The
-    // `expectNone`/`expectOne` assertions below are what prove there is no
-    // cross-test request leak: a surviving component from a previous test would
-    // add a duplicate request and fail them, not quietly pass.
     TestBed.resetTestingModule();
 
     TestBed.configureTestingModule({
@@ -173,11 +149,6 @@ describe('BankAccountPage', () => {
       );
   }
 
-  /**
-   * Answers the on-load reads, then lets the page settle. A linked account now
-   * asks three questions - is it linked, what is in the bank, what is in the
-   * wallet - so all three are flushed here and no other test has to know.
-   */
   function create(
     payload: Record<string, unknown> = accountOf(),
     bank: Record<string, unknown> = bankAccountOf()
@@ -310,8 +281,6 @@ describe('BankAccountPage', () => {
       http.expectOne(LINK_URL).flush(linkedOf());
       fixture.detectChanges();
 
-      // The token in hand still predates the account, so the owner-guarded reads would be
-      // refused. Nothing may be asked yet, and the card says it is loading, not that it failed.
       http.expectNone(BANK_ACCOUNT_URL);
       http.expectNone(BALANCE_URL);
       expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('Loading');
@@ -323,7 +292,6 @@ describe('BankAccountPage', () => {
       fixture.detectChanges();
 
       expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('150,000');
-      // A brand new wallet is empty: that is a balance of zero, not a failed read.
       expect(textOf(fixture, '[data-testid="wallet-balance"]')).toContain('0.00');
     });
 
@@ -374,14 +342,9 @@ describe('BankAccountPage', () => {
       http.expectOne(LINK_URL).flush(linkedOf());
       fixture.detectChanges();
 
-      // The claim worked, so the linked card is showing; the warning has to live
-      // there too or the trader is never told their session needs renewing.
       expect(textOf(fixture, '[data-testid="bank-name"]')).toBe('HDFC Bank');
       expect(textOf(fixture, '[data-testid="session-warning"]')).toContain('no refresh token');
       http.expectNone(REFRESH_URL);
-      // The session is no refreshable, so there is no account id to read the
-      // balances with - but the claim response named one, and that is enough to
-      // ask. These must not be left hanging as a silent unhandled request.
       flushBalances();
     });
 
@@ -457,8 +420,6 @@ describe('BankAccountPage', () => {
       fixture.detectChanges();
 
       expect(textOf(fixture, '.alert-danger')).toContain('Could not read your account');
-      // The link form must not appear here: a failed read is not proof of "not linked",
-      // and offering a one-time form on a transient error would burn the trader's only claim.
       expect(has(fixture, '#accountNumber')).toBe(false);
     });
   });
@@ -475,22 +436,13 @@ describe('BankAccountPage', () => {
       bank.flush(bankAccountOf({ balance: 150000 }));
       fixture.detectChanges();
 
-      // The account read carries a wallet-shaped `cashBalance` of 125000. If the
-      // card were reading the bank number off the account it would show that one
-      // here instead, which is the specific mistake this asserts against.
       expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('150,000');
 
-      // The wallet read is not what this test is about, but it is fired, and an
-      // unanswered request fails verify() for a reason that has nothing to do
-      // with the assertion above.
       http.expectOne(BALANCE_URL).flush(balanceOf());
     });
 
     it('takes the bank name from the bank-account read, not the account read', () => {
       setUp();
-      // The two reads disagree on purpose. The bank-account route reads the bank
-      // row itself; the account read copies a name onto the trading account when
-      // it was written. Where they differ, the row is the fact.
       const fixture = create(
         accountOf({ bankName: 'Stale Name' }),
         bankAccountOf({ bankName: 'HDFC Bank' })
@@ -528,8 +480,6 @@ describe('BankAccountPage', () => {
       flushBalances(bankAccountOf(), balanceOf());
       fixture.detectChanges();
 
-      // One failed read must not blank the card: the name came from a different
-      // request and is still true, so hiding it would lose a fact, not fix one.
       expect(textOf(fixture, '[data-testid="bank-name"]')).toBe('State Bank');
       expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('Could not load');
     });
@@ -547,8 +497,6 @@ describe('BankAccountPage', () => {
       fixture.detectChanges();
 
       expect(textOf(fixture, '[data-testid="wallet-balance"]')).toContain('Could not load');
-      // A hard zero would read as "you have nothing", which is a different and
-      // wrong claim, so the balance is left absent rather than defaulted.
       expect(textOf(fixture, '[data-testid="wallet-balance"]')).not.toContain('$0.00');
     });
 
@@ -563,8 +511,6 @@ describe('BankAccountPage', () => {
       http.expectOne(TRANSFER_URL).flush(transferOf());
       fixture.detectChanges();
 
-      // No second read: the numbers on screen after a transfer have to be the
-      // ones the API just returned, not a re-read that could land mid-write.
       expect(textOf(fixture, '[data-testid="wallet-balance"]')).toContain('125,250');
       expect(textOf(fixture, '[data-testid="bank-balance"]')).toContain('149,750');
       http.expectNone(BANK_ACCOUNT_URL);
@@ -624,7 +570,6 @@ describe('BankAccountPage', () => {
     it('points the available figure at the side the money leaves', () => {
       const fixture = linkedPage();
 
-      // 150000 in the bank, 125000 in the wallet, so the two are not confusable.
       expect(textOf(fixture, '[data-testid="available"]')).toContain('Available in bank account');
       expect(textOf(fixture, '[data-testid="available"]')).toContain('150,000');
 
@@ -652,7 +597,6 @@ describe('BankAccountPage', () => {
       fill(fixture, '#amount', '200000');
       submit(fixture, 'form');
 
-      // 150000 is in the bank, so 200000 is refused before it costs a round trip.
       expect(textOf(fixture, '.alert-danger')).toContain('150000');
       expect(textOf(fixture, '.alert-danger')).toContain('most you can move');
       http.expectNone(TRANSFER_URL);
@@ -667,8 +611,6 @@ describe('BankAccountPage', () => {
       fill(fixture, '#amount', '200000');
       submit(fixture, 'form');
 
-      // The bank holds 150000 and would cover this, so it is the wallet figure
-      // that has to be the thing stopping it.
       expect(textOf(fixture, '.alert-danger')).toContain('available in wallet');
       expect(textOf(fixture, '.alert-danger')).toContain('125000');
       http.expectNone(TRANSFER_URL);
@@ -692,8 +634,6 @@ describe('BankAccountPage', () => {
       submit(fixture, 'form');
       closeQuietly(http.expectOne(TRANSFER_URL));
 
-      // 140000 clears the bank but not the wallet, so switching direction has to
-      // make the same number invalid again rather than carry the earlier verdict.
       (fixture.nativeElement.querySelector('[data-testid="direction-toggle"]') as HTMLButtonElement).click();
       fixture.detectChanges();
       submit(fixture, 'form');
@@ -806,8 +746,6 @@ describe('BankAccountPage', () => {
         );
       fixture.detectChanges();
 
-      // The message cannot say "the bank account" any more: either side can be
-      // the one that is short, and naming the wrong one would be misleading.
       expect(textOf(fixture, '.alert-danger')).toContain('One of the two accounts cannot cover');
     });
 

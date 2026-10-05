@@ -3,11 +3,6 @@ package com.team1.trading.api.dto;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-/**
- * One OHLC candle of {@code GET /api/v1/market/quotes/{symbol}/candles}. {@code time} is the start
- * of the period the candle covers. {@code volume} is only known for daily and longer candles:
- * the intraday ones are built from polled prices, which carry no traded volume.
- */
 public class CandleResponse {
 
     private OffsetDateTime time;

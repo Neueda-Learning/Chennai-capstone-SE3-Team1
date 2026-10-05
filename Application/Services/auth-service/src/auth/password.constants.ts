@@ -1,7 +1,7 @@
 import { Algorithm, Options } from '@node-rs/argon2';
 
 export const ARGON2_PARAMS: Options = {
-  memoryCost: 65536, // 64 MB
+  memoryCost: 65536,
   timeCost: 3,
   parallelism: 4,
   algorithm: Algorithm.Argon2id,

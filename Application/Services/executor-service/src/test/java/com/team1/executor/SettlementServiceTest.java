@@ -137,7 +137,6 @@ class SettlementServiceTest {
         try {
             settlementService.settle(order, fillResult, quoteSnapshot);
         } catch (Exception e) {
-            // expected
         }
 
         verify(accountMapper, times(4)).updateWalletBalanceGuarded(eq(clientId), any(), anyInt());

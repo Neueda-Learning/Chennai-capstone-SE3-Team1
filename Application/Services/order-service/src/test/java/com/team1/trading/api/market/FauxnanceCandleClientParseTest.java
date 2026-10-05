@@ -13,7 +13,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** The shape of Fauxnance's candles body, including the defects the live API has produced. */
 class FauxnanceCandleClientParseTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

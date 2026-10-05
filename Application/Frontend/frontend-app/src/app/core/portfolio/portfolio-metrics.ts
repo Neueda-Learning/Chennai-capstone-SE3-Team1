@@ -2,37 +2,21 @@ import { OrderHistoryEntry } from '../../generated/trade-client';
 import { MarketQuote } from '../services/market.service';
 import { PortfolioEntry } from '../services/portfolio.service';
 
-/** A holding or position valued at the latest price we have for it. */
 export interface PricedEntry {
   book: 'HOLDING' | 'POSITION';
   symbol: string;
   name: string;
   quantity: number;
   averageCost: number;
-  /** Latest polled price; falls back to the price implied by the stored gain. */
   lastPrice: number;
-  /** True when `lastPrice` came from a live quote rather than being derived. */
   priceIsLive: boolean;
-  /** What it cost: quantity * averageCost. */
   cost: number;
-  /** What it is worth now: quantity * lastPrice. Negative for a short. */
   value: number;
-  /** Unrealised gain: value - cost. */
   gain: number;
-  /** Gain as a percentage of the capital tied up; null when there is no cost basis. */
   gainPercent: number | null;
-  /** Today's move on the whole entry (quantity * quote.change); null when no quote says. */
   dayChange: number | null;
 }
 
-/**
- * Values an account's entries at the latest quotes.
- *
- * With a quote the entry is simply quantity * price. Without one (the poller has not priced
- * the symbol yet) the price is recovered from the gain the API stored when it last marked the
- * entry to market, (price - cost) * quantity, which has the same answer; with neither, the
- * entry is carried at cost rather than guessed at.
- */
 export function priceEntries(
   entries: readonly PortfolioEntry[],
   book: PricedEntry['book'],
@@ -73,15 +57,11 @@ export function priceEntries(
 
 export interface PortfolioSummary {
   cash: number;
-  /** Value of everything held, both books. */
   investedValue: number;
-  /** What it cost. */
   cost: number;
-  /** Cash plus investments. */
   totalValue: number;
   unrealised: number;
   unrealisedPercent: number | null;
-  /** Today's move across everything a quote covers; null when no quote covers any of it. */
   dayPnl: number | null;
   dayPercent: number | null;
 }
@@ -142,11 +122,6 @@ export interface OrderFlow {
   sells: number[];
 }
 
-/**
- * Orders placed per bucket over the last `days` days, split by side. Seven days is one bucket
- * a day; longer ranges are one bucket a week so the chart stays readable. The last bucket is
- * the one containing `now`, so the chart always ends today.
- */
 export function bucketOrders(orders: readonly OrderHistoryEntry[], days: number, now: Date): OrderFlow {
   const bucketDays = days <= 7 ? 1 : 7;
   const bucketCount = Math.ceil(days / bucketDays);
@@ -178,7 +153,6 @@ export function bucketOrders(orders: readonly OrderHistoryEntry[], days: number,
   return { categories, buys, sells };
 }
 
-/** The money an order moved, or would move: executed price when filled, else the order's price. */
 export function orderValue(order: OrderHistoryEntry): number {
   return order.quantity * (order.executedPrice ?? order.price);
 }

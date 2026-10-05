@@ -2,10 +2,6 @@ import { Component, inject } from '@angular/core';
 
 import { NotificationStore, notificationStyle } from './notification.store';
 
-/**
- * The in-app pop-ups at the bottom right of the screen. Each is a notification that arrived
- * while the app was open; it dismisses itself after a few seconds, or on click.
- */
 @Component({
   selector: 'tui-toast-container',
   template: `

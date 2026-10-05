@@ -140,7 +140,6 @@ describe('SessionStore', () => {
   });
 
   it('reads the accountId from a token whose payload encodes to base64url with an underscore', () => {
-    // {"accountId":42,"n":"???"} is standard base64 with a "/" in it, which base64url writes as "_".
     const token = jwt({ accountId: 42, n: '???' });
     expect(token.split('.')[1]).toContain('_');
 

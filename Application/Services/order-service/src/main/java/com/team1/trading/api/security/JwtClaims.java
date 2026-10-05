@@ -3,14 +3,6 @@ package com.team1.trading.api.security;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * Immutable container for decoded JWT claims matching the contract in contracts/auth-api.yaml.
- *
- * <p>Claims are extracted and validated by {@link JwtValidator} before being placed in this
- * container. The presence of a {@code JwtClaims} instance guarantees that the token has been
- * verified: the signature is valid, the expiry is in the future, the algorithm is recognized,
- * and the issuer matches configuration.
- */
 public final class JwtClaims {
 
     private final String sub;

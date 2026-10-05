@@ -31,7 +31,6 @@ describe('OtpService', () => {
     ...overrides,
   });
 
-  /** The digest OtpService would store for a known plaintext code. */
   const hashOf = (code: string) =>
     createHash('sha256').update(code).digest('hex');
 

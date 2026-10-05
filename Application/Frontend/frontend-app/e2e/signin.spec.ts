@@ -2,12 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { SESSION_KEY, testUser, unusedUsername } from './test-user';
 
-/**
- * The sign-in journey, exercised from a genuinely signed-out browser.
- *
- * These tests deliberately opt out of the cached session the other projects start from:
- * a guard that only fires when there is no session cannot be tested with one.
- */
 test.use({ storageState: { cookies: [], origins: [] } });
 
 async function signIn(page: Page, username: string, password: string): Promise<void> {
@@ -79,8 +73,6 @@ test.describe('Sign in', () => {
 
     const stored = await page.evaluate((key) => localStorage.getItem(key), SESSION_KEY);
     expect(stored).not.toBeNull();
-    // Nothing is written to the tab-lifecycle store any more: it is read once on
-    // boot to migrate an older session, then cleared.
     expect(await page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY)).toBeNull();
 
     await page.reload();

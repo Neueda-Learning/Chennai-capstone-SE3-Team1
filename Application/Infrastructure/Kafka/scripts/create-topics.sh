@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Creates the six contracted topics (three source + three dead-letter) on the
-# broker. Idempotent: safe to run as many times as you like. run-local.ps1 on
-# Windows does this too (against this same broker, from the other side of the
-# network) - this script is the Linux-side equivalent, for testing Kafka on
-# its own without the rest of the stack running.
-#
-# This script itself can be run from anywhere (it resolves the compose file relative to
-# its own location, not the caller's working directory) - but starting Kafka in the first
-# place needs `.env` next to docker-compose.yml, so that part has to run from there:
-#   cd Application/Infrastructure/Kafka && docker-compose up -d
-#   bash Application/Infrastructure/Kafka/scripts/create-topics.sh   # from anywhere
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
 KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"

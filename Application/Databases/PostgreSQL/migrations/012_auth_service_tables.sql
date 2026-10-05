@@ -1,17 +1,5 @@
 BEGIN;
 
--- =============================================================================
--- Users: the Sprint 8 identity model.
---
--- The contract in contracts/auth-api.yaml defines a username-keyed identity with
--- a UUID `sub`, a numeric trading account key (`ACCOUNTS.id` == clients.client_id)
--- and an authorisation role list. Registration links a NEW user to an EXISTING
--- trading account; it never creates a clients row. Accounts are owned by the
--- Sprint 3 schema, so registering against an unknown accountId fails validation.
---
--- This supersedes the email-keyed `auth` table (003_auth.sql) for the auth
--- service. The old table is left in place for the Sprint 3 seed.
--- =============================================================================
 CREATE TABLE IF NOT EXISTS users (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     username       VARCHAR(64)  NOT NULL UNIQUE,
@@ -34,12 +22,6 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX idx_users_account_id ON users(account_id);
 
--- =============================================================================
--- Refresh tokens: opaque, stored as a SHA-256 digest (never the token itself),
--- so read access to this table is not session takeover. Every refresh rotates:
--- the presented token is revoked, a new one is stored. Presenting a consumed
--- token is treated as theft and revokes the whole chain for that user.
--- =============================================================================
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id         UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,

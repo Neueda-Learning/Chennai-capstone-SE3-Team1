@@ -66,8 +66,6 @@ class AccountReadIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountId", is(1)))
-                // both keys are always present, even when a book is empty, so a caller
-                // never has to distinguish "no positions" from "field missing"
                 .andExpect(jsonPath("$.holdings").isArray())
                 .andExpect(jsonPath("$.positions").isArray());
     }

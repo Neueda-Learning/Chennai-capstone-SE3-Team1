@@ -54,15 +54,10 @@ export class AuthServiceException extends HttpException {
     );
   }
 
-  // Deliberately vague (see contracts/auth-api.yaml's Unauthorised response and
-  // AUTH_IMPLEMENTATION.md): a specific message here ("wrong password", "unknown user", ...)
-  // would tell an attacker which half of the credential pair to keep guessing.
   static unauthorised(message = 'Unauthorised'): AuthServiceException {
     return new AuthServiceException('AUTH-401', message);
   }
 
-  // Same reasoning as unauthorised() - "Username already registered" vs. "Email already
-  // registered" would let a caller enumerate which accounts exist on this service.
   static usernameTaken(): AuthServiceException {
     return new AuthServiceException('AUTH-409', 'Registration failed');
   }
@@ -75,12 +70,6 @@ export class AuthServiceException extends HttpException {
     return new AuthServiceException('VAL-422', message);
   }
 
-  /**
-   * One message for every way an OTP can fail to verify - unknown email, no code
-   * pending, wrong digits, exhausted attempts - so a caller cannot tell which
-   * emails have an account. 410 rather than 401: the request is understood, the
-   * code it carried is simply gone.
-   */
   static otpInvalid(
     message = 'The verification code is invalid or has expired',
   ): AuthServiceException {

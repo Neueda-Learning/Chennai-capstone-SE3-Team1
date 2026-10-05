@@ -1,82 +1,24 @@
-/* 
-========================================================================
-   BOOTSTRAP 5 ADMIN TEMPLATE - SPARK ADMIN
-   DESIGN SYSTEM & CUSTOM STYLESHEET
-   Developed with premium UI/UX standards
-
-   Template Name: Spark Admin
-   Version: 1.0 
-   Author: Spark Admin Team 
-   Email: hello.sparkadmin@gmail.com
-   URL: https://sparkadmin.web.id
-========================================================================
-*/
-
-/* ---------------------------------------------------------------------
-   TABLE OF CONTENTS
-   ---------------------------------------------------------------------
-   1. Google Fonts CDN Import (Plus Jakarta Sans)
-   2. Design System Variables
-   3. Base Overrides & Typography
-   4. Sidebar Component (.sidebar-wrapper)
-   5. Main Wrapper Layout
-   6. Custom Header / Navbar Component
-   7. Page Title & Controls Row
-   8. Cards & Styling Components
-   9. Custom List (Transaction List Table replacement)
-   10. Custom Progress & Bar Chart Custom Layouts
-   11. Right Panel Component & Layout
-   12. Responsive Adjustments
-   13. Login Page Styles (.login-wrapper)
-   14. Flatpickr Theme Customization (Spark Admin Styles)
-   15. Dropdown Component Styles (Reusable)
-   16. Footer Component Styles
-   17. Navbar Profile Dropdown Styles
-   18. Reusable Premium Table Component
-   19. Custom Premium Form Elements Design System
-   20. Reusable Custom Buttons & Alerts Design System
-   21. Error 404 Page Styling Layout
-   22. Keyframe Animations & Overlays
-   23. Reusable Helper & Utility Classes (Zero Inline Style Policy)
-   24. Transaction List Component
-   25. Live-data screens: dashboard, portfolio, market & trade, notifications
-   26. Dark theme
---------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------
-   1. Google Fonts CDN Import (Plus Jakarta Sans)
---------------------------------------------------------------------- */
-
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-/* ---------------------------------------------------------------------
-   2. Design System Variables
---------------------------------------------------------------------- */
 :root {
-    /* Colors */
-    --bs-body-bg: #F4F6F5; /* Canvas background: light, warm grayish-green */
+    --bs-body-bg: #F4F6F5;
     --bs-body-font-family: 'Plus Jakarta Sans', sans-serif;
     
-    --brand-forest-dark: #051C12;     /* Core sidebar/brand background */
-    --brand-forest-medium: #072F1F;   /* Alert banner / dark card BG */
-    --brand-forest-light: #1A3E30;    /* Interactive elements in dark mode */
-    --brand-lime: #B4F105;            /* Lime-yellow accent highlight */
+    --brand-forest-dark: #051C12;
+    --brand-forest-medium: #072F1F;
+    --brand-forest-light: #1A3E30;
+    --brand-lime: #B4F105;
     --brand-lime-hover: #c1f824;      
     --brand-lime-translucent: rgba(180, 241, 5, 0.15);
     
-    --text-main: #0B130F;             /* Dark headers, main labels */
-    /* Secondary labels, muted details. Darkened from the template's #6C7E75, which is only
-       3.97:1 on the off-white body background and so failed AA for body copy everywhere it
-       was used. This is 5.06:1 on the same background, still clearly a muted grey-green.
-       The dark theme redefines it separately below. */
+    --text-main: #0B130F;
     --text-muted-green: #5C6D64;
-    --text-sidebar-muted: #879A91;    /* Sidebar inactive link labels */
+    --text-sidebar-muted: #879A91;
     
     --card-background: #FFFFFF;
     --border-light: #E9EFEF;
     --border-dark-green: rgba(255, 255, 255, 0.1);
     
-    /* System Colors */
     --sys-green: #22C55E;
     --sys-green-bg: #DCFCE7;
     --sys-red: #EF4444;
@@ -84,30 +26,22 @@
     --sys-orange: #F97316;
     --sys-orange-bg: #FFEDD5;
     
-    /* Layout Configurations */
     --sidebar-width: 280px;
     --navbar-height: 80px;
-    /* Widest a page's content is allowed to get before it stops growing. Without a
-       ceiling, a 2560px monitor stretches one table row across the whole screen. */
     --page-max-width: 1600px;
     --page-gutter-x: 2.5rem;
     
-    /* Border Radii */
     --radius-xxl: 24px;
     --radius-xl: 18px;
     --radius-lg: 14px;
     --radius-md: 10px;
     --radius-sm: 6px;
     
-    /* Box Shadows */
     --shadow-sm: 0 2px 8px rgba(11, 19, 15, 0.02);
     --shadow-md: 0 10px 30px rgba(11, 19, 15, 0.04);
     --shadow-lg: 0 20px 50px rgba(11, 19, 15, 0.08);
 }
 
-/* ---------------------------------------------------------------------
-   3. Base Overrides & Typography
---------------------------------------------------------------------- */
 body {
     background-color: var(--bs-body-bg);
     color: var(--text-main);
@@ -148,10 +82,6 @@ a:hover {
     background: #94A3B8;
 }
 
-/* ---------------------------------------------------------------------
-   4. Sidebar Component (.sidebar-wrapper)
-   Extremely dark sidebar layout
---------------------------------------------------------------------- */
 .sidebar-wrapper {
     width: var(--sidebar-width);
     background-color: var(--brand-forest-dark);
@@ -239,7 +169,6 @@ a:hover {
     transition: color 0.2s ease;
 }
 
-/* Active State & Hover States */
 .sidebar-menu-link:hover {
     color: #FFFFFF;
     background-color: rgba(255, 255, 255, 0.03);
@@ -251,7 +180,6 @@ a:hover {
     font-weight: 600;
 }
 
-/* Vertical indicator border on left edge */
 .sidebar-menu-link.active::before {
     content: '';
     position: absolute;
@@ -277,7 +205,6 @@ a:hover {
     border-radius: 50rem;
 }
 
-/* Dropdown Caret Styling */
 .sidebar-menu-link .dropdown-caret {
     margin-left: auto;
     font-size: 0.75rem;
@@ -288,7 +215,6 @@ a:hover {
     transform: rotate(180deg);
 }
 
-/* Submenu layout */
 .sidebar-submenu {
     list-style: none;
     padding-left: 2.5rem;
@@ -308,7 +234,6 @@ a:hover {
     color: #FFFFFF;
 }
 
-/* Bottom Profile Card in Sidebar */
 .sidebar-profile {
     margin-top: auto;
     display: flex;
@@ -331,7 +256,7 @@ a:hover {
 
 .sidebar-profile-info {
     flex-grow: 1;
-    min-width: 0; /* allows text truncation */
+    min-width: 0;
 }
 
 .sidebar-profile-name {
@@ -352,7 +277,6 @@ a:hover {
     opacity: 0.8;
 }
 
-/* Minimized Sidebar Adjustments */
 body.sidebar-minimized {
     --sidebar-width: 80px;
 }
@@ -398,9 +322,6 @@ body.sidebar-minimized .sidebar-profile {
     background-color: transparent;
 }
 
-/* ---------------------------------------------------------------------
-   5. Main Wrapper Layout
---------------------------------------------------------------------- */
 .main-wrapper {
     margin-left: var(--sidebar-width);
     padding: 2rem var(--page-gutter-x);
@@ -410,11 +331,6 @@ body.sidebar-minimized .sidebar-profile {
     flex-direction: column;
 }
 
-/* Every routed page sits in one of these, so page width is decided in exactly one
-   place instead of per template. Fluid until the ceiling, then centred: the gutters
-   come from .main-wrapper, so this only has to cap the measure and centre it.
-   `flex: 1 0 auto` keeps the footer at the bottom of a short page - the footer is
-   pushed down by `margin-top: auto`, which needs this box to be the one that grows. */
 .page-container {
     width: 100%;
     max-width: var(--page-max-width);
@@ -422,15 +338,10 @@ body.sidebar-minimized .sidebar-profile {
     flex: 1 0 auto;
 }
 
-/* Pages whose content is genuinely a wide table or a multi-pane chart can opt up to
-   the ceiling plus a little, but still stop growing. */
 .page-container-wide {
     max-width: calc(var(--page-max-width) + 240px);
 }
 
-/* ---------------------------------------------------------------------
-   6. Custom Header / Navbar Component
---------------------------------------------------------------------- */
 .navbar-custom {
     position: sticky;
     top: 0;
@@ -446,9 +357,6 @@ body.sidebar-minimized .sidebar-profile {
     margin-bottom: 2rem;
 }
 
-/* The bar itself bleeds edge to edge; its contents do not. Same measure as
-   .page-container, so the search box and the page heading below it share a left
-   edge on a wide monitor instead of drifting apart. */
 .navbar-inner {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);
@@ -464,7 +372,6 @@ body.sidebar-minimized .sidebar-profile {
     gap: 0.75rem;
 }
 
-/* Quick Actions Dropdown Button */
 .btn-quick-action {
     background-color: var(--brand-forest-medium);
     color: #FFFFFF;
@@ -505,7 +412,6 @@ body.sidebar-minimized .sidebar-profile {
     transform: rotate(90deg);
 }
 
-/* Custom Dropdown Menu styles */
 .dropdown-menu-quick-action {
     background-color: #FFFFFF !important;
     border: 1px solid var(--border-light) !important;
@@ -655,7 +561,6 @@ body.sidebar-minimized .sidebar-profile {
     display: none !important;
 }
 
-/* Custom Dropdown Notifications */
 .dropdown-menu-notification {
     width: 320px;
     border-radius: var(--radius-xl) !important;
@@ -811,7 +716,6 @@ body.sidebar-minimized .sidebar-profile {
     font-size: 0.75rem;
 }
 
-/* Mobile Sidebar Toggle Button */
 .sidebar-toggle-btn {
     display: none;
     width: 42px;
@@ -827,7 +731,6 @@ body.sidebar-minimized .sidebar-profile {
     cursor: pointer;
 }
 
-/* Desktop Sidebar Toggle Button */
 .btn-desktop-toggle {
     width: 42px;
     height: 42px;
@@ -845,9 +748,6 @@ body.sidebar-minimized .sidebar-profile {
     color: var(--brand-forest-medium);
 }
 
-/* ---------------------------------------------------------------------
-   7. Page Title & Controls Row
---------------------------------------------------------------------- */
 .page-header {
     display: flex;
     align-items: flex-start;
@@ -886,9 +786,6 @@ body.sidebar-minimized .sidebar-profile {
     background-color: var(--border-light);
 }
 
-/* ---------------------------------------------------------------------
-   8. Cards & Styling Components
---------------------------------------------------------------------- */
 .card {
     background-color: var(--card-background);
     border: none;
@@ -910,9 +807,6 @@ body.sidebar-minimized .sidebar-profile {
     padding: 0 !important;
 }
 
-/* `.card` already carries the padding, so Bootstrap's nested 1rem only made
-   `.card-body` pages (bank accounts) sit 1rem deeper than the pages that write
-   their content straight into the card. Zero it and every card insets the same. */
 .card > .card-body {
     padding: 0;
 }
@@ -934,7 +828,6 @@ body.sidebar-minimized .sidebar-profile {
     align-items: center;
 }
 
-/* Stat-specific cards */
 .card-stat {
     height: 100%;
 }
@@ -971,7 +864,6 @@ body.sidebar-minimized .sidebar-profile {
     color: var(--sys-red);
 }
 
-/* Alert Dark Green Card */
 .alert-green-card {
     background-color: var(--brand-forest-medium);
     color: #FFFFFF;
@@ -984,7 +876,6 @@ body.sidebar-minimized .sidebar-profile {
     overflow: hidden;
 }
 
-/* Geometric green visual element in bottom right of Alert Card */
 .alert-green-bg-shape {
     position: absolute;
     bottom: -20px;
@@ -998,7 +889,6 @@ body.sidebar-minimized .sidebar-profile {
     transition: transform 0.4s ease-in-out;
 }
 
-/* Subtle micro-animation on hover */
 .alert-green-card:hover .alert-green-bg-shape {
     transform: rotate(45deg) scale(1.05);
 }
@@ -1079,9 +969,6 @@ body.sidebar-minimized .sidebar-profile {
     transform: translateX(3px);
 }
 
-/* ---------------------------------------------------------------------
-   9. Custom List (Transaction List Table replacement)
---------------------------------------------------------------------- */
 .custom-list {
     display: flex;
     flex-direction: column;
@@ -1170,9 +1057,6 @@ body.sidebar-minimized .sidebar-profile {
     margin-bottom: 0;
 }
 
-/* ---------------------------------------------------------------------
-   10. Custom Progress & Bar Chart Custom Layouts
---------------------------------------------------------------------- */
 .progress-container {
     margin-bottom: 1.25rem;
 }
@@ -1219,14 +1103,10 @@ body.sidebar-minimized .sidebar-profile {
     background-color: var(--sys-orange);
 }
 
-/* ---------------------------------------------------------------------
-   11. Right Panel Component & Layout
---------------------------------------------------------------------- */
 .right-panel-wrapper {
     height: auto;
 }
 
-/* Donut Chart legend styling */
 .chart-legends-container {
     display: flex;
     align-items: center;
@@ -1253,9 +1133,8 @@ body.sidebar-minimized .sidebar-profile {
     display: inline-block;
 }
 
-/* Promo Banner Card */
 .promo-banner-card {
-    background-color: #E2E8DF; /* Soft light olive-sage */
+    background-color: #E2E8DF;
     border-radius: var(--radius-xxl);
     padding: 1.75rem;
     position: relative;
@@ -1269,7 +1148,6 @@ body.sidebar-minimized .sidebar-profile {
     min-height: 250px;
 }
 
-/* Geometric green visual element in bottom right */
 .promo-banner-bg-shape {
     position: absolute;
     bottom: -15px;
@@ -1320,9 +1198,6 @@ body.sidebar-minimized .sidebar-profile {
     color: #FFFFFF;
 }
 
-/* ---------------------------------------------------------------------
-   12. Responsive Adjustments
---------------------------------------------------------------------- */
 @media (max-width: 1199.98px) {
     .sidebar-wrapper {
         transform: translateX(-100%);
@@ -1342,8 +1217,6 @@ body.sidebar-minimized .sidebar-profile {
         display: flex;
     }
 
-    /* Locked only while the drawer is genuinely off-canvas; on desktop the class is never set
-       because the sidebar is permanent there. */
     body.nav-open {
         overflow: hidden;
     }
@@ -1362,8 +1235,6 @@ body.sidebar-minimized .sidebar-profile {
         padding: 1rem 1.5rem;
     }
     
-    /* Below the desktop breakpoint the search drops to its own full-width row
-       instead of fighting the action cluster for the middle grid column. */
     .navbar-inner {
         display: flex;
         flex-wrap: wrap;
@@ -1388,9 +1259,6 @@ body.sidebar-minimized .sidebar-profile {
     }
 }
 
-/* ---------------------------------------------------------------------
-   14. Flatpickr Theme Customization (Spark Admin Styles)
---------------------------------------------------------------------- */
 .flatpickr-calendar {
     background: #FFFFFF !important;
     border: 1px solid var(--border-light) !important;
@@ -1406,7 +1274,6 @@ body.sidebar-minimized .sidebar-profile {
     border-bottom-color: #FFFFFF !important;
 }
 
-/* Month and Year navigation banner */
 .flatpickr-months {
     position: relative !important;
     height: 40px !important;
@@ -1461,12 +1328,10 @@ body.sidebar-minimized .sidebar-profile {
     background: var(--bs-body-bg) !important;
 }
 
-/* Hide default numeric scroll spinner arrows */
 .numInputWrapper span {
     display: none !important;
 }
 
-/* Center navigation chevrons and style with hover circle */
 .flatpickr-months .flatpickr-prev-month,
 .flatpickr-months .flatpickr-next-month {
     display: flex !important;
@@ -1494,7 +1359,6 @@ body.sidebar-minimized .sidebar-profile {
     height: 12px !important;
 }
 
-/* Weekday labels row */
 .flatpickr-weekdays {
     height: 30px !important;
     margin-top: 10px !important;
@@ -1508,7 +1372,6 @@ span.flatpickr-weekday {
     opacity: 0.85;
 }
 
-/* Days container layout */
 .flatpickr-innerContainer {
     margin-top: 6px !important;
 }
@@ -1524,7 +1387,6 @@ span.flatpickr-weekday {
     gap: 2px 0px !important;
 }
 
-/* Day grid cell elements */
 .flatpickr-day {
     font-weight: 600 !important;
     color: var(--text-main) !important;
@@ -1545,7 +1407,6 @@ span.flatpickr-weekday {
     border-radius: 50rem !important;
 }
 
-/* Selected endpoints styling */
 .flatpickr-day.selected,
 .flatpickr-day.startRange,
 .flatpickr-day.endRange {
@@ -1566,7 +1427,6 @@ span.flatpickr-weekday {
     border-radius: 50rem !important;
 }
 
-/* Selected in-range days styling */
 .flatpickr-day.inRange,
 .flatpickr-day.prevMonthDay.inRange,
 .flatpickr-day.nextMonthDay.inRange,
@@ -1578,7 +1438,6 @@ span.flatpickr-weekday {
     border-radius: 0 !important;
 }
 
-/* Disabled and adjacent month days */
 .flatpickr-day.flatpickr-disabled,
 .flatpickr-day.flatpickr-disabled:hover,
 .flatpickr-day.prevMonthDay,
@@ -1587,9 +1446,6 @@ span.flatpickr-weekday {
     background: transparent !important;
 }
 
-/* ---------------------------------------------------------------------
-   15. Dropdown Component Styles (Reusable)
---------------------------------------------------------------------- */
 .dropdown-menu-custom {
     background: #FFFFFF !important;
     border: 1px solid rgba(11, 19, 15, 0.05) !important;
@@ -1637,7 +1493,6 @@ span.flatpickr-weekday {
     opacity: 1 !important;
 }
 
-/* Custom ApexCharts Hover Overrides for Lime-Yellow Color (#B4F105) */
 .apexcharts-bar-area[fill="#B4F105"]:hover,
 .apexcharts-bar-area[fill="#b4f105"]:hover,
 .apexcharts-pie-area[fill="#B4F105"]:hover,
@@ -1645,9 +1500,6 @@ span.flatpickr-weekday {
     fill: #c1f824 !important;
 }
 
-/* ---------------------------------------------------------------------
-   16. Footer Component Styles
---------------------------------------------------------------------- */
 .footer-custom {
     margin-top: auto;
     padding-top: 1.25rem;
@@ -1789,9 +1641,6 @@ span.flatpickr-weekday {
     }
 }
 
-/* ---------------------------------------------------------------------
-   13. Login Page Styles (.login-wrapper)
---------------------------------------------------------------------- */
 .login-wrapper {
     min-height: 100vh;
     display: flex;
@@ -1803,8 +1652,6 @@ span.flatpickr-weekday {
     background-color: var(--bs-body-bg);
 }
 
-/* A faint lime bloom in two corners, so the canvas is not flat without
-   pulling attention off the form. */
 .login-bg-shape {
     position: absolute;
     border-radius: 50%;
@@ -1859,7 +1706,6 @@ span.flatpickr-weekday {
     margin-bottom: 1.75rem;
 }
 
-/* Brand mark: the glyph sits in a lime tile so it stays legible on both themes. */
 .login-brand {
     display: inline-flex;
     align-items: center;
@@ -1902,7 +1748,6 @@ span.flatpickr-weekday {
     margin-bottom: 1.25rem;
 }
 
-/* Label and its trailing link (Forgot password?) share a baseline. */
 .login-label-row {
     display: flex;
     align-items: baseline;
@@ -1951,7 +1796,6 @@ span.flatpickr-weekday {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Room for the eye toggle on the password field. */
 .login-input-password {
     padding-right: 2.75rem;
 }
@@ -1970,8 +1814,6 @@ span.flatpickr-weekday {
     box-shadow: 0 0 0 3px var(--brand-lime-translucent);
 }
 
-/* The icon sits after the input in the DOM, so the general sibling rule above
-   does not reach it - hence the group-level selector. */
 .login-input-group:focus-within i.input-icon {
     color: var(--brand-forest-medium);
 }
@@ -2023,7 +1865,6 @@ span.flatpickr-weekday {
     color: var(--sys-red);
 }
 
-/* Checkbox */
 .custom-control-label {
     display: inline-flex;
     align-items: center;
@@ -2060,7 +1901,7 @@ span.flatpickr-weekday {
 }
 
 .custom-checkbox-input:checked::before {
-    content: "\f272"; /* check glyph from the bootstrap-icons font */
+    content: "\f272";
     position: absolute;
     top: 50%;
     left: 50%;
@@ -2139,9 +1980,6 @@ span.flatpickr-weekday {
     text-decoration: underline;
 }
 
-/* =====================================================================
-   16. Navbar Profile Dropdown Styles
-   ===================================================================== */
 .navbar-profile-btn {
     background: transparent;
     border: none;
@@ -2203,7 +2041,6 @@ span.flatpickr-weekday {
     transform: rotate(180deg);
 }
 
-/* Custom Dropdown Menu for Profile */
 .dropdown-menu-profile {
     width: 200px;
     background-color: #FFFFFF !important;
@@ -2257,16 +2094,13 @@ span.flatpickr-weekday {
     margin: 0.4rem 0;
 }
 
-/* ---------------------------------------------------------------------
-   18. Reusable Premium Table Component
---------------------------------------------------------------------- */
 .table-card-custom {
     background-color: #FFFFFF;
     border-radius: var(--radius-xl);
     border: 1px solid rgba(11, 19, 15, 0.06) !important;
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    margin-bottom: 1.25rem !important; /* Pushes the main footer down to create breathing space */
+    margin-bottom: 1.25rem !important;
     width: 100%;
 }
 
@@ -2299,14 +2133,13 @@ span.flatpickr-weekday {
 }
 
 .table-custom tbody tr:hover {
-    background-color: rgba(180, 241, 5, 0.03); /* Soft brand-lime-glow transparent hover */
+    background-color: rgba(180, 241, 5, 0.03);
 }
 
 .table-custom tbody tr:last-child td {
     border-bottom: none;
 }
 
-/* User/Product visual info cell */
 .table-user-cell {
     display: flex;
     align-items: center;
@@ -2332,7 +2165,6 @@ span.flatpickr-weekday {
     color: var(--text-muted-green);
 }
 
-/* Badge styles */
 .badge-table {
     display: inline-flex;
     align-items: center;
@@ -2375,7 +2207,6 @@ span.flatpickr-weekday {
     background-color: var(--sys-red);
 }
 
-/* Table Controls Top bar */
 .table-header-control {
     background-color: #FFFFFF;
     padding: 1.25rem;
@@ -2418,7 +2249,6 @@ span.flatpickr-weekday {
     font-size: 0.85rem;
 }
 
-/* Table Actions dropdown/filters */
 .table-filter-group {
     display: flex;
     align-items: center;
@@ -2444,7 +2274,6 @@ span.flatpickr-weekday {
     border-color: var(--brand-forest-medium);
 }
 
-/* Action button items in table cell */
 .table-btn-action {
     width: 32px;
     height: 32px;
@@ -2472,7 +2301,6 @@ span.flatpickr-weekday {
     border-color: var(--sys-red);
 }
 
-/* Table Footer Pagination */
 .table-footer-control {
     background-color: #FFFFFF;
     padding: 1.25rem;
@@ -2489,7 +2317,6 @@ span.flatpickr-weekday {
     color: var(--text-muted-green);
 }
 
-/* Custom column styles */
 .table-order-id {
     font-weight: 700;
     color: var(--text-main);
@@ -2505,7 +2332,6 @@ span.flatpickr-weekday {
     color: var(--text-main);
 }
 
-/* Custom Table pagination overrides */
 .table-footer-control .pagination .page-link {
     border-radius: var(--radius-md);
     color: var(--brand-forest-dark);
@@ -2529,9 +2355,6 @@ span.flatpickr-weekday {
     pointer-events: none;
 }
 
-/* ---------------------------------------------------------------------
-   19. Custom Premium Form Elements Design System
---------------------------------------------------------------------- */
 .form-label-custom {
     display: inline-block;
     font-size: 0.85rem;
@@ -2577,7 +2400,6 @@ span.flatpickr-weekday {
     cursor: not-allowed;
 }
 
-/* Sizing overrides */
 .form-control-custom-sm {
     padding: 0.35rem 0.75rem;
     font-size: 0.75rem;
@@ -2590,7 +2412,6 @@ span.flatpickr-weekday {
     border-radius: var(--radius-xl);
 }
 
-/* Select overrides */
 .form-select-custom {
     display: block;
     width: 100%;
@@ -2624,7 +2445,6 @@ span.flatpickr-weekday {
     cursor: not-allowed;
 }
 
-/* Custom Checkbox & Radios */
 .form-check-custom {
     display: flex;
     align-items: center;
@@ -2684,7 +2504,6 @@ span.flatpickr-weekday {
     cursor: not-allowed;
 }
 
-/* Custom switch button style */
 .form-switch-custom {
     display: flex;
     align-items: center;
@@ -2739,7 +2558,6 @@ span.flatpickr-weekday {
     cursor: not-allowed;
 }
 
-/* Input group styles */
 .input-group-custom {
     position: relative;
     display: flex;
@@ -2784,7 +2602,6 @@ span.flatpickr-weekday {
     box-shadow: none !important;
 }
 
-/* Validation styles */
 .form-control-custom.is-invalid-custom {
     border-color: var(--sys-red) !important;
 }
@@ -2817,10 +2634,6 @@ span.flatpickr-weekday {
     color: var(--sys-green);
 }
 
-/* ---------------------------------------------------------------------
-   20. Reusable Custom Buttons & Alerts Design System
---------------------------------------------------------------------- */
-/* Custom Buttons base style */
 .btn-custom {
     display: inline-flex;
     align-items: center;
@@ -2846,7 +2659,6 @@ span.flatpickr-weekday {
     box-shadow: 0 0 0 3px rgba(7, 47, 31, 0.15);
 }
 
-/* Custom Buttons sizing variants */
 .btn-custom-sm {
     padding: 0.35rem 0.75rem;
     font-size: 0.75rem;
@@ -2859,7 +2671,6 @@ span.flatpickr-weekday {
     border-radius: var(--radius-xl);
 }
 
-/* Custom Buttons color variants */
 .btn-custom-primary {
     background-color: var(--brand-forest-medium);
     border-color: var(--brand-forest-medium);
@@ -2920,7 +2731,6 @@ span.flatpickr-weekday {
     color: #FFFFFF;
 }
 
-/* Custom Buttons outline variants */
 .btn-custom-outline-primary {
     background-color: transparent;
     border-color: var(--brand-forest-medium);
@@ -2955,7 +2765,6 @@ span.flatpickr-weekday {
     color: #FFFFFF;
 }
 
-/* Custom alert components */
 .alert-custom {
     padding: 1rem 1.25rem;
     border-radius: var(--radius-lg);
@@ -2997,7 +2806,6 @@ span.flatpickr-weekday {
     background-color: rgba(11, 19, 15, 0.05);
 }
 
-/* Alert theme variations */
 .alert-custom-primary {
     background-color: rgba(7, 47, 31, 0.04);
     border-color: rgba(7, 47, 31, 0.08);
@@ -3028,9 +2836,6 @@ span.flatpickr-weekday {
     color: #075985;
 }
 
-/* ---------------------------------------------------------------------
-   21. Error 404 Page Styling Layout
---------------------------------------------------------------------- */
 .error-card-custom {
     display: flex;
     flex-direction: column;
@@ -3099,9 +2904,6 @@ span.flatpickr-weekday {
     }
 }
 
-/* ---------------------------------------------------------------------
-   23. Reusable Helper & Utility Classes (Zero Inline Style Policy)
---------------------------------------------------------------------- */
 .z-index-2 {
     z-index: 2 !important;
 }
@@ -3181,9 +2983,6 @@ span.flatpickr-weekday {
     visibility: visible;
 }
 
-/* ---------------------------------------------------------------------
-   24. Transaction List Component
---------------------------------------------------------------------- */
 .transaction-list {
     display: flex;
     flex-direction: column;
@@ -3253,12 +3052,6 @@ span.flatpickr-weekday {
     color: var(--brand-lime) !important;
 }
 
-/* ---------------------------------------------------------------------
-   25. Live-data screens: dashboard, portfolio, market & trade, notifications
-   Added after the template was imported; the template itself is untouched above.
---------------------------------------------------------------------- */
-
-/* Dashboard range picker: the pill is a label wrapping a native select */
 .range-select {
     appearance: none;
     background: transparent;
@@ -3350,7 +3143,6 @@ span.flatpickr-weekday {
     color: var(--text-muted-green);
 }
 
-/* Market & trade: ticker list */
 .ticker-list {
     list-style: none;
     margin: 0.5rem 0 0;
@@ -3488,7 +3280,6 @@ span.flatpickr-weekday {
     font-weight: 800;
 }
 
-/* Notifications: items are buttons now, and have an empty state and tones */
 .dropdown-header-sub {
     font-size: 0.75rem;
     font-weight: 500;
@@ -3552,7 +3343,6 @@ button.notification-item {
     color: #FFFFFF;
 }
 
-/* In-app pop-ups, bottom right */
 .toast-stack {
     position: fixed;
     right: 1.25rem;
@@ -3653,7 +3443,6 @@ button.notification-item {
     row-gap: 0.4rem;
 }
 
-/* Stand-in for a profile picture: initials on the brand colour, same box as the image it replaces */
 .avatar-placeholder {
     display: inline-flex;
     align-items: center;
@@ -3671,7 +3460,6 @@ button.notification-item {
     font-size: 1rem;
 }
 
-/* Legend dots for the order-flow chart; the chart's own colours flip with the theme, so these do too */
 .legend-dot-buys {
     background-color: #072F1F;
 }
@@ -3688,7 +3476,6 @@ html[data-bs-theme="dark"] .legend-dot-sells {
     background-color: #F97316;
 }
 
-/* Navbar search results */
 tui-navbar-search {
     display: contents;
 }
@@ -3757,7 +3544,6 @@ tui-navbar-search {
     color: var(--text-muted-green);
 }
 
-/* My Account */
 .profile-head {
     display: flex;
     align-items: center;
@@ -3802,7 +3588,6 @@ html[data-bs-theme="dark"] .search-hit.active {
     background-color: rgba(255, 255, 255, 0.06);
 }
 
-/* The blotter's price cell: what an order filled at, with the limit it was protected by underneath */
 .price-note {
     display: block;
     font-size: 0.7rem;
@@ -3810,7 +3595,6 @@ html[data-bs-theme="dark"] .search-hit.active {
     color: var(--text-muted-green);
 }
 
-/* Chart toolbar: range, candle size, chart type, indicators */
 .chart-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -3881,7 +3665,6 @@ html[data-bs-theme="dark"] .search-hit.active {
     margin: 0.4rem 0.5rem 0.2rem;
 }
 
-/* The theme switch on pages that have no navbar to hold it */
 .theme-toggle-floating {
     position: fixed;
     top: 1rem;
@@ -3889,14 +3672,6 @@ html[data-bs-theme="dark"] .search-hit.active {
     z-index: 1000;
 }
 
-/* ---------------------------------------------------------------------
-   26. Dark theme
-   Applied by ThemeService as data-bs-theme="dark" on <html>. The template colours most
-   things through the variables below, so redefining them does most of the work; the rules
-   after that cover the template's hard-coded white and near-white surfaces.
-   `html[data-bs-theme="dark"]` is used as the prefix so these win over the template's own
-   rules and over component stylesheets without needing !important everywhere.
---------------------------------------------------------------------- */
 html[data-bs-theme="dark"] {
     color-scheme: dark;
     --bs-body-bg: #0A110D;
@@ -3933,7 +3708,6 @@ html[data-bs-theme="dark"] .navbar-custom {
     border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-/* Surfaces that were hard-coded white */
 html[data-bs-theme="dark"] .navbar-search-input,
 html[data-bs-theme="dark"] .navbar-action-btn,
 html[data-bs-theme="dark"] .sidebar-toggle-btn,
@@ -3993,7 +3767,6 @@ html[data-bs-theme="dark"] .navbar-action-badge {
     border-color: var(--bs-body-bg);
 }
 
-/* Dropdowns */
 html[data-bs-theme="dark"] .dropdown-menu-profile,
 html[data-bs-theme="dark"] .dropdown-menu-notification,
 html[data-bs-theme="dark"] .dropdown-menu-custom,
@@ -4017,7 +3790,6 @@ html[data-bs-theme="dark"] .notification-item:hover {
     background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Tables */
 html[data-bs-theme="dark"] .table-custom th {
     background-color: rgba(255, 255, 255, 0.03);
     border-bottom-color: var(--border-light);
@@ -4035,7 +3807,6 @@ html[data-bs-theme="dark"] .footer-custom {
     border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Custom alerts and Bootstrap alerts inherit Bootstrap's own dark palette; only the template's are fixed here */
 html[data-bs-theme="dark"] .alert-custom-success {
     background-color: rgba(34, 197, 94, 0.12);
     border-color: rgba(34, 197, 94, 0.3);
@@ -4065,7 +3836,6 @@ html[data-bs-theme="dark"] .alert-custom-primary {
     border-color: rgba(180, 241, 5, 0.15);
 }
 
-/* Buttons: the forest-green fill disappears on a dark card, so use the lime accent */
 html[data-bs-theme="dark"] .btn-custom-primary {
     background-color: var(--brand-lime);
     border-color: var(--brand-lime);
@@ -4115,7 +3885,6 @@ html[data-bs-theme="dark"] .notification-count {
     color: #051C12;
 }
 
-/* Login family */
 html[data-bs-theme="dark"] .login-input {
     background-color: rgba(255, 255, 255, 0.04);
 }
@@ -4124,8 +3893,6 @@ html[data-bs-theme="dark"] .login-input:hover:not(:focus) {
     border-color: var(--text-muted-green);
 }
 
-/* Forest green is too close to the dark card to read as a button, so the
-   primary action takes the lime accent here instead. */
 html[data-bs-theme="dark"] .btn-login {
     background-color: var(--brand-lime);
     color: var(--brand-forest-dark);
@@ -4164,20 +3931,10 @@ html[data-bs-theme="dark"] .sidebar-overlay {
     background-color: rgba(0, 0, 0, 0.6);
 }
 
-/* ---------------------------------------------------------------------
-   27. Dark theme: text contrast
-   The template colours a lot of text with --brand-forest-medium / --brand-forest-dark, which are
-   dark greens: right on a light page, close to invisible on a dark one (1.1:1 for "Mark all
-   read", 1.5:1 for the profile name once its menu is open). The dark block above redefines the
-   variables for the surfaces that use them as a background, so the text rules are repointed
-   here at the lime accent instead. Every ratio below was measured, not eyeballed: body text
-   needs 4.5:1, and these are all at least that on their surface.
---------------------------------------------------------------------- */
 html[data-bs-theme="dark"] {
     --text-accent: var(--brand-lime);
 }
 
-/* Links and link-like buttons that carried the dark-green text colour */
 html[data-bs-theme="dark"] .btn-clear-all,
 html[data-bs-theme="dark"] .notification-footer,
 html[data-bs-theme="dark"] .item-status.completed,
@@ -4195,7 +3952,6 @@ html[data-bs-theme="dark"] .btn-clear-all:disabled {
     opacity: 0.8;
 }
 
-/* Hover colours that turned text dark green on a surface that stays dark */
 html[data-bs-theme="dark"] .navbar-action-btn:hover,
 html[data-bs-theme="dark"] .btn-desktop-toggle:hover,
 html[data-bs-theme="dark"] .navbar-profile-btn:hover .navbar-profile-name,
@@ -4235,7 +3991,6 @@ html[data-bs-theme="dark"] .login-footer-text a:hover {
     color: var(--brand-lime-hover);
 }
 
-/* Muted text that was dimmed twice: once by colour, once more by opacity */
 html[data-bs-theme="dark"] .sidebar-menu-title,
 html[data-bs-theme="dark"] .sidebar-profile-email,
 html[data-bs-theme="dark"] .alert-green-date {
@@ -4259,7 +4014,6 @@ html[data-bs-theme="dark"] .footer-separator {
     opacity: 0.8;
 }
 
-/* Placeholders: dimmed by opacity on top of an already muted colour */
 html[data-bs-theme="dark"] .navbar-search-input::placeholder,
 html[data-bs-theme="dark"] .login-input::placeholder,
 html[data-bs-theme="dark"] .form-control-custom::placeholder,
@@ -4268,7 +4022,6 @@ html[data-bs-theme="dark"] .search-input::placeholder {
     opacity: 1;
 }
 
-/* Bootstrap's success/danger text colours are fixed mid-tones that miss 4.5:1 on a dark card */
 html[data-bs-theme="dark"] .text-success {
     color: #4ADE80 !important;
 }
@@ -4281,16 +4034,6 @@ html[data-bs-theme="dark"] .badge-table.failed {
     color: #F87171;
 }
 
-/* ---------------------------------------------------------------------
-   28. Layout fixes at every width and zoom level
-   Written after measuring the real pages at 320-1920px (browser zoom shrinks the CSS viewport the
-   same way: 150% on a 1920px screen is a 1280px layout). Each rule says what it was fixing.
---------------------------------------------------------------------- */
-
-/* The navbar was a 1fr / 480px / 1fr grid. The right-hand 1fr could end up narrower than the
-   buttons it holds, so they spilled left over the search box at any desktop width under about
-   1700px. The side columns now never shrink below their content and the search takes the rest,
-   down to a floor, instead of being a fixed 480px that everything else had to fit around. */
 .navbar-inner {
     grid-template-columns: minmax(max-content, 1fr) minmax(160px, 480px) minmax(max-content, 1fr);
 }
@@ -4300,15 +4043,11 @@ html[data-bs-theme="dark"] .badge-table.failed {
     min-width: 0;
 }
 
-/* Hover colour on a red outline button: white on #EF4444 is 3.8:1, which is under 4.5:1 for text. */
 .btn-custom-outline-danger:hover {
     background-color: #DC2626;
     border-color: #DC2626;
 }
 
-/* Ticker rows: the symbol and the price sat in a flex row whose left side was allowed to shrink
-   but not to clip, so a long symbol ran into the price, and "-1.21%" dropped below its arrow. The
-   price block keeps its natural width, the name side gives way (the name already ellipsises). */
 .ticker-main {
     flex: 1 1 auto;
 }
@@ -4328,8 +4067,6 @@ html[data-bs-theme="dark"] .badge-table.failed {
     text-overflow: ellipsis;
 }
 
-/* The list is now 50 tickers long: it scrolls inside its card instead of pushing the order ticket
-   a few thousand pixels down the page. */
 .ticker-list {
     max-height: min(68vh, 720px);
     overflow-y: auto;
@@ -4337,8 +4074,6 @@ html[data-bs-theme="dark"] .badge-table.failed {
     overscroll-behavior: contain;
 }
 
-/* Phones: big figures (a 21-character account number at 2rem) broke mid-number, and the
-   two-way transfer switch wrapped its own labels. */
 @media (max-width: 575.98px) {
     .stat-value {
         font-size: 1.6rem;
@@ -4346,17 +4081,12 @@ html[data-bs-theme="dark"] .badge-table.failed {
     }
 }
 
-/* Tablet widths: three stat cards side by side are ~210px wide, too narrow for a 2rem amount, which
-   broke before its decimals ("₹1,34,500 / .50"). The size follows the viewport down to a floor. */
 @media (min-width: 576px) and (max-width: 1199.98px) {
     .stat-value {
         font-size: clamp(1.3rem, 2.8vw, 2rem);
     }
 }
 
-/* The theme switch on the sign-in pages was position: fixed, so on a phone it stayed pinned over
-   the card (and over its fields while scrolling). It now sits in the page's top corner and scrolls
-   away with it, and the card starts below it on narrow screens instead of underneath it. */
 .theme-toggle-floating {
     position: absolute;
 }

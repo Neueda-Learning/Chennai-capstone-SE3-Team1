@@ -13,12 +13,9 @@ export type NotificationKind =
   | 'TRANSFER_IN'
   | 'TRANSFER_OUT';
 
-/** One thing that happened to the account, as `GET /api/v1/accounts/{id}/notifications` says. */
 export interface AccountNotification {
-  /** Stable for a given event, so the same event is never announced twice. */
   id: string;
   kind: NotificationKind;
-  /** A sentence ready to show. */
   message: string;
   symbol: string | null;
   side: 'BUY' | 'SELL' | null;
@@ -27,25 +24,21 @@ export interface AccountNotification {
   executedPrice: number | null;
   amount: number | null;
   reason: string | null;
-  /** ISO-8601 with the offset the server computed it in, so it reads right in any browser timezone. */
   occurredAt: string;
 }
 
 export type Tone = 'success' | 'danger' | 'warning' | 'info';
 
-/** The pop-up shown for a notification that arrived while the app was open. */
 export interface Toast {
   id: string;
   kind: NotificationKind;
   message: string;
 }
 
-/** How the store tells the time. Injectable so specs do not wait on real timers. */
 export const NOTIFICATION_POLL_MS = new InjectionToken<number>('Notification poll interval (ms)', {
   factory: () => 10_000
 });
 
-/** How long a pop-up stays before it dismisses itself. */
 export const TOAST_LIFETIME_MS = new InjectionToken<number>('Toast lifetime (ms)', {
   factory: () => 7_000
 });
@@ -56,19 +49,6 @@ const MAX_REMEMBERED_READS = 300;
 const MAX_TOASTS = 4;
 const FETCH_LIMIT = 30;
 
-/**
- * Real account notifications, for the bell in the navbar and the pop-ups at the bottom right.
- *
- * Nothing is pushed to the browser, so this polls. Each poll replaces the list; anything whose
- * id has not been seen before in this session, and that the user has not already read, pops up
- * once. The first poll after sign-in never pops anything up: those are the things that
- * happened while the user was away, and they sit in the bell as unread instead of arriving as
- * a burst of toasts.
- *
- * "Read" is remembered per account in this browser. An account's very first poll on a browser
- * that has never seen it treats the existing history as read, so a new device does not greet
- * someone with a badge for everything they have ever done.
- */
 @Injectable({ providedIn: 'root' })
 export class NotificationStore {
   private readonly http = inject(HttpClient);
@@ -94,17 +74,10 @@ export class NotificationStore {
   readonly items = this.itemsSignal.asReadonly();
   readonly toasts = this.toastsSignal.asReadonly();
   readonly now = this.nowSignal.asReadonly();
-  /** True when the last poll failed; the list shown is then the last good one. */
   readonly failed = this.failedSignal.asReadonly();
 
-  /**
-   * Counts the polls that found something new. An order filling or a transfer landing changes the
-   * balance and holdings behind it, so the pages showing those watch this and reload; the
-   * first poll after sign-in does not count, as nothing has *happened* then.
-   */
   readonly changes = this.changesSignal.asReadonly();
 
-  /** Whether new notifications also pop up. Off still fills the bell and its badge. */
   readonly popupsEnabled = this.popupsSignal.asReadonly();
 
   setPopupsEnabled(enabled: boolean): void {
@@ -112,7 +85,6 @@ export class NotificationStore {
     try {
       localStorage.setItem(POPUPS_KEY, enabled ? 'on' : 'off');
     } catch {
-      // The choice still holds for this tab.
     }
     if (!enabled) {
       this.toastTimers.forEach((handle) => clearTimeout(handle));
@@ -138,7 +110,6 @@ export class NotificationStore {
     return this.readIds().has(id);
   }
 
-  /** Starts (or restarts, for a different account) polling. Safe to call repeatedly. */
   start(accountId: number): void {
     if (this.accountId === accountId && this.subscription !== null) {
       return;
@@ -169,7 +140,6 @@ export class NotificationStore {
     };
   }
 
-  /** Stops polling and forgets everything about the account (sign-out, account change). */
   stop(): void {
     this.subscription?.unsubscribe();
     this.subscription = null;
@@ -186,7 +156,6 @@ export class NotificationStore {
     this.toastsSignal.set([]);
   }
 
-  /** Polls right now instead of waiting for the next tick, e.g. just after placing an order. */
   refresh(): void {
     this.pollNow?.();
   }
@@ -215,7 +184,7 @@ export class NotificationStore {
 
   private onPoll(accountId: number, items: AccountNotification[] | null): void {
     if (this.accountId !== accountId) {
-      return; // a response for an account that is no longer the current one
+      return;
     }
     this.nowSignal.set(Date.now());
     if (items === null) {
@@ -237,7 +206,7 @@ export class NotificationStore {
         this.changesSignal.update((n) => n + 1);
       }
       fresh
-        .reverse() // oldest of the new ones first, so the newest ends up on top
+        .reverse()
         .forEach((item) => {
           this.seen.add(item.id);
           if (!read.has(item.id) && this.popupsSignal()) {
@@ -290,12 +259,10 @@ export class NotificationStore {
         JSON.stringify([...ids].slice(-MAX_REMEMBERED_READS))
       );
     } catch {
-      // Not remembering a read across visits is harmless.
     }
   }
 }
 
-/** The icon and colour a notification kind is drawn with. */
 export function notificationStyle(kind: NotificationKind): { icon: string; tone: Tone } {
   switch (kind) {
     case 'ORDER_FILLED':
@@ -313,7 +280,6 @@ export function notificationStyle(kind: NotificationKind): { icon: string; tone:
   }
 }
 
-/** "just now", "5 mins ago", "3 hours ago", else the date. */
 export function timeAgo(occurredAt: string, now: number): string {
   const then = new Date(occurredAt).getTime();
   if (Number.isNaN(then)) {

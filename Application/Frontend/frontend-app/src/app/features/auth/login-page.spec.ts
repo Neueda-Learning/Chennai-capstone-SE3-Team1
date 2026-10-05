@@ -9,7 +9,6 @@ import { LoginPage } from './login-page';
 
 const AUTH_URL = 'http://auth.test/auth/login';
 
-/** A signed JWT whose payload is `{"accountId":42}` - decoded by the store. */
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjQyfQ.signature';
 
 type LoginFixture = ComponentFixture<LoginPage>;
@@ -258,8 +257,6 @@ describe('LoginPage', () => {
       .flush({ errorCode: 'AUTH-401', message: 'Invalid credentials' }, { status: 401, statusText: 'Unauthorized' });
     fixture.detectChanges();
 
-    // The service deliberately does not say whether the account exists or the
-    // password was wrong, so the hint must not imply it did.
     const hint = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="login-verify-hint"] a');
     expect(hint?.getAttribute('href')).toBe('/verify-otp');
   });

@@ -55,7 +55,7 @@ describe('UserProfileStore', () => {
     api.flush();
 
     expect(store.displayName()).toBe('priya.menon');
-    expect(store.initials()).toBe('PM'); // priya.menon splits on the dot
+    expect(store.initials()).toBe('PM');
     expect(api.count('/accounts/')).toBe(0);
   });
 

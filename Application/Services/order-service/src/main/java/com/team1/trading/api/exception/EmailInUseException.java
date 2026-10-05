@@ -2,9 +2,6 @@ package com.team1.trading.api.exception;
 
 import com.team1.trading.domain.exception.DomainException;
 
-/**
- * A profile update asked for an email another client or user already holds: {@code ACC-409}.
- */
 public class EmailInUseException extends DomainException {
 
     public static final String MESSAGE = "Email already in use";

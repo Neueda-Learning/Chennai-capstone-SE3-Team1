@@ -2,17 +2,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { balance, orderHistory } from './api';
 
-/** Reads the `₹1,234.56` a screen prints back into the number it stands for. */
 function toRupees(printed: string): number {
   expect(printed, `"${printed}" is not a price`).toMatch(/[0-9]/);
   return Number(printed.replace(/[^0-9.]/g, ''));
 }
 
-/**
- * Picks the cheapest ticker that has a price, so a one-unit order fits the wallet whatever
- * the seeded instrument set looks like. Returns the ticker actually clicked, once the ticket
- * has re-priced around it.
- */
 async function selectCheapestTicker(page: Page): Promise<string> {
   const tickers = page.getByTestId('ticker');
   await expect(tickers.first()).toBeVisible();
@@ -21,7 +15,7 @@ async function selectCheapestTicker(page: Page): Promise<string> {
   for (const ticker of await tickers.all()) {
     const printed = (await ticker.locator('.ticker-price').innerText()).trim();
     if (!/[0-9]/.test(printed)) {
-      continue; // "Waiting for price"
+      continue;
     }
     const price = toRupees(printed);
     if (cheapest === null || price < cheapest.price) {
@@ -34,7 +28,6 @@ async function selectCheapestTicker(page: Page): Promise<string> {
   const symbol = (await picked.locator('.ticker-symbol').innerText()).trim();
   await picked.click();
 
-  // The ticket opens on the first priced ticker, so only the selection proves the click landed.
   await expect(page.getByTestId('selected-symbol')).toContainText(symbol);
   await expect(page.getByTestId('current-price')).not.toHaveText('—');
   return symbol;
@@ -54,7 +47,6 @@ test.describe('Order ticket', () => {
     await expect(page.getByTestId('current-price')).not.toHaveText('—');
     await expect(page.getByTestId('place-order')).toBeEnabled();
 
-    // Picking a different ticker re-prices the ticket.
     const selected = (await page.getByTestId('selected-symbol').innerText()).trim();
     const other = page.getByTestId('ticker').filter({
       has: page.locator('.ticker-symbol', { hasText: /^[A-Z]+$/ })
@@ -73,7 +65,6 @@ test.describe('Order ticket', () => {
     await selectCheapestTicker(page);
     await page.getByLabel('Quantity').fill('3');
 
-    // Read both figures in one go, so a fresh quote landing mid-assert cannot skew the pair.
     const { unit, total } = await page.evaluate(() => {
       const text = (testId: string) =>
         document.querySelector(`[data-testid="${testId}"]`)?.textContent ?? '';
@@ -153,14 +144,12 @@ test.describe('Order ticket', () => {
     const orderId = (await accepted.innerText()).match(/ORD-[0-9a-f-]+/)?.[0];
     expect(orderId, `no order id in "${await accepted.innerText()}"`).toBeTruthy();
 
-    // The same order, read back from the trading service...
     await expect
       .poll(async () => (await orderHistory(page)).some((order) => order.orderId === orderId), {
         timeout: 20_000
       })
       .toBeTruthy();
 
-    // ...and paid for out of the wallet, at acceptance or once the executor filled it.
     await expect.poll(async () => (await balance(page)).cashBalance, { timeout: 30_000 }).toBeLessThan(
       cashBefore
     );

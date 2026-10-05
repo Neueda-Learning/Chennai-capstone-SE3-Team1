@@ -9,16 +9,13 @@ export interface UserRecord {
   id: string;
   username: string;
   email: string;
-  /** Set only via the Trade API's profile-update route (ClientService); null until then. */
   phone: string | null;
-  /** clients.client_id once a bank account is linked; null until then. */
   accountId: number | null;
   roles: Role[];
   passwordHash: string;
   paramsVersion: number;
   version: number;
   createdOn: Date;
-  /** PENDING until the registration OTP is verified; ACTIVE users can sign in. */
   status: UserStatus;
 }
 
@@ -84,11 +81,6 @@ export class UserRepository {
     return r.rows[0] ? mapRow(r.rows[0]) : null;
   }
 
-  /**
-   * Registration creates the user only. account_id stays NULL until the user links a
-   * bank account through the Trade REST API, which fills it in. status starts
-   * PENDING: the account exists but cannot sign in until the emailed code is verified.
-   */
   async create(input: NewUserInput): Promise<UserRecord> {
     const r = await this.pool.query<Record<string, any>>(
       `INSERT INTO users (username, email, roles, password_hash, params_version, status, version, created_on, updated)

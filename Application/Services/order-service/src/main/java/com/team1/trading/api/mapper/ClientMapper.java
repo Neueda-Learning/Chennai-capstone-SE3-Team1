@@ -13,14 +13,6 @@ import org.apache.ibatis.annotations.Update;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Parameterised MyBatis mapper for the clients (accounts) table.
- * All SQL statements use #{...} parameter bindings (OWASP A03 compliant).
- *
- * <p>Client has no no-argument constructor, so rows map onto its five-argument constructor by
- * position: keep the selected columns in that constructor's order. Since migration 021, clients
- * carries no email or phone - see UserMapper for those (auth_db.users owns them).
- */
 @Mapper
 public interface ClientMapper {
 
@@ -39,10 +31,6 @@ public interface ClientMapper {
     })
     Optional<Client> findById(@Param("clientId") Long clientId);
 
-    /**
-     * The client a bank account belongs to. clients holds no account number since migration
-     * 015; bank_account.client_id is the link.
-     */
     @Select("""
             SELECT c.client_id, c.name,
                    c.created_on, c.account_state, c.wallet_balance

@@ -40,7 +40,6 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class CandleServiceTest {
 
-    /** 3 Oct 2026, 12:00 in Mumbai. */
     private static final Instant NOW = Instant.parse("2026-10-03T06:30:00Z");
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 3);
 
@@ -54,7 +53,6 @@ class CandleServiceTest {
     private MutableClock clock;
     private CandleService service;
 
-    /** A clock a test can move, to step over the retry window. */
     static class MutableClock extends Clock {
         Instant now = NOW;
 
@@ -106,7 +104,7 @@ class CandleServiceTest {
         ArgumentCaptor<OffsetDateTime> since = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(candleMapper).intraday(eq("RELIANCE"), since.capture(), eq(300));
         assertThat(since.getValue().toInstant()).isEqualTo(NOW.minusSeconds(86_400));
-        verify(client, never()).fetchDaily(anyString(), any(), any());      // intraday spends no quota
+        verify(client, never()).fetchDaily(anyString(), any(), any());
     }
 
     @Test
@@ -198,10 +196,10 @@ class CandleServiceTest {
         assertThat(service.candles("RELIANCE", "1d", "1mo")).isEqualTo(stored);
         service.candles("RELIANCE", "1d", "1mo");
 
-        verify(client, times(1)).fetchDaily(anyString(), any(), any());      // the second chart did not re-ask
+        verify(client, times(1)).fetchDaily(anyString(), any(), any());
         verify(candleMapper, never()).markSynced(anyString(), any(), any(), anyInt());
 
-        clock.now = NOW.plusSeconds(16 * 60);                                 // past the back-off
+        clock.now = NOW.plusSeconds(16 * 60);
         service.candles("RELIANCE", "1d", "1mo");
         verify(client, times(2)).fetchDaily(anyString(), any(), any());
     }

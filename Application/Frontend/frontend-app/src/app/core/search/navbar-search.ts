@@ -24,12 +24,6 @@ interface OrderHit {
 
 export type SearchHit = TickerHit | OrderHit;
 
-/**
- * The search box in the navbar: finds tickers (by symbol or company name) and your own orders
- * (by order id or symbol). Picking a ticker opens it on the Market page; picking an order opens
- * the blotter filtered to it. The lists are fetched the first time the box is used, not on every
- * page load, and are matched locally as you type.
- */
 @Component({
   selector: 'tui-navbar-search',
   templateUrl: './navbar-search.html'
@@ -83,7 +77,6 @@ export class NavbarSearch {
   protected readonly hits = computed<SearchHit[]>(() => [...this.tickers(), ...this.orderHits()]);
 
   constructor() {
-    // A different account has different orders; forget the old ones.
     effect(() => {
       this.session.accountId();
       untracked(() => {
@@ -125,7 +118,6 @@ export class NavbarSearch {
   }
 
   protected onBlur(): void {
-    // Delayed so a click on a result lands before the list disappears.
     setTimeout(() => this.open.set(false), 150);
   }
 

@@ -9,9 +9,6 @@ export class KafkaHealthIndicator {
 
   constructor(
     private readonly configService: ConfigService,
-    // The full logger: it has logFromSource. 'DATABASE_LOGGER'/'KAFKA_LOGGER' are per-source
-    // wrappers with only log/error/..., so calling logFromSource on them threw, and the check
-    // reported the dependency down even when it was up.
     @Inject('MULTI_FILE_LOGGER') private readonly logger: MultiFileLogger,
   ) {
     this.broker =

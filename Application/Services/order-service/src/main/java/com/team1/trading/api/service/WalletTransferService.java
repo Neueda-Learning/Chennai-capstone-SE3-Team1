@@ -21,14 +21,6 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * Moves money between a client's wallet, the only balance trading uses, and their linked bank
- * account, which exists only to feed the wallet and be paid out to.
- *
- * <p>The transfer row and both balance changes are one transaction. The row goes in first, so a
- * reused idempotency key is refused before any money moves; if a debit then finds too little
- * money, the rollback takes the row with it and the same key can be tried again.
- */
 @Service
 public class WalletTransferService {
 
@@ -44,7 +36,6 @@ public class WalletTransferService {
     public TransferResponse transfer(Long accountId, Long tokenAccountId, TransferRequest request) {
         AccountRow row = accountMapper.findRow(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
-        // Same gate as every other account route: a null claim owns no account.
         if (tokenAccountId == null || !tokenAccountId.equals(accountId)) {
             throw new AccountNotActiveException(accountId, "TOKEN");
         }
@@ -55,7 +46,6 @@ public class WalletTransferService {
         }
         String accountNumber = row.getAccountNumber();
         if (accountNumber == null) {
-            // Only possible for a client made outside the link flow; there is nowhere to move money.
             throw new AccountNotFoundException(accountId);
         }
 

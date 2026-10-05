@@ -10,11 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.UUID;
 
-/**
- * MyBatis ships no handler for {@link UUID}, and a {@code <constructor>} result map needs one for
- * every arg. PostgreSQL's driver already speaks {@code uuid} natively, so this is a thin pass-through
- * that also tolerates a driver handing the value back as text.
- */
 @MappedTypes(UUID.class)
 public class UuidTypeHandler extends BaseTypeHandler<UUID> {
 

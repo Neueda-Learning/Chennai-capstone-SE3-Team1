@@ -38,9 +38,6 @@ export class Shell implements OnInit, OnDestroy {
   protected readonly isFullscreen = signal(false);
 
   constructor() {
-    // Who is signed in, and what has happened to their account, follow the session: a sign-in
-    // (or a bank account being linked, which swaps the token and so the account) starts both,
-    // a sign-out stops them. The calls run untracked so only the session drives this.
     effect(() => {
       const signedIn = this.session.isSignedIn();
       const accountId = this.session.accountId();
@@ -61,18 +58,12 @@ export class Shell implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // A drawer that survives the navigation it was opened for is a drawer covering the page
-    // somebody just asked for, so every completed navigation closes it. Escape does the same
-    // for anyone whose keyboard is already on the links.
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => this.closeMobileNav());
 
     this.document.addEventListener('keydown', this.onDocumentKeydown);
 
-    // The fullscreen buttons are not the only way in or out - Escape and F11 both leave, and
-    // neither goes through toggleFullscreen, so without this the icon lies after the user
-    // leaves with the keyboard.
     this.document.addEventListener('fullscreenchange', this.onFullscreenChange);
   }
 
@@ -80,13 +71,9 @@ export class Shell implements OnInit, OnDestroy {
     this.notifications.stop();
     this.document.removeEventListener('keydown', this.onDocumentKeydown);
     this.document.removeEventListener('fullscreenchange', this.onFullscreenChange);
-    // These are classes on <body>, not on this component, so nothing else takes them off.
-    // Signing out destroys the shell, and the next one would come up 80px narrower, or with a
-    // scroll lock nobody is left to release.
     this.document.body.classList.remove('sidebar-minimized', 'nav-open');
   }
 
-  /** Escape closes the drawer, but only while it is the thing that is open. */
   private readonly onDocumentKeydown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape' && this.mobileNavOpen()) {
       this.closeMobileNav();
@@ -105,11 +92,8 @@ export class Shell implements OnInit, OnDestroy {
     this.setMobileNav(false);
   }
 
-  /** The one place the drawer's open state changes, so the scroll lock cannot drift from it. */
   private setMobileNav(open: boolean): void {
     this.mobileNavOpen.set(open);
-    // Scrolling the page behind an open drawer scrolls the drawer with it on touch devices,
-    // which is how people end up looking at a page they thought they had dismissed.
     this.document.body.classList.toggle('nav-open', open);
   }
 
@@ -120,8 +104,6 @@ export class Shell implements OnInit, OnDestroy {
   }
 
   protected toggleFullscreen(): void {
-    // The state is left to the fullscreenchange listener: a request can be refused, and the
-    // user can leave with Escape or F11 without ever coming through here.
     if (!this.document.fullscreenElement) {
       void this.document.documentElement.requestFullscreen().catch(() => undefined);
     } else {
@@ -133,10 +115,6 @@ export class Shell implements OnInit, OnDestroy {
     const refreshToken = this.session.refreshToken();
 
     if (refreshToken) {
-      // /auth/logout is authenticated, so the revoke has to leave while the access token is still
-      // in the session: the bearer interceptor reads it when the request is subscribed, which is
-      // synchronous, so the local sign-out right after cannot race it. Best effort - a refusal
-      // or a dead network must not keep someone signed in.
       this.auth.logout({ refreshRequest: { refreshToken } }).subscribe({
         error: () => undefined
       });

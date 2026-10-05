@@ -61,7 +61,6 @@ describe('AuthService', () => {
 
   const pendingUser: UserRecord = { ...user, status: 'PENDING' };
 
-  /** Awaits a call expected to fail and hands back the AuthServiceException. */
   async function caughtError(
     promise: Promise<unknown>,
   ): Promise<AuthServiceException> {
@@ -187,7 +186,6 @@ describe('AuthService', () => {
         paramsVersion: 1,
         status: 'PENDING',
       });
-      // No tokens on registration.
       expect(tokens.createTokenPair).not.toHaveBeenCalled();
       expect(result).toEqual({
         id: user.id,
@@ -352,7 +350,6 @@ describe('AuthService', () => {
     });
 
     it('returns the identical AUTH-401 for an unknown username and a wrong password', async () => {
-      // Unknown user
       rateLimiter.check.mockReturnValue({ allowed: true });
       users.findByUsername.mockResolvedValue(null);
       password.verify.mockResolvedValue(false);
@@ -367,7 +364,6 @@ describe('AuthService', () => {
         unknownCaught = e;
       }
 
-      // Also confirm a dummy verify still ran (constant-time attempt)
       expect(password.verify).toHaveBeenCalled();
       expect(rateLimiter.recordFailure).toHaveBeenCalledWith('ghost.user');
       expect(unknownCaught).toBeInstanceOf(AuthServiceException);
@@ -377,7 +373,6 @@ describe('AuthService', () => {
         message: 'Unauthorised',
       });
 
-      // Wrong password
       rateLimiter.check.mockReturnValue({ allowed: true });
       users.findByUsername.mockResolvedValue(user);
       password.verify.mockResolvedValue(false);

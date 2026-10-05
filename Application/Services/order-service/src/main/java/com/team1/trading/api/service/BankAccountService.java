@@ -42,19 +42,10 @@ public class BankAccountService {
         return bankAccount;
     }
 
-    /**
-     * Adds to the bank balance in one statement, so two concurrent deposits cannot overwrite
-     * each other. {@code false} means there is no such account.
-     */
     public boolean deposit(String accountNumber, BigDecimal amount) {
         return bankAccountMapper.credit(accountNumber, validAmount(amount)) > 0;
     }
 
-    /**
-     * Takes from the bank balance only if it covers the amount, checked and written in one
-     * statement. {@code false} means there is no such account; an account that cannot cover it
-     * is {@code TRF-400}.
-     */
     public boolean withdraw(String accountNumber, BigDecimal amount) {
         BigDecimal value = validAmount(amount);
         Optional<BankAccount> account = bankAccountMapper.findByAccountNumber(accountNumber);
@@ -68,7 +59,6 @@ public class BankAccountService {
         return true;
     }
 
-    /** A positive sum of money with at most two decimal places, or {@code VAL-422}. */
     private static BigDecimal validAmount(BigDecimal amount) {
         if (amount == null || amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
             throw new InvalidAmountException(amount);

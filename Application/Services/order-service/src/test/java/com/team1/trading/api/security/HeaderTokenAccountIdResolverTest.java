@@ -11,10 +11,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Unit tests of the header claim reader. It only extracts the {@code accountId} claim; genuine
- * verification is JIRA 8 against the provided auth stub.
- */
 class HeaderTokenAccountIdResolverTest {
 
     private HeaderTokenAccountIdResolver resolver;

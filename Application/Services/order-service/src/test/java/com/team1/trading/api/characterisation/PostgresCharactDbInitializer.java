@@ -16,21 +16,6 @@ import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Provisions the dedicated PostgreSQL database the Sprint 7 characterisation tests run
- * against, then injects the datasource settings into the Spring test context.
- *
- * <p>Why a real database and not H2: Sprint 6's {@code PositionMapper} upserts use the
- * PostgreSQL-only {@code INSERT ... ON CONFLICT ... DO UPDATE} syntax. H2 (any mode,
- * including {@code MODE=PostgreSQL}) cannot parse that clause, and the Sprint 6 sources
- * must not be rewritten to appease H2, so the order placement path is pinned against the
- * same engine it runs on in production.
- *
- * <p>The connection settings come from the same TrustMe key file the Sprint 6 app uses, so
- * no database credentials are hard-coded or committed. Everything is overridable through
- * environment variables ({@code TRUSTME_KEY_FILE}, {@code CHARACT_DB_NAME}), which also
- * makes a plain local PostgreSQL the only external requirement.
- */
 public class PostgresCharactDbInitializer
         implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -82,7 +67,6 @@ public class PostgresCharactDbInitializer
         return props;
     }
 
-    /** Connection details for the characterisation database, from TrustMe or environment. */
     static final class DbSettings {
         final String host;
         final String port;
@@ -101,8 +85,6 @@ public class PostgresCharactDbInitializer
         static DbSettings resolve() {
             String keyFile = envOrSystem("TRUSTME_KEY_FILE", "trustme.key-file");
             if (keyFile == null) {
-                // Key file at the repo root; surefire runs with the module
-                // directory (Application/Services/order-service) as CWD.
                 keyFile = "../../../leapcapstoneteam1-720d03.TM";
             }
             String dbName = envOrSystem("CHARACT_DB_NAME", "charact.dbname");
@@ -113,15 +95,12 @@ public class PostgresCharactDbInitializer
             String host = null, port = null, user = null, password = null;
             Path keyPath = Paths.get(keyFile).toAbsolutePath().normalize();
             if (Files.isRegularFile(keyPath)) {
-                // useKeyFile() sets the static default key file that the static get()
-                // reads (using() merely builds an instance and does not register it).
                 TrustMe.useKeyFile(keyPath);
                 host = TrustMe.get("PostGres_Host");
                 port = TrustMe.get("Postgres_Port");
                 user = TrustMe.get("PostGres_User");
                 password = TrustMe.get("PostGres");
             }
-            // The credentials come from the TrustMe vault and nowhere else.
             if (host == null || port == null || user == null || password == null) {
                 throw new IllegalArgumentException(
                         "PostgreSQL credentials are not available from the TrustMe key file (" + keyPath + ").");

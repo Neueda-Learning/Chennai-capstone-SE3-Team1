@@ -1,11 +1,3 @@
-/**
- * The password rules, mirrored from `PasswordPolicy` in
- * `Services/auth-service/src/auth/password-policy.ts` so the register and reset
- * screens agree with the VAL-422 the service returns. Both screens need this:
- * the policy is enforced twice - here for the trader, and again on the server.
- */
-
-/** QWERTY keyboard rows, each used forwards and reversed. */
 const KEYBOARD_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'] as const;
 
 export const MIN_PASSWORD_LENGTH = 12;
@@ -16,7 +8,6 @@ export interface PasswordRequirement {
   met: boolean;
 }
 
-/** Mirrors `hasSequentialRun` in the service's password-policy.ts. */
 export function hasSequentialRun(value: string, minRun = 4): boolean {
   for (let i = 0; i + minRun - 1 < value.length; i++) {
     const step = value.charCodeAt(i + 1) - value.charCodeAt(i);
@@ -37,7 +28,6 @@ export function hasSequentialRun(value: string, minRun = 4): boolean {
   return false;
 }
 
-/** Mirrors `hasKeyboardRun` in the service's password-policy.ts. */
 export function hasKeyboardRun(value: string, minRun = 4): boolean {
   const lowered = value.toLowerCase();
   const rows = KEYBOARD_ROWS.map((row) => `${row}${[...row].reverse().join('')}`);
@@ -51,7 +41,6 @@ export function hasKeyboardRun(value: string, minRun = 4): boolean {
   return false;
 }
 
-/** One entry per rule, each already judged against what the trader has typed. */
 export function passwordRequirements(password: string): PasswordRequirement[] {
   return [
     { label: 'At least 12 characters.', met: password.length >= MIN_PASSWORD_LENGTH },
@@ -67,7 +56,6 @@ export function passwordRequirements(password: string): PasswordRequirement[] {
   ];
 }
 
-/** Whether the password would survive the service's own check. */
 export function passwordPolicyPassed(password: string): boolean {
   return passwordRequirements(password).every((requirement) => requirement.met);
 }

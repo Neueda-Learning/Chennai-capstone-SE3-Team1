@@ -16,18 +16,15 @@ import { ErrorCatalog } from '../../core/errors/error-catalog';
   styleUrl: './blotter-page.css'
 })
 export class BlotterPage implements OnInit, OnDestroy {
-  // Use signals for reactive state
   rows = signal<BlotterRow[]>([]);
   isLoading = signal(false);
   isRefreshing = signal(false);
   error = signal<string | null>(null);
   isPolling = signal(false);
   
-  // Modal state
   selectedOrderForDetails = signal<BlotterRow | null>(null);
-  isCancelling = signal<string | null>(null); // Track which order is being cancelled (by orderId)
+  isCancelling = signal<string | null>(null);
 
-  // Filter state
   searchText = signal('');
   selectedStatus = signal<OrderStatus | 'ALL'>('ALL');
   selectedSide = signal<'BUY' | 'SELL' | 'ALL'>('ALL');
@@ -35,7 +32,6 @@ export class BlotterPage implements OnInit, OnDestroy {
   currentPage = signal(1);
   pageSize = signal(10);
 
-  // Status constants for template
   readonly OrderStatus = OrderStatus;
   readonly Math = Math;
   readonly Array = Array;
@@ -46,14 +42,12 @@ export class BlotterPage implements OnInit, OnDestroy {
     { label: 'All Time', value: 'all' as const }
   ];
 
-  // Inject dependencies
   private readonly session = inject(SessionStore);
   private readonly blotterService = inject(BlotterService);
   private readonly ordersService = inject(OrdersService);
   private readonly errorCatalog = inject(ErrorCatalog);
   private readonly route = inject(ActivatedRoute, { optional: true });
 
-  // The navbar search sends you here with ?q=<order id>; show just that order.
   private readonly queryFilter = this.route?.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
     const q = params.get('q');
     if (q !== null) {
@@ -62,11 +56,9 @@ export class BlotterPage implements OnInit, OnDestroy {
     }
   });
 
-  // Computed signal for filtered rows
   filteredRows = computed(() => {
     let filtered = this.rows();
 
-    // Apply time frame filter
     const timeFrame = this.timeFrame();
     if (timeFrame !== 'all') {
       const now = new Date();
@@ -86,17 +78,14 @@ export class BlotterPage implements OnInit, OnDestroy {
       });
     }
 
-    // Apply status filter
     if (this.selectedStatus() !== 'ALL') {
       filtered = filtered.filter(row => row.status === this.selectedStatus());
     }
 
-    // Apply side filter
     if (this.selectedSide() !== 'ALL') {
       filtered = filtered.filter(row => row.side === this.selectedSide());
     }
 
-    // Apply search filter
     const search = this.searchText().toLowerCase();
     if (search) {
       filtered = filtered.filter(row =>
@@ -108,7 +97,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     return filtered;
   });
 
-  // Computed signal for paginated rows
   paginatedRows = computed(() => {
     const filtered = this.filteredRows();
     const start = (this.currentPage() - 1) * this.pageSize();
@@ -116,7 +104,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     return filtered.slice(start, end);
   });
 
-  // Computed signal for total pages
   totalPages = computed(() => {
     return Math.ceil(this.filteredRows().length / this.pageSize());
   });
@@ -129,14 +116,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     this.blotterService.stopPolling();
   }
 
-  /**
-   * Start polling for order updates. Sets up continuous polling
-   * that stops when no orders are at NEW or max attempts reached.
-   * 
-   * Re-read order history on a bounded interval (2s, max 15 attempts = ~30s)
-   * while anything is at NEW, stop when nothing is working, and offer a refresh
-   * the user can press. Never re-post the order.
-   */
   private startPolling(): void {
     const accountId = this.session.accountId();
     if (!accountId) {
@@ -154,18 +133,15 @@ export class BlotterPage implements OnInit, OnDestroy {
         this.rows.set(newRows);
         this.isLoading.set(false);
         
-        // Check if any orders are still NEW
         const hasNewOrders = newRows.some(r => r.status === OrderStatus.New);
         const newOrdersCount = newRows.filter(r => r.status === OrderStatus.New).length;
         
         if (!hasNewOrders) {
-          // Polling stopped - all orders are terminal
           this.isPolling.set(false);
           if (newOrdersCount === 0 && newRows.length > 0) {
             console.log('[Blotter] Polling complete - all orders in terminal state');
           }
         } else {
-          // Still polling for NEW orders
           console.log(
             `[Blotter] Polling active - ${newOrdersCount} order(s) at NEW status`
           );
@@ -179,16 +155,12 @@ export class BlotterPage implements OnInit, OnDestroy {
         this.isPolling.set(false);
       },
       complete: () => {
-        // Polling completed (either no NEW orders or max attempts reached)
         this.isPolling.set(false);
         console.log('[Blotter] Polling stream completed');
       }
     });
   }
 
-  /**
-   * Manual refresh: fetch orders once without continuous polling.
-   */
   refreshOrders(): void {
     const accountId = this.session.accountId();
     if (!accountId) {
@@ -213,10 +185,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * Get badge CSS class based on status for theme-consistent styling.
-   * Maps to theme classes: .badge-table.success, .badge-table.pending, .badge-table.failed
-   */
   getStatusClass(status: string): string {
     switch (status) {
       case OrderStatus.Filled:
@@ -232,9 +200,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Get status display text.
-   */
   getStatusDisplay(status: string): string {
     switch (status) {
       case OrderStatus.New:
@@ -250,30 +215,18 @@ export class BlotterPage implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Show order details in a modal.
-   */
   viewOrderDetails(order: BlotterRow): void {
     this.selectedOrderForDetails.set(order);
   }
 
-  /**
-   * Close the details modal.
-   */
   closeDetailsModal(): void {
     this.selectedOrderForDetails.set(null);
   }
 
-  /**
-   * Reset pagination when filters change.
-   */
   onFilterChange(): void {
     this.currentPage.set(1);
   }
 
-  /**
-   * Clear all filters.
-   */
   clearFilters(): void {
     this.searchText.set('');
     this.selectedStatus.set('ALL');
@@ -282,9 +235,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     this.currentPage.set(1);
   }
 
-  /**
-   * Check if any filters are active.
-   */
   hasActiveFilters(): boolean {
     return (
       this.searchText() !== '' ||
@@ -294,34 +244,24 @@ export class BlotterPage implements OnInit, OnDestroy {
     );
   }
 
-  /**
-   * Go to previous page.
-   */
   previousPage(): void {
     if (this.currentPage() > 1) {
       this.currentPage.set(this.currentPage() - 1);
     }
   }
 
-  /**
-   * Go to next page.
-   */
   nextPage(): void {
     if (this.currentPage() < this.totalPages()) {
       this.currentPage.set(this.currentPage() + 1);
     }
   }
 
-  /**
-   * Cancel an order. Only works if order status is NEW.
-   */
   cancelOrder(order: BlotterRow): void {
     if (order.status !== OrderStatus.New) {
       this.error.set('Only orders in "Working" status can be cancelled.');
       return;
     }
 
-    // Extract order ID without the "ORD-" prefix
     const orderIdWithoutPrefix = order.orderId.replace(/^ORD-/, '');
 
     this.isCancelling.set(order.orderId);
@@ -332,7 +272,6 @@ export class BlotterPage implements OnInit, OnDestroy {
         console.log(`[Blotter] Order ${order.orderId} cancelled successfully`);
         this.isCancelling.set(null);
         
-        // Refresh the order list to show updated status
         this.refreshOrders();
       },
       error: (err) => {
@@ -344,9 +283,6 @@ export class BlotterPage implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * Check if an order can be cancelled.
-   */
   canCancelOrder(order: BlotterRow): boolean {
     return order.status === OrderStatus.New;
   }

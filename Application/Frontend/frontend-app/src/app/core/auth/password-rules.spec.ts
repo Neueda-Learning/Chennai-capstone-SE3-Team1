@@ -5,11 +5,6 @@ import {
   passwordRequirements
 } from './password-rules';
 
-/**
- * This module is a mirror of `PasswordPolicy` in
- * `Services/auth-service/src/auth/password-policy.ts`. These cases are the ones
- * that broke the first version of the rule, so they are the ones worth pinning.
- */
 describe('password rules', () => {
   function requirementMet(password: string, label: string): boolean | undefined {
     return passwordRequirements(password).find((item) => item.label.includes(label))?.met;

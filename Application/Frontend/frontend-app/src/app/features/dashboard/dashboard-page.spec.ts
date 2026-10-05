@@ -133,7 +133,6 @@ describe('DashboardPage', () => {
       setUp();
       const fixture = create();
 
-      // 50,000 cash + 10 x 1,300 + 5 x 3,300 = 79,500
       expect(text(fixture, 'portfolio-value')).toContain('79,500.00');
       expect(text(fixture, 'cash')).toContain('50,000.00');
       expect(text(fixture, 'invested')).toContain('29,500.00');
@@ -143,7 +142,6 @@ describe('DashboardPage', () => {
       setUp();
       const fixture = create();
 
-      // cost 12,500 + 17,000 = 29,500; worth 29,500; so flat
       expect(text(fixture, 'unrealised')).toContain('0.00');
     });
 
@@ -152,7 +150,6 @@ describe('DashboardPage', () => {
       api.set('/market/quotes', [{ ...QUOTES[0], price: 1400 }, QUOTES[1]]);
       const fixture = create();
 
-      // 10 x (1400 - 1250) + 5 x (3300 - 3400) = 1,500 - 500 = +1,000 on 29,500 cost
       expect(text(fixture, 'unrealised')).toContain('+₹1,000.00');
       expect(text(fixture, 'unrealised')).toContain('+3.39%');
       expect(text(fixture, 'headline')).toContain('up 3.39%');
@@ -162,14 +159,12 @@ describe('DashboardPage', () => {
       setUp();
       const fixture = create();
 
-      // 10 x +10 and 5 x -20 = 0
       expect(text(fixture, 'day-pnl')).toContain('0.00');
 
       api.set('/market/quotes', [QUOTES[0], { ...QUOTES[1], change: -30 }]);
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
       settle(fixture);
-      // 100 - 150 = -50
       expect(text(fixture, 'day-pnl')).toContain('-₹50.00');
     });
 
@@ -178,7 +173,6 @@ describe('DashboardPage', () => {
       api.set('/market/quotes', []);
       const fixture = create();
 
-      // RELIANCE: 1250 + 500/10 = 1300 -> 13,000; TCS: 3400 + (-500/5) = 3300 -> 16,500
       expect(text(fixture, 'invested')).toContain('29,500.00');
     });
 
@@ -214,7 +208,6 @@ describe('DashboardPage', () => {
       expect(legend).toContain('RELIANCE');
       expect(legend).toContain('TCS');
       expect(legend).toContain('Cash');
-      // 50,000 of 79,500
       expect(legend).toContain('62.9%');
     });
 
@@ -273,7 +266,7 @@ describe('DashboardPage', () => {
     settle(fixture);
 
     expect(api.count('/balance')).toBe(before + 1);
-    expect(text(fixture, 'portfolio-value')).toContain('79,500.00'); // and kept showing it meanwhile
+    expect(text(fixture, 'portfolio-value')).toContain('79,500.00');
   });
 
   it('refreshes by itself every minute', () => {
@@ -324,7 +317,6 @@ describe('DashboardPage', () => {
       expect(text(fixture, 'refresh-failed')).toContain('may be out of date');
       expect(text(fixture, 'portfolio-value')).toContain('79,500.00');
 
-      // and it keeps trying: the next cycle recovers
       api.set(`/accounts/${ACCOUNT_ID}/portfolio`, PORTFOLIO);
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();

@@ -9,7 +9,5 @@ import { ThemeService } from './core/theme/theme.service';
   template: '<router-outlet />'
 })
 export class App {
-  // Injected for its effect: constructing the service applies the saved theme to <html>, on
-  // every route, including the sign-in pages that have no shell around them.
   protected readonly theme = inject(ThemeService);
 }

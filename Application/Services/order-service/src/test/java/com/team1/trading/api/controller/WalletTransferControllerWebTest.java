@@ -29,10 +29,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * {@code POST /api/v1/accounts/{id}/transfers} over HTTP with the real JWT filter and token
- * reader in front, so the account the service is asked about is the one the token carries.
- */
 @WebMvcTest(controllers = WalletTransferController.class)
 @Import({JwtValidator.class, HeaderTokenAccountIdResolver.class})
 @TestPropertySource(properties = {

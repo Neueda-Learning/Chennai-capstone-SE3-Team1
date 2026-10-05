@@ -5,10 +5,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * The quota arithmetic. These are the numbers we are asked to show at the review, executable
- * rather than written down, so that a configuration change that breaks them fails the build.
- */
 class PollingScheduleTest {
 
     @Test
@@ -32,7 +28,6 @@ class PollingScheduleTest {
 
     @Test
     void ourConfiguredIntervalStaysInsideTheDailyQuotaForOurSymbolSet() {
-        // Four symbols are held in the seeded data; 60s is what .env.example sets.
         assertThat(PollingSchedule.requestsPerDay(4, 60)).isEqualTo(1440);
         assertThat(PollingSchedule.withinDailyBudget(4, 60)).isTrue();
         assertThat(PollingSchedule.requestsPerDay(4, 60)).isLessThan(PollingSchedule.DAILY_QUOTA);
@@ -40,8 +35,6 @@ class PollingScheduleTest {
 
     @Test
     void theIntervalsThatDoNotFitAreTheOnesTheNotesWarnAbout() {
-        // The whole point of the floor: 30s is inside the 2000 quota but outside the poller's
-        // share of it, which means the fill path is the thing that runs out of price.
         assertThat(PollingSchedule.requestsPerDay(4, 30)).isEqualTo(2880);
         assertThat(PollingSchedule.withinDailyBudget(4, 30)).isFalse();
 
@@ -51,18 +44,15 @@ class PollingScheduleTest {
 
     @Test
     void batchingIsWhatMakesTheIntervalAffordable() {
-        // Eight symbols one at a time every 30s is 23040 requests: the key is gone in two hours.
         int unbatched = 8 * PollingSchedule.requestsPerDay(1, 30);
         assertThat(unbatched).isEqualTo(23_040);
 
-        // The identical data batched is 2880, and at our 60s interval 1440.
         assertThat(PollingSchedule.requestsPerDay(8, 30)).isEqualTo(2880);
         assertThat(PollingSchedule.requestsPerDay(8, 60)).isEqualTo(1440);
     }
 
     @Test
     void theFloorIsTheFastestIntervalThatFitsAndIsDerivedNotPicked() {
-        // ceil(86400 / 1500) = 57.6 -> 58
         assertThat(PollingSchedule.absoluteFloorSeconds()).isEqualTo(58);
         assertThat(PollingSchedule.withinDailyBudget(25, 58)).isTrue();
         assertThat(PollingSchedule.withinDailyBudget(25, 57)).isFalse();

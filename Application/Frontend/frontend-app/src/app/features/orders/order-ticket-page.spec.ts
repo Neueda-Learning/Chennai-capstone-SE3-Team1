@@ -85,7 +85,6 @@ function acceptedOrder(overrides: Record<string, unknown> = {}) {
 describe('OrderTicketPage', () => {
   let http: HttpTestingController;
 
-  /** What the fake backend answers with; a test changes these before building the page. */
   let quotes: object[];
   let balance: object;
   let account: object;
@@ -147,7 +146,6 @@ describe('OrderTicketPage', () => {
     }
   }
 
-  /** Lets timers fire and answers everything the page asks for until it goes quiet. */
   function settle(fixture: TicketFixture): void {
     for (let round = 0; round < 6; round++) {
       vi.advanceTimersByTime(1);
@@ -190,14 +188,12 @@ describe('OrderTicketPage', () => {
     settle(fixture);
   }
 
-  /** Clicks a chart control and lets the candles it triggers load. */
   function click(fixture: TicketFixture, testId: string): void {
     root(fixture).querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click();
     fixture.detectChanges();
     settle(fixture);
   }
 
-  /** Opens the trend dialog; the chart controls only exist while it is open. */
   function openChart(fixture: TicketFixture): void {
     click(fixture, 'open-chart');
   }
@@ -445,7 +441,7 @@ describe('OrderTicketPage', () => {
       expect(Array.from(root(fixture).querySelectorAll('.indicator-item')).map((e) => e.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
         'SMA 20', 'SMA 50', 'EMA 20', 'Bollinger', 'Volumedaily candles', 'RSI 14', 'MACD'
       ]);
-      expect(box('sma20').checked).toBe(true); // the default
+      expect(box('sma20').checked).toBe(true);
       expect(box('macd').checked).toBe(false);
 
       box('macd').click();
@@ -510,7 +506,6 @@ describe('OrderTicketPage', () => {
       openChart(fixture);
 
       expect(root(fixture).querySelector('[data-testid="range-1w"]')?.classList.contains('active')).toBe(true);
-      // 1m over a week is more candles than allowed, so the range's default is used instead
       expect(root(fixture).querySelector('[data-testid="interval-30m"]')?.classList.contains('active')).toBe(true);
       expect(root(fixture).querySelector('[data-testid="style-line"]')?.classList.contains('active')).toBe(true);
       expect(root(fixture).querySelector<HTMLInputElement>('[data-testid="indicator-macd"]')!.checked).toBe(true);
@@ -666,7 +661,7 @@ describe('OrderTicketPage', () => {
       expect(request.request.body.symbol).toBe('RELIANCE');
       expect(request.request.body.side).toBe('BUY');
       expect(request.request.body.quantity).toBe(10);
-      expect(request.request.body.price).toBe(1326.31); // ask 1300.30 + 2%, rounded up to the paisa
+      expect(request.request.body.price).toBe(1326.31);
       expect(request.request.body.idempotencyKey).toBeTruthy();
 
       request.flush(acceptedOrder());
@@ -677,7 +672,6 @@ describe('OrderTicketPage', () => {
       expect(outcome).toContain('ORD-9982');
       expect(outcome).toContain('NEW');
       expect(outcome).toContain('current market price');
-      // The protective limit is plumbing; it is never presented as the price paid.
       expect(outcome).not.toContain('1,326.31');
     });
 
@@ -732,7 +726,7 @@ describe('OrderTicketPage', () => {
       const request = http.expectOne(ORDERS_URL);
       expect(request.request.body.side).toBe('SELL');
       expect(request.request.body.quantity).toBe(3);
-      expect(request.request.body.price).toBe(1273.9); // bid 1299.90 - 2%, rounded down
+      expect(request.request.body.price).toBe(1273.9);
       request.flush(acceptedOrder({ side: 'SELL' }));
       fixture.detectChanges();
       settle(fixture);
@@ -783,7 +777,6 @@ describe('OrderTicketPage', () => {
       settle(fixture);
       expect(textOf(fixture, '[data-testid="balance"]')).toContain('42,500.50');
 
-      // the executor fills it a few seconds later: cash is spent, and the notification says so
       balance = balanceOf({ cashBalance: 41200 });
       TestBed.inject(NotificationStore)['changesSignal'].update((n: number) => n + 1);
       fixture.detectChanges();
@@ -872,7 +865,7 @@ describe('OrderTicketPage', () => {
 
     it('blocks a buy the wallet cannot cover, counting the protection', () => {
       setUp();
-      balance = balanceOf({ cashBalance: 13000 }); // 10 units cost 13,001 at the current price
+      balance = balanceOf({ cashBalance: 13000 });
       const fixture = create();
       setQuantity(fixture, '10');
       submit(fixture);

@@ -12,11 +12,6 @@ import { RegisterPage } from './register-page';
 import { ResetPasswordPage } from './reset-password-page';
 import { VerifyOtpPage } from './verify-otp-page';
 
-/**
- * The sign-in family has no navbar, so each page carries its own floating theme switch;
- * without it, someone who prefers dark mode would be stuck in light until they got past
- * sign-in.
- */
 describe('theme toggle on the pages without a navbar', () => {
   const pages: [string, Type<unknown>][] = [
     ['login', LoginPage],

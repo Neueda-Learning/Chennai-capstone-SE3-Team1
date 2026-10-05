@@ -34,17 +34,12 @@ export class ResetPasswordPage {
   protected readonly confirmPassword = signal('');
   protected readonly error = signal<string | null>(null);
 
-  /**
-   * Carried over from the forgot-password page. The code is what proves the
-   * reset; the address only says which account the code is checked against.
-   */
   protected readonly email = signal(
     this.route.snapshot.queryParamMap.get('email')?.trim() ?? ''
   );
 
   protected readonly otpComplete = computed(() => /^\d{6}$/.test(this.otp().trim()));
 
-  /** The same rules the register screen shows, and the same ones the service enforces. */
   protected readonly showPasswordHelp = computed(() => this.password() !== '');
   protected readonly passwordRequirements = computed(() =>
     rulesForPassword(this.password())

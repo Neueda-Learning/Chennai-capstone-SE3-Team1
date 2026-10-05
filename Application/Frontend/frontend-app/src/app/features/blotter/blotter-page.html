@@ -5,14 +5,12 @@
   </div>
 </div>
 
-<!-- Loading State -->
 @if (isLoading()) {
   <div class="loading-container">
     <div class="spinner"></div>
     <p>Loading order history...</p>
   </div>
 } @else if (error()) {
-  <!-- Error State -->
   <div class="alert alert-danger" role="alert">
     <strong>Error:</strong> {{ error() }}
     <button class="btn btn-sm btn-outline-danger ms-2" (click)="refreshOrders()">
@@ -20,17 +18,13 @@
     </button>
   </div>
 } @else if (rows().length === 0) {
-  <!-- Empty State -->
   <div class="empty-state">
     <p>No orders found.</p>
   </div>
 } @else {
-  <!-- Orders Table -->
   <div class="blotter-container">
-    <!-- Filter Controls -->
     <div class="filter-section">
       <div class="filter-row">
-        <!-- Search -->
         <div class="filter-group">
           <label class="filter-label">Search</label>
           <div class="search-box">
@@ -45,7 +39,6 @@
           </div>
         </div>
 
-        <!-- Time Frame -->
         <div class="filter-group">
           <label class="filter-label">Time Frame</label>
           <select class="filter-select" [(ngModel)]="timeFrame" (change)="onFilterChange()">
@@ -55,7 +48,6 @@
           </select>
         </div>
 
-        <!-- Status -->
         <div class="filter-group">
           <label class="filter-label">Status</label>
           <select class="filter-select" [(ngModel)]="selectedStatus" (change)="onFilterChange()">
@@ -67,7 +59,6 @@
           </select>
         </div>
 
-        <!-- Side -->
         <div class="filter-group">
           <label class="filter-label">Side</label>
           <select class="filter-select" [(ngModel)]="selectedSide" (change)="onFilterChange()">
@@ -77,7 +68,6 @@
           </select>
         </div>
 
-        <!-- Clear Filters Button -->
         @if (hasActiveFilters()) {
           <div class="filter-group filter-action">
             <button class="btn-clear-filters" (click)="clearFilters()" type="button">
@@ -88,7 +78,6 @@
         }
       </div>
 
-      <!-- Results Info and Refresh -->
       <div class="filter-footer">
         <div class="results-info">
           @if (filteredRows().length > 0) {
@@ -120,7 +109,6 @@
       </div>
     </div>
 
-    <!-- Table -->
     <div class="table-wrapper">
       <div class="table-responsive-wrapper">
         <table class="table-custom">
@@ -205,7 +193,6 @@
       </div>
     </div>
 
-    <!-- Pagination -->
     @if (filteredRows().length > 0 && totalPages() > 1) {
       <div class="pagination-section">
         <div class="pagination-info">
@@ -254,7 +241,6 @@
   </div>
 }
 
-<!-- Order Details Modal -->
 @if (selectedOrderForDetails()) {
   <div class="modal-overlay" (click)="closeDetailsModal()"></div>
   <div class="modal-dialog modal-show">

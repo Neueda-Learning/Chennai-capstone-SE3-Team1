@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[4]  # tests -> etl-trades -> ETL -> Application -> repo root
+REPO_ROOT = Path(__file__).resolve().parents[4]
 for path in (REPO_ROOT / "scripts",
              REPO_ROOT / "Application" / "ETL" / "etl-trades",
              REPO_ROOT / "tests"):

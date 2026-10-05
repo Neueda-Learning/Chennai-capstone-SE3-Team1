@@ -15,22 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Verifies JWT tokens for all routes under {@code /api/v1/} and the legacy client and
- * bank-account routes under {@code /api/clients} and {@code /api/bank-accounts}, before any
- * controller runs.
- *
- * <p>This filter implements the story requirement that "every route under the API prefix is
- * answered for token validity once, before any controller runs."
- *
- * <p>If the token is valid, the verified {@link JwtClaims} are stored in the request so
- * downstream components (controllers, services) can access them via
- * {@link JwtRequestContext#getClaims()}.
- *
- * <p>All verification failures (missing header, wrong scheme, expired, forged signature)
- * return HTTP 401 with identical error body, preventing attackers from enumerating
- * which validation step failed.
- */
 @Component
 public class JwtVerificationFilter extends OncePerRequestFilter {
 
@@ -49,13 +33,10 @@ public class JwtVerificationFilter extends OncePerRequestFilter {
             String authorizationHeader = request.getHeader("Authorization");
             JwtClaims claims = jwtValidator.verify(authorizationHeader);
             
-            // Store claims in request context so controllers and services can access them
             JwtRequestContext.setClaims(claims);
             
             filterChain.doFilter(request, response);
         } catch (JWTVerificationException e) {
-            // JWT verification failed: send AUTH-401 response directly from filter
-            // (servlet filters are outside Spring's exception handler)
             writeUnauthorizedResponse(response);
         } finally {
             JwtRequestContext.clear();
@@ -66,11 +47,6 @@ public class JwtVerificationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // A CORS preflight carries no Authorization header by design, so verifying one
-        // would answer the browser's question with AUTH-401 and the real request would
-        // never be sent. CorsFilter runs first and answers the preflight itself; this
-        // exemption is the second line of defence for a preflight CorsFilter does not
-        // recognise as one, where passing through still beats a misleading 401.
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
@@ -79,20 +55,10 @@ public class JwtVerificationFilter extends OncePerRequestFilter {
         return !(path.startsWith("/api/v1/") || isLegacyRoute(path));
     }
 
-    /**
-     * The pre-v1 client and bank-account routes read and change accounts and balances, so they
-     * need a valid token too. Matched as the exact prefix or a sub-path, so a sibling such as
-     * {@code /api/bank-accounts-report} is not swept in by accident.
-     */
     private static boolean isLegacyRoute(String path) {
         return LEGACY_ROUTES.stream().anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
     }
 
-    /**
-     * Writes a 401 Unauthorized response with the standard error envelope.
-     * The response body is identical for all four failure modes (missing header, wrong scheme,
-     * expired token, forged signature) so attackers cannot enumerate which validation failed.
-     */
     private void writeUnauthorizedResponse(HttpServletResponse response) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

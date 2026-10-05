@@ -37,14 +37,12 @@ AUTH_DIR = _first_existing(
     REPO_ROOT / "services" / "team1-nestjs",
 )
 
-# Same parameters as the auth service's password.constants.ts (Algorithm.Argon2id = 2).
 HASH_JS = """
 const { hash } = require('@node-rs/argon2');
 hash(process.env.TEST_ACCOUNT_PASSWORD, { memoryCost: 65536, timeCost: 3, parallelism: 4, algorithm: 2 })
   .then((h) => process.stdout.write(h));
 """
 
-# Plausible prices for the seeded instruments, only used by --seed-quotes.
 SYNTHETIC_QUOTES = {
     "RELIANCE": (1300.10, 12.40),
     "TCS": (3300.50, -20.20),

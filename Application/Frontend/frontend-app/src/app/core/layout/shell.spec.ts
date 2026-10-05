@@ -35,7 +35,6 @@ const ACCOUNT = {
   lastUpdated: '2026-02-14T10:15:30Z'
 };
 
-/** The API sends server-local time with no zone; build the same shape from the browser's clock. */
 function localIso(msAgo: number): string {
   const d = new Date(Date.now() - msAgo);
   const pad = (n: number, w = 2) => String(n).padStart(w, '0');
@@ -229,7 +228,6 @@ describe('Shell', () => {
       const session = TestBed.inject(SessionStore);
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
       expect(session.isSignedIn()).toBe(true);
-      // The revoke call is authenticated; it must still carry the token the sign-out is about to drop.
       let logoutAuthHeader: string | null = null;
       api.on((r) => {
         const hit = r.request.method === 'POST' && r.request.url.endsWith('/auth/logout');

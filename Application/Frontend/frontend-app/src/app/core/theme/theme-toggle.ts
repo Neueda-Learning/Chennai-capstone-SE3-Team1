@@ -2,10 +2,6 @@ import { Component, inject } from '@angular/core';
 
 import { ThemeService } from './theme.service';
 
-/**
- * The light/dark switch. Used in the shell's navbar and, as a floating button, on the
- * sign-in family of pages that have no navbar.
- */
 @Component({
   selector: 'tui-theme-toggle',
   template: `

@@ -23,7 +23,6 @@ describe('sma', () => {
 
 describe('ema', () => {
   it('seeds with the simple average of the first N, then smooths with 2/(N+1)', () => {
-    // N=3, k=0.5: seed = (1+2+3)/3 = 2; next = 4*0.5 + 2*0.5 = 3; next = 5*0.5 + 3*0.5 = 4
     expect(ema([1, 2, 3, 4, 5], 3)).toEqual([null, null, 2, 3, 4]);
   });
 
@@ -50,7 +49,6 @@ describe('bollinger', () => {
   });
 
   it('uses the population standard deviation', () => {
-    // [2, 4, 6]: mean 4, variance (4+0+4)/3, sd = sqrt(8/3)
     const b = bollinger([2, 4, 6], 3, 2);
     const sd = Math.sqrt(8 / 3);
     expect(close(b.upper[2])).toBe(close(4 + 2 * sd));
@@ -82,7 +80,6 @@ describe('rsi', () => {
   });
 
   it('matches the textbook value for the classic worked example', () => {
-    // 15 closes (14 changes): 7 gains of 1, 7 losses of 1 -> avg gain = avg loss -> RSI 50
     const values = [10, 11, 10, 11, 10, 11, 10, 11, 10, 11, 10, 11, 10, 11, 10];
     expect(rsi(values, 14)[14]).toBeCloseTo(50, 10);
   });

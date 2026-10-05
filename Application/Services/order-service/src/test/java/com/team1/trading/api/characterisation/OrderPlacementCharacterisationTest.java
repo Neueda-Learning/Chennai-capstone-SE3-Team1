@@ -37,36 +37,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-/**
- * Characterisation tests that pin the Sprint 7 order placement path: an accepted order is
- * written at {@code NEW}, answered {@code NEW} with message "Order accepted", and an
- * {@link Envelope} wrapping the {@code ORDER_PLACED} payload is published to the {@code orders}
- * Kafka topic keyed by the account.
- *
- * <p>The observations they deliberately freeze are:
- *
- * <ul>
- *   <li>an accepted order answers HTTP 200 with status {@code NEW}, message "Order accepted";</li>
- *   <li>the order row stores {@code client_id = account_id}, {@code order_type = POSITION},
- *       {@code status = NEW}, a null {@code executed_price}, the submitted limit price and a null
- *       {@code external_order_id};</li>
- *   <li>the placement moves no cash and writes no position books: the wallet and version are
- *       untouched and no {@code portfolio_positions} / {@code portfolio_holding} row appears;</li>
- *   <li>the event is delivered to the {@code orders} topic, keyed by the account id, wrapped in
- *       the shared five-field envelope ({@code eventId}, {@code eventType}, {@code eventTime},
- *       {@code source}, {@code schemaVersion}) whose payload carries the order id, symbol, side,
- *       quantity, limit price, the idempotency key and a created-on timestamp;</li>
- *   <li>an unaffordable buy answers ORD-400, an unknown symbol INS-404, an inactive account
- *       ACC-403, and none of them write an order or publish an event;</li>
- *   <li>a reused idempotency key answers ORD-409, writes nothing twice and publishes nothing
- *       again.</li>
- * </ul>
- *
- * <p>These pins changed together with the Sprint 7 source change (the previous baseline pinned
- * a synchronous FILLED, a cash debit and a started position), and again when the JIRA-3 producer
- * was wrapped in the envelope. The Kafka template is a mock - the pin is about what is sent and
- * when, not about a broker.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

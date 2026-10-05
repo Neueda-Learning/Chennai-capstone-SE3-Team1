@@ -34,31 +34,6 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Consumes ORDER_PLACED messages from Kafka orders topic.
- * 
- * Processing pipeline:
- * 1. Deserialize Envelope → OrderPlacedPayload
- * 2. Validate instrument (must exist and be tradable)
- * 3. Fetch quote from Fauxnance
- * 4. Apply fill rules
- * 5. Settle order (atomically update order status, account balance, positions)
- * 6. Publish ORDER_FILLED or ORDER_REJECTED
- * 7. Acknowledge offset
- * 
- * Error handling:
- * - Poison messages (malformed JSON, missing fields) → dead-letter immediately
- * - Transient failures (quote timeout, DB connection lost) → retry with
- * exponential backoff
- * - Permanent Fauxnance failures (quota, bad symbol) → reject order without
- * retry/DLT
- * 
- * At-least-once guarantee: already-settled detection (order status != NEW)
- * prevents re-processing.
- * 
- * Dead-letter messages are published to orders.DLT with failure metadata as
- * Kafka headers.
- */
 @Component
 public class OrderConsumer {
 
@@ -92,18 +67,6 @@ public class OrderConsumer {
         this.deadLetterService = deadLetterService;
     }
 
-    /**
-     * Main Kafka listener: receives ORDER_PLACED messages.
-     * 
-     * Implements retry loop with exponential backoff:
-     * - On poison message (malformed JSON, missing fields) → dead-letter
-     * immediately
-     * - On transient failure (network, DB, lock contention) → retry with backoff
-     * - On permanent Fauxnance failure (quota, bad symbol) → reject order
-     * 
-     * Acknowledges offset after all retry attempts exhausted (success or
-     * dead-letter).
-     */
     @KafkaListener(topics = "orders", groupId = "trade-executor", containerFactory = "kafkaListenerContainerFactory")
     public void consume(ConsumerRecord<String, Envelope> record,
             Acknowledgment ack,
@@ -115,7 +78,6 @@ public class OrderConsumer {
 
         log.debug("Received message on partition {}, offset {}, key {}", partition, offset, key);
 
-        // === STAGE 1: Deserialize Envelope ===
         if (envelope == null) {
             log.warn("Null Envelope received for key {}, partition {}, offset {}. Skipping.", key, partition, offset);
             ack.acknowledge();
@@ -157,25 +119,20 @@ public class OrderConsumer {
         log.info("Deserialized ORDER_PLACED: orderId={}, accountId={}, symbol={}, side={}, partition={}, offset={}",
                 payload.orderId(), payload.accountId(), payload.symbol(), payload.side(), partition, offset);
 
-        // === STAGE 2: Process with Retry Loop ===
         ErrorContext errorContext = null;
 
         while (true) {
             try {
                 processMessage(payload, envelope);
-                // Success: acknowledge and exit
                 ack.acknowledge();
                 log.info("Successfully processed order {} on attempt {}",
                         payload.orderId(), errorContext != null ? errorContext.attemptCount() : 1);
                 return;
 
             } catch (Exception e) {
-                // Only classify error on FIRST attempt, not on retries
-                // This ensures attempt count persists across retry loop iterations
                 if (errorContext == null) {
                     errorContext = errorClassifier.classify(e, "processing OrderPlaced message");
 
-                    // Defensive check to avoid NPE if classifier returns null
                     if (errorContext == null) {
                         log.error("ErrorClassifier returned null for exception: {}", e.getMessage(), e);
                         errorContext = new ErrorContext(
@@ -187,7 +144,6 @@ public class OrderConsumer {
                                 e.getClass().getName());
                     }
                 } else {
-                    // On retry, log the exception but reuse the same ErrorContext
                     log.debug("Retry attempt {} received exception: {}", errorContext.attemptCount() + 1, e.getMessage());
                 }
 
@@ -195,8 +151,6 @@ public class OrderConsumer {
                         payload.orderId(), errorContext.attemptCount(),
                         errorContext.failureReason(), errorContext.failureDetails());
 
-                // === HANDLE PERMANENT FAUXNANCE ERRORS ===
-                // These should reject the order without retry or dead-letter
                 if (errorContext.category() == ErrorCategory.QUOTE_FETCH_PERMANENT) {
                     log.warn("Permanent Fauxnance error (quota or bad request), rejecting order: {}",
                             errorContext.failureReason());
@@ -210,53 +164,38 @@ public class OrderConsumer {
                     return;
                 }
 
-                // === HANDLE RETRYABLE ERRORS ===
                 if (retryHandler.shouldRetry(errorContext)) {
                     log.info("Retryable error detected, sleeping before retry attempt {}",
                             errorContext.attemptCount() + 1);
                     try {
                         retryHandler.sleepBeforeRetry(errorContext);
                         errorContext = errorContext.nextAttempt();
-                        // Loop continues to next retry attempt
                         continue;
 
                     } catch (InterruptedException ie) {
                         log.error("Retry sleep interrupted for order {}", payload.orderId(), ie);
-                        Thread.currentThread().interrupt(); // Restore interrupt flag
-                        break; // Exit retry loop, will dead-letter below
+                        Thread.currentThread().interrupt();
+                        break;
                     }
                 }
 
-                // === BUDGET EXHAUSTED: DEAD-LETTER ===
                 log.warn("Retry budget exhausted for order {} after {} attempts. Dead-lettering.",
                         payload.orderId(), errorContext.attemptCount());
-                break; // Exit retry loop, dead-letter below
+                break;
             }
         }
 
-        // === STAGE 3: Dead-Letter on Permanent Failure ===
         try {
             deadLetterService.sendToDLT(key, envelope, errorContext);
         } catch (Exception dltError) {
             log.error("Critical: Failed to send message to DLT after retries. This message is lost. " +
                     "Order: {}, Error: {}", payload.orderId(), dltError.getMessage());
-            // Still acknowledge to advance the offset; message is lost but partition
-            // continues
         }
 
         ack.acknowledge();
     }
 
-    /**
-     * Core message processing logic.
-     * Throws exception if any step fails (will be caught by retry loop).
-     * 
-     * @param payload  The deserialized order payload
-     * @param envelope The original Kafka envelope
-     * @throws Exception if any step fails (will trigger retry or dead-letter)
-     */
     private void processMessage(OrderPlacedPayload payload, Envelope envelope) throws Exception {
-        // Step 1: Validate instrument
         var instrumentOpt = instrumentMapper.findBySymbol(payload.symbol());
         if (instrumentOpt.isEmpty()) {
             throw new IllegalArgumentException("INSTRUMENT_NOT_FOUND: Symbol " + payload.symbol());
@@ -266,37 +205,27 @@ public class OrderConsumer {
             throw new IllegalArgumentException("INSTRUMENT_NOT_TRADABLE: Symbol " + payload.symbol());
         }
 
-        // Step 2: Fetch quote (may timeout or fail transiently)
         QuoteResponse quote = quoteClient.getQuote(payload.symbol());
 
-        // Step 3: Evaluate fill rules
         Order order = toDomainOrder(payload);
         FillRuleResult fillResult = FillRule.evaluate(order, quote);
 
-        // Step 4: Settle (may fail with optimistic lock, connection errors, etc.)
         var settlementResult = settlementService.settle(order, fillResult,
                 new SettlementService.QuoteSnapshot(quote.bid(), quote.ask()));
 
-        // Step 5: Handle settlement result
         if (!settlementResult.success()) {
             String reason = settlementResult.reason();
             log.info("Settlement failed for order {}: {}", payload.orderId(), reason);
 
-            // Check for already-settled (replay scenario)
             if (reason.startsWith("ALREADY_SETTLED")) {
                 log.info("Message is a replay; order already settled with status {}. Not publishing duplicate event.",
                         reason.substring("ALREADY_SETTLED_".length()));
-                // Don't publish duplicate event, don't throw exception
-                // This is expected behavior, not an error
                 return;
             }
 
-            // For settlement failures (order not found, account not found, etc.),
-            // throw exception so ErrorClassifier can categorize and dead-letter
             throw new IllegalArgumentException(reason);
         }
 
-        // Step 6: Publish filled or rejected event
         if (settlementResult.decision() == com.team1.executor.rule.FillDecision.FILL) {
             publishFilled(payload, envelope.eventId(), settlementResult.executedPrice(), quote,
                     settlementResult.quantityAfter(), settlementResult.averageCostAfter());
@@ -305,26 +234,11 @@ public class OrderConsumer {
         }
     }
 
-    /**
-     * Deserializes a JsonNode into the target class.
-     * 
-     * @param payloadNode The JSON node to deserialize
-     * @param clazz       The target class
-     * @return The deserialized object, or null if deserialization fails
-     * @throws Exception if deserialization fails (caller should classify)
-     */
     private <T> T deserializePayload(JsonNode payloadNode, Class<T> clazz) throws Exception {
         return objectMapper.treeToValue(payloadNode, clazz);
     }
 
-    /**
-     * Converts OrderPlacedPayload to domain Order entity.
-     * 
-     * @param payload The payload from Kafka
-     * @return Domain Order entity
-     */
     private Order toDomainOrder(OrderPlacedPayload payload) {
-        // accountId doubles as clientId in this schema (clients.client_id is the wallet).
         Order order = new Order(
                 payload.accountId(),
                 payload.accountId(),
@@ -338,14 +252,6 @@ public class OrderConsumer {
         return order;
     }
 
-    /**
-     * Publishes ORDER_FILLED event to trade-events topic.
-     * 
-     * @param payload       The order payload
-     * @param eventId       The original event ID (for tracing)
-     * @param executedPrice The price at which order was filled
-     * @param quote         The quote snapshot used for settlement
-     */
     private void publishFilled(OrderPlacedPayload payload, String eventId, BigDecimal executedPrice,
             QuoteResponse quote, int quantityAfter, BigDecimal averageCostAfter) {
         BigDecimal cashDelta = calculateCashDelta(payload, executedPrice);
@@ -374,15 +280,6 @@ public class OrderConsumer {
         log.info("Published ORDER_FILLED for order {}", payload.orderId());
     }
 
-    /**
-     * Publishes ORDER_REJECTED event to trade-events topic.
-     *
-     * @param payload    The order payload
-     * @param eventId    The original event ID (for tracing)
-     * @param reasonCode The rejection reason code
-     * @param quote      The Fauxnance quote the rejection was decided against, or null when the
-     *                   order was rejected before a quote was available (e.g. quota/API failure)
-     */
     private void publishRejected(OrderPlacedPayload payload, String eventId, String reasonCode, QuoteResponse quote) {
         log.info("Order {} REJECTED [{}]: side={} symbol={} qty={} requestedPrice={} -- {}",
                 payload.orderId(), reasonCode, payload.side(), payload.symbol(), payload.quantity(),
@@ -413,16 +310,6 @@ public class OrderConsumer {
         log.info("Published ORDER_REJECTED for order {}: {}", payload.orderId(), reasonCode);
     }
 
-    /**
-     * Builds the human-readable price comparison that goes alongside a rejection log: the
-     * requested/limit price against the Fauxnance bid/ask the fill rule actually compared it to,
-     * so the log line proves why the order could not fill without needing to cross-reference code.
-     *
-     * @param side          BUY or SELL, as carried on the order payload
-     * @param requestedPrice The client's limit price
-     * @param quote         The Fauxnance quote used for the fill-rule decision, or null when no
-     *                      quote was fetched (e.g. quota exhausted / Fauxnance API failure)
-     */
     private String describeRejection(String side, BigDecimal requestedPrice, QuoteResponse quote) {
         if (quote == null || quote.bid() == null || quote.ask() == null) {
             return "no Fauxnance bid/ask available to compare against";
@@ -435,13 +322,6 @@ public class OrderConsumer {
                 requestedPrice, quote.bid());
     }
 
-    /**
-     * Calculates cash delta for balance update.
-     * 
-     * @param payload       The order payload
-     * @param executedPrice The executed price
-     * @return Negative for BUY (debit), positive for SELL (credit)
-     */
     private BigDecimal calculateCashDelta(OrderPlacedPayload payload, BigDecimal executedPrice) {
         BigDecimal quantity = BigDecimal.valueOf(payload.quantity());
         BigDecimal price = executedPrice != null ? executedPrice : payload.price();

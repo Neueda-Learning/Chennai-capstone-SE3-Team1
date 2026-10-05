@@ -33,8 +33,6 @@ BANK_ACCOUNTS = [
     ("IN45KKBK0000005678901", 5, "251000.75", "Kotak Mahindra", "KKBK0005678"),
     ("IN45YESB0000006789012", 6,      "0.00", "Yes Bank",       "YESB0006789"),
 
-    # Unclaimed (client_id NULL, migration 017): bank accounts that exist before anyone owns
-    # them. Onboarding claims one by account number; the rest stay unclaimed.
     ("IN45HDFC0000007890123", None, "150000.00", "HDFC Bank",      "HDFC0007890"),
     ("IN45ICIC0000008901234", None,  "92500.00", "ICICI Bank",     "ICIC0008901"),
     ("IN45SBIN0000009012345", None, "310000.00", "State Bank",     "SBIN0009012"),
@@ -54,8 +52,6 @@ CLIENTS = [
 ]
 
 
-# argon2id (the auth service's parameters) of the seed password "Pass@word123456", so every seeded
-# user can sign in. Test data only.
 _SEED_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg"
 
 
@@ -63,10 +59,6 @@ def _local_part(name):
     return name.lower().replace(" ", ".")
 
 
-# Every seeded client already has a linked bank account, so each seeded user carries its
-# account_id. Username/email are generated from the client's name (firstname.lastname), which
-# fits users' username rule; email/phone live only on users now (migration 021) - clients
-# carries neither.
 USERS = [
     (_local_part(client[1]), _local_part(client[1]) + "@example.com", client[0], _SEED_PASSWORD_HASH)
     for client in CLIENTS
@@ -141,9 +133,6 @@ def order_dict(row):
     return dict(zip(ORDER_KEYS, row))
 
 
-# orders.order_id is a UUID (migration 009). The dataset is keyed by a small
-# integer, so derive the UUID from it: the seed stays deterministic and an
-# order's id is still readable at a glance.
 def order_uuid(order_id):
     return "550e8400-e29b-41d4-a716-44665544" + format(order_id, "04d")
 
@@ -296,7 +285,6 @@ def build_order_history():
     header = ["history_id", "order_id", "event_type", "previous_status", "new_status",
               "external_status", "external_order_id", "request_id", "failure_code",
               "failure_reason", "event_timestamp", "created_at",
-              # migration 010: the terminal row is the settled order itself
               "client_id", "account_id", "instrument_id", "order_type", "side",
               "quantity", "price", "executed_price", "idempotency_key", "order_created_at"]
     rows = []
@@ -313,7 +301,6 @@ def build_order_history():
             history_id, order_uuid(o["order_id"]), "CREATED", None, "NEW", None, None,
             "req-" + format(o["order_id"], "06d"), None, None,
             created_stamp, created_stamp,
-            # a CREATED event is a transition, not the order: detail columns stay empty
             None, None, None, None, None, None, None, None, None, None,
         ])
 
@@ -358,14 +345,7 @@ def build_portfolio_positions():
     return header, _portfolio_rows(positions)
 
 
-# orders / order_history / portfolio_holding / portfolio_positions are deliberately not
-# seeded (team decision - accounts should start with no trading activity, created some
-# other way). build_orders/build_order_history/build_portfolio_holding/
-# build_portfolio_positions and settle_orders() above are left in place as reference/in
-# case that decision changes, just not wired into BUILDERS. Re-add them here to restore
-# the old behaviour.
 BUILDERS = [
-    # clients before bank_account: bank_account.client_id is checked immediately.
     ("010_clients.csv",             build_clients),
     ("020_bank_account.csv",        build_bank_account),
     ("030_users.csv",               build_users),

@@ -20,11 +20,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Pre-v1 bank-account routes. Every one needs a verified token ({@code JwtVerificationFilter});
- * a customer reaches only the bank account linked to their own client, and creating bank
- * accounts or listing them all is for admins.
- */
 @RestController
 @RequestMapping("/api/bank-accounts")
 public class BankAccountController {
@@ -37,10 +32,6 @@ public class BankAccountController {
         this.accessGuard = accessGuard;
     }
 
-    /**
-     * Admin only. Without a {@code clientId} this adds an unclaimed bank account, which a customer
-     * then claims with POST /api/v1/bank-accounts.
-     */
     @PostMapping
     public ResponseEntity<BankAccount> createBankAccount(@Valid @RequestBody CreateBankAccountRequest request) {
         accessGuard.requireAdmin();
@@ -90,10 +81,6 @@ public class BankAccountController {
         return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
-    /**
-     * Looks the bank account up and checks the caller owns it. A customer gets the same
-     * {@code ACC-403} for an account number that does not exist as for someone else's.
-     */
     private Optional<BankAccount> requireOwnerOrAdmin(String accountNumber) {
         Optional<BankAccount> bankAccount = bankAccountService.getBankAccountByAccountNumber(accountNumber);
         accessGuard.requireOwnerOrAdmin(bankAccount.map(BankAccount::getClientId));

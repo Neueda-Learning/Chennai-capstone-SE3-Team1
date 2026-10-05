@@ -14,13 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Links a bank account to the authenticated user, creating their trading account.
- *
- * <p>Under {@code /api/v1/}, so {@code JwtVerificationFilter} has already verified the token
- * before this runs. It is the one account route a token without an {@code accountId} claim is
- * meant for.
- */
 @RestController
 @RequestMapping("/api/v1/bank-accounts")
 public class BankAccountLinkController {

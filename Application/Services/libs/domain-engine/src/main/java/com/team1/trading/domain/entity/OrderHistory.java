@@ -24,9 +24,6 @@ public class OrderHistory {
     private LocalDateTime eventTimestamp;
     private LocalDateTime createdAt;
 
-    // Migration 010: orders holds live orders only, and the row is deleted once an order
-    // settles. The terminal history row is therefore the only surviving record of the order
-    // itself, so it carries the order's own fields. They are null on a non-terminal event.
     private Long clientId;
     private Long accountId;
     private String instrumentId;
@@ -92,7 +89,6 @@ public class OrderHistory {
 
     public LocalDateTime getOrderCreatedAt() { return orderCreatedAt; }
 
-    /** True when this row is an order that has left the live book, not a bare transition. */
     public boolean isTerminalRecord() {
         return idempotencyKey != null;
     }

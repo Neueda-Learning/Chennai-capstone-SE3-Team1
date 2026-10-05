@@ -1,39 +1,13 @@
--- =============================================================================
--- DERIVED artifact, do not edit by hand.
---
--- The full DuckDB warehouse surface (warehouse.duckdb at the repo root) as the
--- loaders create it, in dependency order. Regenerate by concatenating:
---   1. Application/ETL/etl-trades/migrations/001_analytics_dimensions.sql
---      + 002_fact_trades.sql  (trade star schema; binding contract for its
---      shape is Application/Contracts/analytics-schemas/analytics-schema.sql)
---   2. Application/ETL/etl-live/analytics_schema.sql  (market price store)
--- Applied by: load_fact_trades.py schema|dims|facts and etl-live/load.py.
--- =============================================================================
-
--- -------------------------------------------------------------------------
--- Source: Application/ETL/etl-trades/migrations/001_analytics_dimensions.sql
--- -------------------------------------------------------------------------
--- DuckDB dialect. Applied to the warehouse file by:
---     python Application/ETL/etl-trades/load_fact_trades.py schema
---
--- The warehouse lives in DuckDB alongside the etl-live tables (daily_price and
--- friends), so a trade can be joined against the price series without crossing a
--- database boundary. Everything under analytics.* is derived from the operational
--- PostgreSQL tables and can be rebuilt from them at any time.
 CREATE SCHEMA IF NOT EXISTS analytics;
 
--- DuckDB has no BIGSERIAL; a sequence plus a DEFAULT is the equivalent.
 CREATE SEQUENCE IF NOT EXISTS analytics.seq_instrument_key START 1;
 CREATE SEQUENCE IF NOT EXISTS analytics.seq_account_key START 1;
 
--- Loaded first, for the whole range, so every trade's created_at has a row to land
--- on. Trading-day flags are derived from the calendar only; the source has no
--- exchange holiday list.
 CREATE TABLE IF NOT EXISTS analytics.dim_date (
-    date_key            INTEGER      PRIMARY KEY,          -- yyyymmdd
+    date_key            INTEGER      PRIMARY KEY,
     calendar_date       DATE         NOT NULL UNIQUE,
     day_of_week         VARCHAR      NOT NULL,
-    day_of_week_number  SMALLINT     NOT NULL,             -- 1 = Monday .. 7 = Sunday
+    day_of_week_number  SMALLINT     NOT NULL,
     day_of_month        SMALLINT     NOT NULL,
     week_of_year        SMALLINT     NOT NULL,
     month               SMALLINT     NOT NULL,
@@ -44,7 +18,6 @@ CREATE TABLE IF NOT EXISTS analytics.dim_date (
     is_trading_day      BOOLEAN      NOT NULL
 );
 
--- Mirrors public.instruments. instrument_id is the symbol (RELIANCE, TCS).
 CREATE TABLE IF NOT EXISTS analytics.dim_instrument (
     instrument_key      BIGINT       PRIMARY KEY DEFAULT nextval('analytics.seq_instrument_key'),
     instrument_id       VARCHAR      NOT NULL UNIQUE,
@@ -55,8 +28,6 @@ CREATE TABLE IF NOT EXISTS analytics.dim_instrument (
     loaded_at           TIMESTAMP    NOT NULL DEFAULT now()
 );
 
--- Mirrors public.clients. client_id is what orders.client_id points at, so it is the
--- natural key here; account_number is carried for reporting.
 CREATE TABLE IF NOT EXISTS analytics.dim_account (
     account_key         BIGINT       PRIMARY KEY DEFAULT nextval('analytics.seq_account_key'),
     client_id           BIGINT       NOT NULL UNIQUE,
@@ -71,46 +42,31 @@ CREATE TABLE IF NOT EXISTS analytics.dim_account (
         CHECK (account_state IN ('ACTIVE', 'SUSPENDED', 'CLOSED'))
 );
 
--- -------------------------------------------------------------------------
--- Source: Application/ETL/etl-trades/migrations/002_fact_trades.sql
--- -------------------------------------------------------------------------
--- DuckDB dialect. See 001_analytics_dimensions.sql.
-
 CREATE SEQUENCE IF NOT EXISTS analytics.seq_trade_key START 1;
 CREATE SEQUENCE IF NOT EXISTS analytics.seq_dead_letter_key START 1;
 
--- One row per order that reached a terminal state, in whatever state it reached.
--- Rejected and cancelled orders are facts too: fill rate is FILLED / everything, and
--- the denominator has to be in this table.
---
--- Source is PostgreSQL public.order_history (the row whose new_status is terminal)
--- joined back to public.orders for the order's own fields. order_id is the natural
--- key; the UNIQUE on it is what the merge relies on.
 CREATE TABLE IF NOT EXISTS analytics.fact_trades (
     trade_key           BIGINT         PRIMARY KEY DEFAULT nextval('analytics.seq_trade_key'),
 
-    -- dimension keys
     date_key            INTEGER        NOT NULL REFERENCES analytics.dim_date(date_key),
     instrument_key      BIGINT         NOT NULL REFERENCES analytics.dim_instrument(instrument_key),
     account_key         BIGINT         NOT NULL REFERENCES analytics.dim_account(account_key),
 
-    -- natural key
     order_id            UUID           NOT NULL UNIQUE,
     idempotency_key     VARCHAR        NOT NULL,
 
-    -- measures and degenerate dimensions
     order_type          VARCHAR        NOT NULL,
     side                VARCHAR        NOT NULL,
     status              VARCHAR        NOT NULL,
     quantity            DECIMAL(18,4)  NOT NULL,
     price               DECIMAL(18,4)  NOT NULL,
     executed_price      DECIMAL(18,4),
-    trade_value         DECIMAL(24,4)  NOT NULL,   -- quantity * coalesce(executed_price, price)
+    trade_value         DECIMAL(24,4)  NOT NULL,
     failure_code        VARCHAR,
     failure_reason      VARCHAR,
 
-    order_created_at    TIMESTAMP      NOT NULL,   -- the watermark column
-    terminal_at         TIMESTAMP      NOT NULL,   -- order_history.event_timestamp of the terminal event
+    order_created_at    TIMESTAMP      NOT NULL,
+    terminal_at         TIMESTAMP      NOT NULL,
 
     load_id             VARCHAR        NOT NULL,
     loaded_at           TIMESTAMP      NOT NULL DEFAULT now(),
@@ -129,21 +85,16 @@ CREATE TABLE IF NOT EXISTS analytics.fact_trades (
         CHECK (trade_value = quantity * COALESCE(executed_price, price))
 );
 
--- A row that fails a quality check lands here with the check it failed and the load it
--- came from, so it can be investigated instead of being lost. The raw source row is
--- kept whole because the failing field is often not the interesting one.
 CREATE TABLE IF NOT EXISTS analytics.dead_letter_trades (
     dead_letter_key     BIGINT       PRIMARY KEY DEFAULT nextval('analytics.seq_dead_letter_key'),
     load_id             VARCHAR      NOT NULL,
-    order_id            UUID,                     -- NULL if the source row had no usable order_id
-    check_name          VARCHAR      NOT NULL,    -- e.g. fk_instrument, positive_quantity, valid_side
+    order_id            UUID,
+    check_name          VARCHAR      NOT NULL,
     reason              VARCHAR      NOT NULL,
     source_row          JSON         NOT NULL,
     quarantined_at      TIMESTAMP    NOT NULL DEFAULT now()
 );
 
--- One row per target table. last_watermark is the greatest orders.created_at the load
--- has processed; the next load starts after it.
 CREATE TABLE IF NOT EXISTS analytics.load_watermark (
     table_name          VARCHAR      PRIMARY KEY,
     last_watermark      TIMESTAMP,
@@ -157,9 +108,6 @@ INSERT INTO analytics.load_watermark (table_name)
 SELECT 'fact_trades'
 WHERE NOT EXISTS (SELECT 1 FROM analytics.load_watermark WHERE table_name = 'fact_trades');
 
--- -------------------------------------------------------------------------
--- Source: Application/ETL/etl-live/analytics_schema.sql (market price store)
--- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS daily_price (
     symbol            VARCHAR(20)    NOT NULL,
     trade_date        DATE           NOT NULL,

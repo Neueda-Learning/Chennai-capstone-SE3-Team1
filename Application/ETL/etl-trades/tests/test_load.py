@@ -60,7 +60,7 @@ def test_incremental_load_populates_fact_trades(pg, warehouse):
     place_order(pg, ORDER_1, "2026-01-05 09:16:00", "FILLED", executed="2880", terminal_at="2026-01-05 09:17:00")
     place_order(pg, ORDER_2, "2026-01-05 09:18:00", "REJECTED", terminal_at="2026-01-05 09:18:30",
                 failure_code="INSUFFICIENT_FUNDS")
-    place_order(pg, ORDER_3, "2026-01-05 09:20:00", "NEW")  # still open: not a trade yet
+    place_order(pg, ORDER_3, "2026-01-05 09:20:00", "NEW")
 
     loader.load_dims(warehouse, pg, "t-1")
     result = loader.load_facts(warehouse, pg, "t-1")
@@ -76,9 +76,9 @@ def test_incremental_load_populates_fact_trades(pg, warehouse):
         "FROM analytics.fact_trades ORDER BY CAST(order_id AS VARCHAR)"
     ).fetchall()
     assert rows[0][0] == ORDER_1 and rows[0][1] == "FILLED"
-    assert float(rows[0][2]) == 40 * 2880          # executed price wins when filled
+    assert float(rows[0][2]) == 40 * 2880
     assert rows[1][0] == ORDER_2 and rows[1][1] == "REJECTED"
-    assert float(rows[1][2]) == 40 * 2875.5        # limit price, since it never executed
+    assert float(rows[1][2]) == 40 * 2875.5
     assert rows[1][3] == "INSUFFICIENT_FUNDS"
     assert rows[0][4] == 20260105
 
@@ -97,7 +97,6 @@ def test_second_load_with_no_new_data_adds_no_rows(pg, warehouse):
     assert again["extracted"] == 0 and again["merged"] == 0
     assert count(warehouse, "analytics.fact_trades") == 1
 
-    # a forced replay over the same window merges, it does not duplicate
     replay = loader.load_facts(warehouse, pg, "t-3", since=loader.datetime(2026, 1, 1))
     assert replay["merged"] == 1
     assert count(warehouse, "analytics.fact_trades") == 1
@@ -119,7 +118,6 @@ def test_order_reaching_terminal_state_after_watermark_is_picked_up(pg, warehous
 def test_invalid_row_is_dead_lettered_and_load_continues(pg, warehouse):
     seed_reference_data(pg)
     place_order(pg, ORDER_1, "2026-01-05 09:16:00", "FILLED", executed="2880", terminal_at="2026-01-05 09:17:00")
-    # a bad row the source constraints cannot catch: terminal event before creation
     place_order(pg, ORDER_2, "2026-01-05 09:18:00", "FILLED", executed="2880", terminal_at="2026-01-05 09:00:00")
     place_order(pg, ORDER_3, "2026-01-05 09:20:00", "CANCELLED", terminal_at="2026-01-05 09:21:00")
 
@@ -136,7 +134,6 @@ def test_invalid_row_is_dead_lettered_and_load_continues(pg, warehouse):
     ).fetchall()
     assert dl == [(ORDER_2, "terminal_after_created", "t-1", "40.0000")]
 
-    # the watermark still advanced past the bad row: it is not silently retried forever
     assert loader.read_watermark(warehouse).strftime("%Y-%m-%d %H:%M:%S") == "2026-01-05 09:20:00"
 
 
@@ -144,7 +141,7 @@ def test_skipped_dimension_load_dead_letters_instead_of_inserting_placeholder(pg
     seed_reference_data(pg)
     place_order(pg, ORDER_1, "2026-01-05 09:16:00", "FILLED", executed="2880", terminal_at="2026-01-05 09:17:00")
 
-    result = loader.load_facts(warehouse, pg, "t-1")  # no load_dims first
+    result = loader.load_facts(warehouse, pg, "t-1")
 
     assert result["merged"] == 0 and result["dead_lettered"] == 1
     assert count(warehouse, "analytics.fact_trades") == 0
@@ -152,7 +149,6 @@ def test_skipped_dimension_load_dead_letters_instead_of_inserting_placeholder(pg
     assert warehouse.execute(
         "SELECT check_name FROM analytics.dead_letter_trades").fetchone()[0] == "fk_instrument"
 
-    # fix: load dims and replay the window
     loader.load_dims(warehouse, pg, "t-2")
     replay = loader.load_facts(warehouse, pg, "t-2", since=loader.datetime(2026, 1, 1))
     assert replay["merged"] == 1

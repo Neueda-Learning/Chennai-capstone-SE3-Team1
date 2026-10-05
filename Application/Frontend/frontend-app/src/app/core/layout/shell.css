@@ -1,8 +1,3 @@
-/* Layout chrome is styled globally by src/styles/spark-admin.css; only the
-   profile-menu overflow rules below are local. A long single-token name
-   (e.g. Sharma.Singhania) has no wrapping point, so without these it spills
-   past the menu box. */
-
 .dropdown-menu-profile {
   max-width: min(20rem, calc(100vw - 2rem));
 }

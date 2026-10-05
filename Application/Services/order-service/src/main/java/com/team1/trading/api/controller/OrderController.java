@@ -14,11 +14,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code POST /api/v1/orders} and {@code DELETE /api/v1/orders/{id}}, as fixed by
- * contracts/trade-api.yaml. The order identifier on the path is the stored UUID without the
- * {@code ORD-} display prefix.
- */
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {

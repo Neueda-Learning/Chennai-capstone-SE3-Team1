@@ -39,13 +39,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Slice test proving that a real HTTP request which raises a domain exception leaves exactly
- * the error envelope {@code {"errorCode","message"}} and nothing else - no whitelabel page, no
- * stack trace, no empty body. Runs without a database or any other container.
- *
- * <p>The probe controller exists only inside this test; it is not deployed.
- */
 @WebMvcTest(controllers = GlobalExceptionHandlerWebTest.EnvelopeProbeController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtVerificationFilter.class))
 @TestPropertySource(properties = {

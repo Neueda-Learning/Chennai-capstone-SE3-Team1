@@ -253,8 +253,6 @@ describe('RegisterPage', () => {
     request.flush(userResponse());
     fixture.detectChanges();
 
-    // The account is PENDING until the emailed code is spent, so sign-in is
-    // not the next step - verification is.
     expect(navigate).toHaveBeenCalledWith(['/verify-otp'], {
       queryParams: { email: 'jane.doe@example.com' }
     });

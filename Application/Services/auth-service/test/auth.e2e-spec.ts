@@ -12,11 +12,6 @@ import { MailerService } from '../src/auth/mailer.service';
 import { Role } from '../src/auth/dto/role';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../src/auth/token.constants';
 
-// ---------------------------------------------------------------------------
-// In-memory fakes: the e2e suite exercises the full HTTP pipeline (pipes,
-// guards, filters, controller, service) without a live Postgres.
-// ---------------------------------------------------------------------------
-
 interface FakeUser {
   id: string;
   username: string;
@@ -68,10 +63,7 @@ class FakeUserRepo {
       id: randomUUID(),
       username: input.username,
       email: input.email,
-      // Registration never collects a phone number either - set later via the Trade API's
-      // profile-update route, same as accountId below.
       phone: null,
-      // Registration never links a trading account; the Trade REST API does that.
       accountId: null,
       roles: input.roles,
       passwordHash: input.passwordHash,
@@ -205,7 +197,6 @@ class FakeOtpRepo {
   }
 }
 
-/** Stands in for SMTP: records what would have gone out so tests can read the code. */
 class FakeMailer {
   sent: Array<{ to: string; code: string; purpose: 'verification' | 'reset' }> =
     [];
@@ -286,10 +277,6 @@ describe('Auth service (e2e)', () => {
     password: 'Correct-Horse-Battery-9',
   };
 
-  /**
-   * Registers and then spends the emailed code, which is the path every signed-in
-   * test has to take now: registration alone leaves the account PENDING.
-   */
   async function registerAndVerify(
     body = registerBody,
   ): Promise<{ otp: string }> {
@@ -557,12 +544,8 @@ describe('Auth service (e2e)', () => {
         .send({ refreshToken: login.body.refreshToken })
         .expect(200);
 
-      // The refresh token MUST rotate. (The access token is a deterministic
-      // signature of claims + iat, so a same-second refresh can legitimately
-      // return an identical access token.)
       expect(first.body.refreshToken).not.toBe(login.body.refreshToken);
 
-      // Presenting the consumed token again is theft.
       const reuse = await request(server)
         .post('/auth/refresh')
         .send({ refreshToken: login.body.refreshToken })
@@ -668,7 +651,6 @@ describe('Auth service (e2e)', () => {
         .send({ refreshToken: login.body.refreshToken })
         .expect(401);
 
-      // Untouched: the original session's refresh token still works.
       await request(server)
         .post('/auth/refresh')
         .send({ refreshToken: login.body.refreshToken })
@@ -833,7 +815,6 @@ describe('Auth service (e2e)', () => {
 
       expect(known.body).toEqual({ sent: true });
       expect(unknown.body).toEqual(known.body);
-      // Only the real address got a code in the outbox.
       expect(fakeMailer.sent.filter((m) => m.purpose === 'reset')).toHaveLength(
         1,
       );
@@ -873,7 +854,6 @@ describe('Auth service (e2e)', () => {
         .expect(200);
       expect(res.body).toEqual({ reset: true });
 
-      // The session that existed before the reset is dead.
       await request(server)
         .post('/auth/refresh')
         .send({ refreshToken: before.body.refreshToken })
@@ -927,7 +907,6 @@ describe('Auth service (e2e)', () => {
         .expect(422);
       expect(res.body.errorCode).toBe('VAL-422');
 
-      // The code was not spent, so the same one still works with a good password.
       await request(server)
         .post('/auth/reset-password')
         .send({ email: registerBody.email, otp, newPassword })

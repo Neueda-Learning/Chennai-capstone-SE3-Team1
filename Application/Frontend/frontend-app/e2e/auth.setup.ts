@@ -2,12 +2,6 @@ import { expect, test as setup } from '@playwright/test';
 
 import { storageStatePath, testUser } from './test-user';
 
-/**
- * Signs the test user in once and caches the session for the authenticated projects.
- *
- * The session always lives in `localStorage` now, which a storage state does carry between browser
- * contexts, so every project that depends on this one inherits a working session.
- */
 setup('sign in as the test user', async ({ page }) => {
   await page.goto('/login');
 
@@ -15,7 +9,6 @@ setup('sign in as the test user', async ({ page }) => {
   await page.getByTestId('password').fill(testUser.password);
   await page.getByTestId('submit').click();
 
-  // Whichever way the sign-in goes, one of these two happens first.
   const outcome = await Promise.race([
     page.waitForURL(/\/dashboard$/, { timeout: 20_000 }).then(() => 'signed-in' as const),
     page

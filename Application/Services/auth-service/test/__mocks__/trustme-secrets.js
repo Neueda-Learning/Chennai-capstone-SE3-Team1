@@ -1,20 +1,10 @@
-// e2e-test stand-in for the real trustme-secrets package (see test/jest-e2e.json's
-// moduleNameMapper). Two reasons this exists instead of hitting the real vault:
-//   1. trustme-secrets is ESM-only; Jest's CommonJS module host can't load it directly
-//      (`Cannot use import statement outside a module`), same class of problem Java solves
-//      for its test profile with application-test.properties' `trustme.enabled=false`.
-//   2. e2e tests shouldn't depend on a developer's machine having the vault unlocked.
-// Fixed values only - never anything a real secret could be mistaken for.
 const SECRETS = {
   JWT_SECRET: 'e2e-secret-that-is-at-least-32-characters-long',
-  // The local Postgres the e2e suite runs against.
   PostGres_Host: 'localhost',
   Postgres_Port: '5432',
   Postgres_DB: 'trading_platform',
   PostGres_User: 'postgres',
   PostGres: 'postgres',
-  // Fauxnance and SMTP are deliberately absent: the service treats missing ones as "off",
-  // so e2e never tries to send mail or call the market-data API.
 };
 
 async function get(secretName) {

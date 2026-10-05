@@ -17,11 +17,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * The browser client cannot call this API from another origin without these headers.
- * A preflight carries no Authorization header, so the regression this guards against is
- * {@code JwtVerificationFilter} answering it with AUTH-401 before CORS ever replies.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -103,8 +98,6 @@ class CorsConfigTest {
 
         @Test
         void an_unauthorised_get_still_carries_the_allow_origin_header() throws Exception {
-            // The 401 is a real answer and the client needs to be able to read it; without
-            // the header the browser reports an opaque CORS failure instead of AUTH-401.
             mockMvc.perform(get("/api/v1/accounts/1/balance").header("Origin", ALLOWED_ORIGIN))
                     .andExpect(status().isUnauthorized())
                     .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));

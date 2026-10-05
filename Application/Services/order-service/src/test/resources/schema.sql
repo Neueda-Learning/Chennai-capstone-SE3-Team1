@@ -1,10 +1,3 @@
--- H2-compatible schema for unit and integration tests.
--- Derived from migrations/001-009.sql, stripped of PostgreSQL-specific triggers,
--- PL/pgSQL functions, and deferred FK constraints that H2 does not support.
---
--- Each Spring test context re-initializes the shared in-memory testdb, so all
--- tables are dropped first to guarantee a deterministic empty state.
-
 DROP TABLE IF EXISTS wallet_transfers;
 DROP TABLE IF EXISTS clients;
 DROP TABLE IF EXISTS bank_account;
@@ -30,13 +23,12 @@ CREATE TABLE clients (
 
 CREATE TABLE bank_account (
     account_number  VARCHAR(34)     PRIMARY KEY,
-    client_id       BIGINT          UNIQUE,          -- NULL: unclaimed (migration 017)
+    client_id       BIGINT          UNIQUE,
     account_balance DECIMAL(18,2)   NOT NULL DEFAULT 0,
     bank_name       VARCHAR(150)    NOT NULL,
     ifsc_code       VARCHAR(11)     NOT NULL
 );
 
--- users replaced auth in migration 014. account_id is NULL until a bank account is linked.
 CREATE TABLE users (
     id             UUID          DEFAULT RANDOM_UUID() PRIMARY KEY,
     username       VARCHAR(64)   NOT NULL UNIQUE,
@@ -90,8 +82,6 @@ CREATE TABLE order_history (
     api_response      TEXT,
     event_timestamp   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- migration 010: the terminal row carries the order itself, because orders holds
-    -- live orders only and the row is deleted once it settles.
     client_id         BIGINT,
     account_id        BIGINT,
     instrument_id     VARCHAR(20),
@@ -104,8 +94,6 @@ CREATE TABLE order_history (
     order_created_at  TIMESTAMP
 );
 
--- Partial unique index: only the terminal row carries a key, and it is what refuses a
--- duplicate submission now that the orders row does not outlive settlement.
 CREATE UNIQUE INDEX uq_order_history_idempotency_key
     ON order_history (idempotency_key);
 
@@ -133,7 +121,6 @@ CREATE TABLE portfolio_positions (
     CONSTRAINT uq_portfolio_positions_client_instrument UNIQUE (client_id, instrument_id)
 );
 
--- Tables referenced by PositionMapper (named differently from portfolio tables)
 CREATE TABLE positions (
     account_id      BIGINT          NOT NULL,
     instrument_id   VARCHAR(20)     NOT NULL,
@@ -149,7 +136,6 @@ CREATE TABLE holdings (
     CONSTRAINT uq_holdings_account_instrument UNIQUE (account_id, instrument_id)
 );
 
--- Transfers between a client's wallet and linked bank account (migration 016).
 CREATE TABLE wallet_transfers (
     transfer_id      UUID            PRIMARY KEY,
     client_id        BIGINT          NOT NULL,

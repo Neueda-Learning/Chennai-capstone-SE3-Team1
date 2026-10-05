@@ -1,25 +1,12 @@
-/**
- * The colours the ApexCharts are drawn in, for each theme.
- *
- * Charts are painted by a library that knows nothing about CSS variables, so they are given
- * concrete colours, and re-given them when the theme flips.
- */
 export interface ChartPalette {
-  /** Axis and label text. */
   fore: string;
-  /** Grid lines. */
   grid: string;
-  /** Tooltip theme name ApexCharts understands. */
   tooltip: 'light' | 'dark';
-  /** The primary series (buys, the price line, the main slice). */
   primary: string;
-  /** The secondary series (sells). */
   secondary: string;
   up: string;
   down: string;
-  /** Slice colours, cycled for as many holdings as there are. */
   slices: string[];
-  /** The strong text colour, for the donut's centre figure. */
   strong: string;
 }
 

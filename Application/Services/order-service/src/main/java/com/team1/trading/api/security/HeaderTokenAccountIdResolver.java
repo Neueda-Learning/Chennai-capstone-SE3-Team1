@@ -6,15 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Base64;
 
-/**
- * Reads the {@code accountId} claim from a {@code Bearer} JWT header without any JWT library.
- *
- * <p>This is deliberately not a verifier. Authenticating the token and rejecting invalid ones is
- * JIRA 8 work; this component only extracts the claim so the reach check described in
- * contracts/trade-api.yaml can run today. The payload segment is base64url JSON after an HTTP
- * header and the token's own shape, so it decodes without new dependencies. Any failure returns
- * {@code null}, meaning the caller must not rely on the token.
- */
 @Component
 public class HeaderTokenAccountIdResolver implements TokenAccountIdResolver {
 

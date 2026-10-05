@@ -1,14 +1,4 @@
--- DERIVED artifact, do not edit by hand.
--- pg_dump --schema-only of a database built by scripts/apply_db.py --reset.
--- Source of truth is Application/Databases/PostgreSQL/migrations/.
---
--- PostgreSQL database dump
---
-
 \restrict HF69wgU9BTU5mZDDFzytA8LWFn9YiUjnuWQa3koDw0cSsO1nTwgFZRfDNJsF7dQ
-
--- Dumped from database version 18.4
--- Dumped by pg_dump version 18.4
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -22,16 +12,8 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Name: auth_db; Type: SCHEMA; Schema: -; Owner: -
---
-
 CREATE SCHEMA auth_db;
 
-
---
--- Name: fn_clients_state_transition(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.fn_clients_state_transition() RETURNS trigger
     LANGUAGE plpgsql
@@ -72,10 +54,6 @@ END;
 $$;
 
 
---
--- Name: fn_instruments_no_delete(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.fn_instruments_no_delete() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -92,10 +70,6 @@ END;
 
 $$;
 
-
---
--- Name: fn_resync_sequences(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.fn_resync_sequences() RETURNS TABLE(sequence_name text, set_to bigint)
     LANGUAGE plpgsql
@@ -166,10 +140,6 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
---
--- Name: otp_codes; Type: TABLE; Schema: auth_db; Owner: -
---
-
 CREATE TABLE auth_db.otp_codes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     email character varying(150) NOT NULL,
@@ -185,10 +155,6 @@ CREATE TABLE auth_db.otp_codes (
 );
 
 
---
--- Name: refresh_tokens; Type: TABLE; Schema: auth_db; Owner: -
---
-
 CREATE TABLE auth_db.refresh_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -199,10 +165,6 @@ CREATE TABLE auth_db.refresh_tokens (
     CONSTRAINT chk_refresh_expires_after_created CHECK ((expires_at > created_at))
 );
 
-
---
--- Name: users; Type: TABLE; Schema: auth_db; Owner: -
---
 
 CREATE TABLE auth_db.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -226,10 +188,6 @@ CREATE TABLE auth_db.users (
 );
 
 
---
--- Name: bank_account; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.bank_account (
     account_number character varying(34) NOT NULL,
     client_id bigint,
@@ -240,10 +198,6 @@ CREATE TABLE public.bank_account (
     CONSTRAINT chk_bank_account_number_not_blank CHECK ((length(btrim((account_number)::text)) > 0))
 );
 
-
---
--- Name: clients; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.clients (
     client_id bigint NOT NULL,
@@ -258,10 +212,6 @@ CREATE TABLE public.clients (
 );
 
 
---
--- Name: clients_client_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
 CREATE SEQUENCE public.clients_client_id_seq
     START WITH 1
     INCREMENT BY 1
@@ -270,16 +220,8 @@ CREATE SEQUENCE public.clients_client_id_seq
     CACHE 1;
 
 
---
--- Name: clients_client_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
 ALTER SEQUENCE public.clients_client_id_seq OWNED BY public.clients.client_id;
 
-
---
--- Name: daily_candle_syncs; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.daily_candle_syncs (
     instrument_id character varying(20) NOT NULL,
@@ -288,10 +230,6 @@ CREATE TABLE public.daily_candle_syncs (
     candle_count integer DEFAULT 0 NOT NULL
 );
 
-
---
--- Name: daily_candles; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.daily_candles (
     instrument_id character varying(20) NOT NULL,
@@ -309,10 +247,6 @@ CREATE TABLE public.daily_candles (
 );
 
 
---
--- Name: instruments; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.instruments (
     instrument_id character varying(20) NOT NULL,
     instrument_name character varying(150) NOT NULL,
@@ -321,10 +255,6 @@ CREATE TABLE public.instruments (
     CONSTRAINT chk_instruments_id_not_blank CHECK ((length(btrim((instrument_id)::text)) > 0))
 );
 
-
---
--- Name: market_quotes; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.market_quotes (
     quote_id bigint NOT NULL,
@@ -344,10 +274,6 @@ CREATE TABLE public.market_quotes (
 );
 
 
---
--- Name: market_quotes_quote_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
 CREATE SEQUENCE public.market_quotes_quote_id_seq
     START WITH 1
     INCREMENT BY 1
@@ -356,16 +282,8 @@ CREATE SEQUENCE public.market_quotes_quote_id_seq
     CACHE 1;
 
 
---
--- Name: market_quotes_quote_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
 ALTER SEQUENCE public.market_quotes_quote_id_seq OWNED BY public.market_quotes.quote_id;
 
-
---
--- Name: order_history; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.order_history (
     history_id bigint NOT NULL,
@@ -404,10 +322,6 @@ CREATE TABLE public.order_history (
 );
 
 
---
--- Name: order_history_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
 CREATE SEQUENCE public.order_history_history_id_seq
     START WITH 1
     INCREMENT BY 1
@@ -416,16 +330,8 @@ CREATE SEQUENCE public.order_history_history_id_seq
     CACHE 1;
 
 
---
--- Name: order_history_history_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
 ALTER SEQUENCE public.order_history_history_id_seq OWNED BY public.order_history.history_id;
 
-
---
--- Name: orders; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.orders (
     order_id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -454,10 +360,6 @@ CREATE TABLE public.orders (
 );
 
 
---
--- Name: portfolio_holding; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.portfolio_holding (
     holding_id bigint NOT NULL,
     client_id bigint NOT NULL,
@@ -473,10 +375,6 @@ CREATE TABLE public.portfolio_holding (
 );
 
 
---
--- Name: portfolio_holding_holding_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
 CREATE SEQUENCE public.portfolio_holding_holding_id_seq
     START WITH 1
     INCREMENT BY 1
@@ -485,16 +383,8 @@ CREATE SEQUENCE public.portfolio_holding_holding_id_seq
     CACHE 1;
 
 
---
--- Name: portfolio_holding_holding_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
 ALTER SEQUENCE public.portfolio_holding_holding_id_seq OWNED BY public.portfolio_holding.holding_id;
 
-
---
--- Name: portfolio_positions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.portfolio_positions (
     position_id bigint NOT NULL,
@@ -510,10 +400,6 @@ CREATE TABLE public.portfolio_positions (
 );
 
 
---
--- Name: portfolio_positions_position_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
 CREATE SEQUENCE public.portfolio_positions_position_id_seq
     START WITH 1
     INCREMENT BY 1
@@ -522,16 +408,8 @@ CREATE SEQUENCE public.portfolio_positions_position_id_seq
     CACHE 1;
 
 
---
--- Name: portfolio_positions_position_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
 ALTER SEQUENCE public.portfolio_positions_position_id_seq OWNED BY public.portfolio_positions.position_id;
 
-
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.schema_migrations (
     filename character varying(255) NOT NULL,
@@ -539,10 +417,6 @@ CREATE TABLE public.schema_migrations (
     applied_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
-
---
--- Name: wallet_transfers; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.wallet_transfers (
     transfer_id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -557,531 +431,251 @@ CREATE TABLE public.wallet_transfers (
 );
 
 
---
--- Name: clients client_id; Type: DEFAULT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.clients ALTER COLUMN client_id SET DEFAULT nextval('public.clients_client_id_seq'::regclass);
 
-
---
--- Name: market_quotes quote_id; Type: DEFAULT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.market_quotes ALTER COLUMN quote_id SET DEFAULT nextval('public.market_quotes_quote_id_seq'::regclass);
 
 
---
--- Name: order_history history_id; Type: DEFAULT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.order_history ALTER COLUMN history_id SET DEFAULT nextval('public.order_history_history_id_seq'::regclass);
 
-
---
--- Name: portfolio_holding holding_id; Type: DEFAULT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.portfolio_holding ALTER COLUMN holding_id SET DEFAULT nextval('public.portfolio_holding_holding_id_seq'::regclass);
 
 
---
--- Name: portfolio_positions position_id; Type: DEFAULT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.portfolio_positions ALTER COLUMN position_id SET DEFAULT nextval('public.portfolio_positions_position_id_seq'::regclass);
 
-
---
--- Name: otp_codes otp_codes_pkey; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
 
 ALTER TABLE ONLY auth_db.otp_codes
     ADD CONSTRAINT otp_codes_pkey PRIMARY KEY (id);
 
 
---
--- Name: refresh_tokens refresh_tokens_pkey; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
-
 ALTER TABLE ONLY auth_db.refresh_tokens
     ADD CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id);
 
-
---
--- Name: refresh_tokens refresh_tokens_token_hash_key; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
 
 ALTER TABLE ONLY auth_db.refresh_tokens
     ADD CONSTRAINT refresh_tokens_token_hash_key UNIQUE (token_hash);
 
 
---
--- Name: users uq_users_account_id; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
-
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT uq_users_account_id UNIQUE (account_id);
 
-
---
--- Name: users uq_users_email; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
 
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT uq_users_email UNIQUE (email);
 
 
---
--- Name: users users_pkey; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
-
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
-
---
--- Name: users users_username_key; Type: CONSTRAINT; Schema: auth_db; Owner: -
---
 
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT users_username_key UNIQUE (username);
 
 
---
--- Name: bank_account bank_account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.bank_account
     ADD CONSTRAINT bank_account_pkey PRIMARY KEY (account_number);
 
-
---
--- Name: clients clients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.clients
     ADD CONSTRAINT clients_pkey PRIMARY KEY (client_id);
 
 
---
--- Name: daily_candle_syncs daily_candle_syncs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.daily_candle_syncs
     ADD CONSTRAINT daily_candle_syncs_pkey PRIMARY KEY (instrument_id);
 
-
---
--- Name: daily_candles daily_candles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.daily_candles
     ADD CONSTRAINT daily_candles_pkey PRIMARY KEY (instrument_id, trade_date);
 
 
---
--- Name: instruments instruments_instrument_name_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.instruments
     ADD CONSTRAINT instruments_instrument_name_key UNIQUE (instrument_name);
 
-
---
--- Name: instruments instruments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.instruments
     ADD CONSTRAINT instruments_pkey PRIMARY KEY (instrument_id);
 
 
---
--- Name: market_quotes market_quotes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.market_quotes
     ADD CONSTRAINT market_quotes_pkey PRIMARY KEY (quote_id);
 
-
---
--- Name: order_history order_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.order_history
     ADD CONSTRAINT order_history_pkey PRIMARY KEY (history_id);
 
 
---
--- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT orders_pkey PRIMARY KEY (order_id);
 
-
---
--- Name: portfolio_holding portfolio_holding_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.portfolio_holding
     ADD CONSTRAINT portfolio_holding_pkey PRIMARY KEY (holding_id);
 
 
---
--- Name: portfolio_positions portfolio_positions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_pkey PRIMARY KEY (position_id);
 
-
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 
 
---
--- Name: bank_account uq_bank_account_client_id; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.bank_account
     ADD CONSTRAINT uq_bank_account_client_id UNIQUE (client_id);
 
-
---
--- Name: orders uq_orders_idempotency_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT uq_orders_idempotency_key UNIQUE (idempotency_key);
 
 
---
--- Name: portfolio_holding uq_portfolio_holding_client_instrument; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.portfolio_holding
     ADD CONSTRAINT uq_portfolio_holding_client_instrument UNIQUE (client_id, instrument_id);
 
-
---
--- Name: portfolio_positions uq_portfolio_positions_client_instrument; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT uq_portfolio_positions_client_instrument UNIQUE (client_id, instrument_id);
 
 
---
--- Name: wallet_transfers uq_wallet_transfers_idempotency_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT uq_wallet_transfers_idempotency_key UNIQUE (idempotency_key);
 
-
---
--- Name: wallet_transfers wallet_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_pkey PRIMARY KEY (transfer_id);
 
 
---
--- Name: idx_otp_codes_email_purpose; Type: INDEX; Schema: auth_db; Owner: -
---
-
 CREATE INDEX idx_otp_codes_email_purpose ON auth_db.otp_codes USING btree (email, purpose);
 
-
---
--- Name: idx_refresh_tokens_token_hash; Type: INDEX; Schema: auth_db; Owner: -
---
 
 CREATE INDEX idx_refresh_tokens_token_hash ON auth_db.refresh_tokens USING btree (token_hash);
 
 
---
--- Name: idx_refresh_tokens_user_id; Type: INDEX; Schema: auth_db; Owner: -
---
-
 CREATE INDEX idx_refresh_tokens_user_id ON auth_db.refresh_tokens USING btree (user_id);
 
-
---
--- Name: idx_users_account_id; Type: INDEX; Schema: auth_db; Owner: -
---
 
 CREATE INDEX idx_users_account_id ON auth_db.users USING btree (account_id);
 
 
---
--- Name: idx_clients_account_state; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_clients_account_state ON public.clients USING btree (account_state);
 
-
---
--- Name: idx_instruments_active; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_instruments_active ON public.instruments USING btree (active);
 
 
---
--- Name: idx_market_quotes_instrument_received; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_market_quotes_instrument_received ON public.market_quotes USING btree (instrument_id, received_at DESC);
 
-
---
--- Name: idx_order_history_client_id; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_order_history_client_id ON public.order_history USING btree (client_id);
 
 
---
--- Name: idx_order_history_new_status; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_order_history_new_status ON public.order_history USING btree (new_status);
 
-
---
--- Name: idx_order_history_order_created_at; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_order_history_order_created_at ON public.order_history USING btree (order_created_at);
 
 
---
--- Name: idx_order_history_order_id; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_order_history_order_id ON public.order_history USING btree (order_id, event_timestamp);
 
-
---
--- Name: idx_orders_account_id; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_orders_account_id ON public.orders USING btree (account_id);
 
 
---
--- Name: idx_orders_client_id; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_orders_client_id ON public.orders USING btree (client_id);
 
-
---
--- Name: idx_orders_instrument_id; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_orders_instrument_id ON public.orders USING btree (instrument_id);
 
 
---
--- Name: idx_orders_order_type; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_orders_order_type ON public.orders USING btree (order_type);
 
-
---
--- Name: idx_orders_status; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_orders_status ON public.orders USING btree (status);
 
 
---
--- Name: idx_portfolio_holding_client_id; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_portfolio_holding_client_id ON public.portfolio_holding USING btree (client_id);
 
-
---
--- Name: idx_portfolio_holding_instrument_id; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_portfolio_holding_instrument_id ON public.portfolio_holding USING btree (instrument_id);
 
 
---
--- Name: idx_portfolio_positions_client_id; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_portfolio_positions_client_id ON public.portfolio_positions USING btree (client_id);
 
-
---
--- Name: idx_portfolio_positions_instrument_id; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX idx_portfolio_positions_instrument_id ON public.portfolio_positions USING btree (instrument_id);
 
 
---
--- Name: idx_wallet_transfers_client_id; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX idx_wallet_transfers_client_id ON public.wallet_transfers USING btree (client_id);
 
-
---
--- Name: uq_order_history_idempotency_key; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX uq_order_history_idempotency_key ON public.order_history USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
---
--- Name: clients trg_clients_no_delete; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER trg_clients_no_delete BEFORE DELETE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.fn_clients_state_transition();
 
-
---
--- Name: clients trg_clients_state_transition; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER trg_clients_state_transition BEFORE UPDATE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.fn_clients_state_transition();
 
 
---
--- Name: instruments trg_instruments_no_delete; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER trg_instruments_no_delete BEFORE DELETE ON public.instruments FOR EACH ROW EXECUTE FUNCTION public.fn_instruments_no_delete();
 
-
---
--- Name: refresh_tokens refresh_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: auth_db; Owner: -
---
 
 ALTER TABLE ONLY auth_db.refresh_tokens
     ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth_db.users(id) ON DELETE CASCADE;
 
 
---
--- Name: users users_account_id_fkey; Type: FK CONSTRAINT; Schema: auth_db; Owner: -
---
-
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT users_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
 
-
---
--- Name: daily_candle_syncs daily_candle_syncs_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.daily_candle_syncs
     ADD CONSTRAINT daily_candle_syncs_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
 
---
--- Name: daily_candles daily_candles_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.daily_candles
     ADD CONSTRAINT daily_candles_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
-
---
--- Name: bank_account fk_bank_account_client; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.bank_account
     ADD CONSTRAINT fk_bank_account_client FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
 
 
---
--- Name: market_quotes market_quotes_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.market_quotes
     ADD CONSTRAINT market_quotes_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
-
---
--- Name: orders orders_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT orders_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
 
 
---
--- Name: orders orders_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT orders_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
-
---
--- Name: portfolio_holding portfolio_holding_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.portfolio_holding
     ADD CONSTRAINT portfolio_holding_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
 
 
---
--- Name: portfolio_holding portfolio_holding_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.portfolio_holding
     ADD CONSTRAINT portfolio_holding_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
-
---
--- Name: portfolio_positions portfolio_positions_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
 
 
---
--- Name: portfolio_positions portfolio_positions_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
-
---
--- Name: wallet_transfers wallet_transfers_account_number_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_account_number_fkey FOREIGN KEY (account_number) REFERENCES public.bank_account(account_number);
 
 
---
--- Name: wallet_transfers wallet_transfers_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
 
-
---
--- PostgreSQL database dump complete
---
 
 \unrestrict HF69wgU9BTU5mZDDFzytA8LWFn9YiUjnuWQa3koDw0cSsO1nTwgFZRfDNJsF7dQ
 

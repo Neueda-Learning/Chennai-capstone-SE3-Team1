@@ -2,16 +2,10 @@ package com.team1.trading.api.exception;
 
 import com.team1.trading.domain.exception.DomainException;
 
-/**
- * A transfer between the wallet and the linked bank account was refused. The code and message
- * are fixed per case; the amounts and balances involved are logged on the server only.
- */
 public class TransferException extends DomainException {
 
     public enum Reason {
-        /** The side being debited cannot cover the amount: {@code TRF-400}. */
         INSUFFICIENT_FUNDS(ErrorCatalogue.TRF_400, "Insufficient funds"),
-        /** The idempotency key was already used by an earlier transfer: {@code TRF-409}. */
         DUPLICATE_TRANSFER(ErrorCatalogue.TRF_409, "Duplicate transfer");
 
         private final String code;

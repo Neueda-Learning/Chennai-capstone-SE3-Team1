@@ -86,9 +86,9 @@ class PendingOrderRepublisherTest {
     void retriesOnlyWhatFailed() {
         when(orderMapper.findNew()).thenReturn(List.of(row("a"), row("b")));
         when(publisher.send(any()))
-                .thenReturn(ok())        // a, first attempt
-                .thenReturn(failed())    // b, first attempt
-                .thenReturn(ok());       // b, second attempt
+                .thenReturn(ok())
+                .thenReturn(failed())
+                .thenReturn(ok());
 
         republisher.republishPending();
 

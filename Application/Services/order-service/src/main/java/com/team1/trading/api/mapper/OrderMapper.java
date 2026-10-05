@@ -13,9 +13,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Parameterised MyBatis Mapper for the orders table (OWASP A03 Compliant).
- */
 @Mapper
 public interface OrderMapper {
 
@@ -34,17 +31,6 @@ public interface OrderMapper {
             """)
     int insert(@Param("order") OrderInsert order);
 
-    /**
-     * Since migration 010 an order lives in one of two places: orders while it is still
-     * NEW, order_history once it has settled and been removed from the live book. Both
-     * are searched, so callers do not have to know which stage it is at.
-     *
-     * <p>Normally only one side matches. The ordering and LIMIT are there because the two
-     * can overlap - reloading seed data into a drained live book re-inserts fixed-id orders
-     * that have already settled, for instance - and an ambiguous lookup would otherwise
-     * surface as an internal error rather than an answer. The live row wins, because it is
-     * the order's current state.
-     */
     @Select("""
             SELECT * FROM (
                 SELECT 0 AS liveFirst,
@@ -70,12 +56,6 @@ public interface OrderMapper {
             """)
     Optional<OrderRow> findByUuid(@Param("orderUuid") String orderUuid);
 
-    /**
-     * Every order still waiting in the live book, oldest first. An order is filed at NEW in the
-     * same transaction that accepts it and leaves the book only when the executor settles it or
-     * the owner cancels it, so a row that is still NEW is an order nobody has finished with. That
-     * includes one whose ORDER_PLACED event never reached Kafka.
-     */
     @Select("""
             SELECT order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
                    instrument_id AS symbol, order_type AS orderType, side, quantity, price,
@@ -87,29 +67,12 @@ public interface OrderMapper {
             """)
     List<OrderRow> findNew();
 
-    /**
-     * Whether this key was already used by an order that has since settled.
-     *
-     * <p>orders.idempotency_key is UNIQUE and still refuses a duplicate while the order is
-     * in flight, but the row is deleted on settlement and the key would come free with it.
-     * The settled keys live in order_history, so a retry has to be checked against both.
-     */
     @Select("""
             SELECT count(*) FROM order_history
             WHERE idempotency_key = #{idempotencyKey}
             """)
     int countSettledWithIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
 
-    /**
-     * Records the cancellation in order_history from the row that was read before the
-     * delete, because by then the orders row is gone.
-     *
-     * <p>Call it only once {@link #deleteIfNew} has returned 1. That delete is what claims
-     * the order: two concurrent cancels both see NEW, but only one delete affects a row, so
-     * only the winner writes a history row. Archiving first would let both write, and the
-     * loser would trip uq_order_history_idempotency_key - turning a clean 409 into an
-     * internal error.
-     */
     @Insert("""
             INSERT INTO order_history (
                 order_id, event_type, previous_status, new_status, external_status,
@@ -125,11 +88,6 @@ public interface OrderMapper {
             """)
     int archiveCancelled(@Param("order") OrderRow order);
 
-    /**
-     * Removes an order from the live book, but only while it is still NEW.
-     *
-     * @return 1 if this caller cancelled it, 0 if it had already settled
-     */
     @Delete("""
             DELETE FROM orders
             WHERE order_id = #{orderUuid}::uuid
@@ -137,14 +95,6 @@ public interface OrderMapper {
             """)
     int deleteIfNew(@Param("orderUuid") String orderUuid);
 
-    /**
-     * Every order for an account, live or settled.
-     *
-     * <p>orders holds only NEW ones since migration 010; everything that reached a terminal
-     * state is a row in order_history carrying the order's own fields, with failure_code as
-     * the reason it was refused. The two halves are unioned so the endpoint still returns
-     * one history for the account.
-     */
     @Select("""
             SELECT * FROM (
                 SELECT order_id AS orderUuid, client_id AS clientId, account_id AS accountId,
@@ -169,8 +119,6 @@ public interface OrderMapper {
             """)
     List<OrderRow> listByAccount(@Param("filter") OrderHistoryFilter filter);
 
-    // --- DTOs / Records for Clean Data Transfer ---
-
     class OrderRow {
         private String orderUuid;
         private Long clientId;
@@ -184,7 +132,6 @@ public interface OrderMapper {
         private OrderStatus status;
         private String idempotencyKey;
         private LocalDateTime createdAt;
-        /** Why a REJECTED order was refused; null for every other status. */
         private String reason;
 
         public String getOrderUuid() { return orderUuid; }

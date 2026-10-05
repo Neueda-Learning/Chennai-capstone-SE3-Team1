@@ -104,7 +104,6 @@ describe('TokenService', () => {
       const decoded = JSON.parse(
         Buffer.from(payload, 'base64url').toString('utf8'),
       );
-      // Present and null, not absent: the claim set stays exact.
       expect(decoded).toHaveProperty('accountId', null);
       expect(service.verifyAccessToken(token).accountId).toBeNull();
     });
@@ -129,7 +128,6 @@ describe('TokenService', () => {
     });
 
     it('rejects an expired token with AUTH-401', () => {
-      // Sign with an explicit past expiry using the same library/secret.
       const jsonwebtoken = jest.requireActual('jsonwebtoken');
       const expiredToken = jsonwebtoken.sign(
         {
@@ -214,7 +212,6 @@ describe('TokenService', () => {
       const b = service.generateRefreshToken();
       expect(a).not.toBe(b);
       expect(a).toBeTruthy();
-      // base64url, no padding
       expect(a).not.toContain('+');
       expect(a).not.toContain('/');
       expect(a).not.toContain('=');

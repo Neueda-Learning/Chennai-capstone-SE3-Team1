@@ -29,17 +29,14 @@ export class LoginPage {
   protected readonly password = signal('');
   protected readonly error = signal<string | null>(null);
 
-  /** Set when the register page signs a visitor back over to this page. */
   protected readonly registered = signal(
     this.route.snapshot.queryParamMap.get('registered') === 'true'
   );
 
-  /** Set by the verification screen once the emailed code has been spent. */
   protected readonly verified = signal(
     this.route.snapshot.queryParamMap.get('verified') === 'true'
   );
 
-  /** Set by the reset screen once a new password has been stored. */
   protected readonly reset = signal(
     this.route.snapshot.queryParamMap.get('reset') === 'true'
   );

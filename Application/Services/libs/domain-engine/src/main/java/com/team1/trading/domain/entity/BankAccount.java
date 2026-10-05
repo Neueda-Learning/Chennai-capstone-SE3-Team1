@@ -3,12 +3,6 @@ package com.team1.trading.domain.entity;
 import java.math.BigDecimal;
 import java.util.Objects;
 
-/**
- * A bank account a client funds their wallet from and pays out to. {@code clientId} is
- * {@code null} while the account is unclaimed: bank accounts can exist before anyone owns them,
- * and onboarding claims one. It carries no holder name of its own; {@code clientId} is the only
- * identity it needs, and joining to {@code clients} gets the name once one is linked.
- */
 public class BankAccount {
 
     private Long clientId;

@@ -132,7 +132,6 @@ describe('BlotterPage', () => {
         setTimeout(() => {
           expect(component.rows()).toEqual(rowsWithRejection);
           
-          // Verify rejections are included
           const rejectedOrder = component.rows().find(r => r.status === OrderStatus.Rejected);
           expect(rejectedOrder).toBeDefined();
           
@@ -196,7 +195,6 @@ describe('BlotterPage', () => {
 
       return new Promise<void>((resolve) => {
         setTimeout(() => {
-          // Component checks for NEW orders and sets polling
           const hasNewOrders = component.rows().some(r => r.status === OrderStatus.New);
           expect(hasNewOrders).toBe(true);
           
@@ -329,7 +327,7 @@ describe('BlotterPage', () => {
       fixture.detectChanges();
 
       component.refreshOrders();
-      expect(component.isRefreshing()).toBe(false); // Observable completes immediately
+      expect(component.isRefreshing()).toBe(false);
     });
 
     it('should show error if no account linked when refresh button clicked', () => {
@@ -413,9 +411,9 @@ describe('BlotterPage', () => {
     describe('cancel order', () => {
       it('should call ordersService.cancelOrder with order ID without ORD prefix', () => {
         vi.mocked(blotterService.fetchOrderHistory).mockReturnValue(of([]));
-        fixture.detectChanges(); // Initialize component
+        fixture.detectChanges();
         
-        const order = mockBlotterRows[0]; // Status: NEW
+        const order = mockBlotterRows[0];
         vi.mocked(ordersService.cancelOrder).mockReturnValue(of({}));
         vi.mocked(blotterService.refreshOnce).mockReturnValue(of([]));
 
@@ -429,7 +427,7 @@ describe('BlotterPage', () => {
         fixture.detectChanges();
         
         vi.mocked(sessionStore.accountId).mockReturnValue(42);
-        const order = mockBlotterRows[0]; // Status: NEW
+        const order = mockBlotterRows[0];
         vi.mocked(ordersService.cancelOrder).mockReturnValue(of({}));
         vi.mocked(blotterService.refreshOnce).mockReturnValue(of(mockBlotterRows));
 
@@ -462,7 +460,7 @@ describe('BlotterPage', () => {
       });
 
       it('should display error when cancelling a filled order', () => {
-        const filledOrder = mockBlotterRows[1]; // Status: FILLED
+        const filledOrder = mockBlotterRows[1];
         
         component.cancelOrder(filledOrder);
 

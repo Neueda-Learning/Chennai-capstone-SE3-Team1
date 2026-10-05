@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import List, Optional
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parents[2]  # etl-trades -> ETL -> Application -> repo root
+REPO_ROOT = HERE.parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(HERE))
 
@@ -76,8 +76,6 @@ def connect_duckdb(db_path, read_only=False):
         )
 
 
-# ---------------------------------------------------------------- schema
-
 
 def apply_schema(con, db_path) -> int:
     head("Schema  (" + str(db_path) + ")")
@@ -90,16 +88,12 @@ def apply_schema(con, db_path) -> int:
     return len(files)
 
 
-# ---------------------------------------------------------------- dimensions
-
 
 def load_dim_date(con, cfg: DbConfig, load_id: str) -> int:
     """Cover every calendar day from the earliest order to the end of next year.
 
     Generated inside DuckDB; only the lower bound comes from PostgreSQL.
     """
-    # live orders alone no longer reach back far enough: a settled order has left that
-    # table, and its creation date only survives on the order_history row.
     earliest = cfg.scalar(
         "SELECT least((SELECT min(created_at) FROM orders),"
         " (SELECT min(order_created_at) FROM order_history));"
@@ -161,9 +155,6 @@ def load_dim_instrument(con, cfg: DbConfig, load_id: str) -> int:
 
 def load_dim_account(con, cfg: DbConfig, load_id: str) -> int:
     rows = cfg.rows(
-        # clients has no account number since migration 015; it lives on the client's bank_account.
-        # clients has no email of its own since migration 021 either; it lives on the linked
-        # user (auth_db.users, reachable unqualified via the default search_path).
         "SELECT c.client_id, b.account_number, c.name, u.email, c.account_state, c.created_on "
         "FROM clients c "
         "LEFT JOIN bank_account b ON b.client_id = c.client_id "
@@ -199,8 +190,6 @@ def load_dims(con, cfg: DbConfig, load_id: str) -> dict:
     step("dim_account     " + str(accounts) + " row(s)")
     return {"dim_date_added": dates, "dim_instrument": instruments, "dim_account": accounts}
 
-
-# ---------------------------------------------------------------- facts
 
 
 def read_watermark(con) -> Optional[datetime]:
@@ -345,7 +334,6 @@ def load_facts(con, cfg: DbConfig, load_id: str, since: Optional[datetime] = Non
         return {"extracted": len(rows), "merged": merged, "dead_lettered": dead,
                 "watermark": watermark}
 
-    # One transaction: either everything this run found lands, or none of it does.
     con.execute("BEGIN TRANSACTION")
     try:
         for outcome, raw in outcomes:
@@ -371,8 +359,6 @@ def load_facts(con, cfg: DbConfig, load_id: str, since: Optional[datetime] = Non
          + ", watermark -> " + newest.isoformat(sep=" "))
     return {"extracted": len(rows), "merged": merged, "dead_lettered": dead, "watermark": newest}
 
-
-# ---------------------------------------------------------------- cli
 
 
 def build_parser():
@@ -400,7 +386,6 @@ def main(argv=None) -> int:
     started = time.time()
     load_id = args.load_id or new_load_id()
 
-    # the secrets vault looks for its key file in the working directory
     os.chdir(REPO_ROOT)
     try:
         cfg = DbConfig.resolve(args)

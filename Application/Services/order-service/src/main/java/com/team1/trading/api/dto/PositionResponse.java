@@ -2,22 +2,12 @@ package com.team1.trading.api.dto;
 
 import java.math.BigDecimal;
 
-/**
- * One entry of {@code GET /api/v1/accounts/{id}/positions}, as fixed by contracts/trade-api.yaml.
- * Net held quantity and weighted average cost basis per instrument. Positions with a net quantity
- * of zero are never returned.
- */
 public class PositionResponse {
 
     private Long accountId;
     private String symbol;
     private Integer quantity;
     private BigDecimal averageCost;
-    /**
-     * Unrealised gain at the last market price seen: (price - averageCost) * quantity.
-     * Refreshed from the market-data stream once per poll cycle, so it is as current as
-     * the last quote rather than as current as this request.
-     */
     private BigDecimal overallGains;
 
     public PositionResponse() {

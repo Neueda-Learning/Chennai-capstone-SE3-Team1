@@ -13,15 +13,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
-/**
- * Unit tests for {JwtValidator}, exercising all authentication failure modes and
- * the success path.
- *
- * <p>Tests verify that the validator correctly:
- * 1. Checks signature, expiry, and algorithm before reading claims (in that order)
- * 2. Returns identical errors for missing header, wrong scheme, expired, and forged
- * 3. Extracts and validates all required claims
- */
 @DisplayName("JWT Verification")
 class JwtValidatorTest {
 
@@ -131,9 +122,8 @@ class JwtValidatorTest {
         void rejects_token_signed_with_different_secret() {
             String token = TestJwtBuilder.forAccount(1L)
                     .buildWithTestSecret()
-                    .replace("Bearer ", ""); // Remove scheme to re-sign
+                    .replace("Bearer ", "");
 
-            // Re-sign with a different secret
             String forgedToken = "Bearer " + token.substring(0, token.lastIndexOf('.'))
                     + ".invalid_signature_here";
 
@@ -155,7 +145,6 @@ class JwtValidatorTest {
                     .buildWithTestSecret()
                     .replace("Bearer ", "");
 
-            // Split and tamper with the payload
             String[] parts = originalToken.split("\\.");
             String tamperedPayload = parts[1].substring(0, parts[1].length() - 1) + "X";
             String tamperedToken = "Bearer " + parts[0] + "." + tamperedPayload + "." + parts[2];
@@ -231,22 +220,16 @@ class JwtValidatorTest {
 
         @Test
         void rejects_token_missing_sub_claim() {
-            // This test uses the JWT library to build a token without the sub claim
             String token = TestJwtBuilder.forAccount(1L)
-                    .withSub("") // Build with empty sub
+                    .withSub("")
                     .buildWithTestSecret();
 
-            // Note: The JWT library might automatically include sub, so we test the validator
-            // handles missing claims properly. In practice, the auth stub would always include
-            // all required claims.
             JwtClaims claims = validator.verify(token);
-            assertThat(claims.getSub()).isNotNull(); // JWT lib includes it
+            assertThat(claims.getSub()).isNotNull();
         }
 
         @Test
         void accepts_token_with_null_account_id() {
-            // AccountId is optional - not all auth stubs include it.
-            // The validator should accept tokens where accountId is null.
             String token = TestJwtBuilder.forAccount(null)
                     .buildWithTestSecret();
 
@@ -256,10 +239,8 @@ class JwtValidatorTest {
 
         @Test
         void rejects_token_with_empty_roles() {
-            // The TestJwtBuilder prevents empty roles, so this is a contrived test
-            // In real usage, the auth stub would always include at least one role
             String token = TestJwtBuilder.forAccount(1L)
-                    .withRoles("CUSTOMER") // At least one role
+                    .withRoles("CUSTOMER")
                     .buildWithTestSecret();
 
             JwtClaims claims = validator.verify(token);

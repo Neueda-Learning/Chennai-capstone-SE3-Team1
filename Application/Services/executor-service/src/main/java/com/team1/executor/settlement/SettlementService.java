@@ -79,8 +79,6 @@ public class SettlementService {
             return SettlementResult.alreadySettled(orderRow.status());
         }
 
-        // Read the holding back after the write so the event carries what the book now says,
-        // rather than a value recomputed in Java that could drift from it.
         int quantityAfter = 0;
         BigDecimal averageCostAfter = BigDecimal.ZERO;
         if (fillResult.decision() == FillDecision.FILL) {
@@ -105,15 +103,11 @@ public class SettlementService {
             throw new InsufficientFundsException(accountRow.clientId(), cashDelta.abs(), accountRow.walletBalance());
         }
 
-        // The guarded delete is the idempotency check: a replayed message finds the order
-        // already gone from the live book and affects zero rows.
         int rows = orderMapper.deleteIfNew(order.getOrderId());
         if (rows == 0) {
             return 0;
         }
 
-        // Same transaction as the delete. orderRow was read before the delete, so it still
-        // carries everything the order was - this row is now its only record.
         orderHistoryMapper.insertTerminal(orderRow, "FILLED", "FILLED", executedPrice, null, null);
 
         boolean balanceUpdated = updateAccountBalanceWithRetry(accountRow.clientId(), cashDelta, accountRow.version());
@@ -131,14 +125,11 @@ public class SettlementService {
         if (rows == 0) {
             return 0;
         }
-        // The rule name is the only record of why this order was refused, and this row is
-        // now the only record that the order existed at all.
         orderHistoryMapper.insertTerminal(orderRow, "REJECTED", "REJECTED", null,
                 fillResult.reason(), describeReason(fillResult.reason()));
         return 1;
     }
 
-    /** Turns a rule name into the sentence order_history.failure_reason is meant to hold. */
     private static String describeReason(String code) {
         if (code == null) {
             return null;
@@ -209,12 +200,6 @@ public class SettlementService {
 
     public record QuoteSnapshot(BigDecimal bid, BigDecimal ask) {}
 
-    /**
-     * quantityAfter and averageCostAfter are the holding as it stands once this settlement
-     * has committed. They travel on the ORDER_FILLED event so a consumer can maintain its own
-     * portfolio projection without reading Postgres, which is what contracts/kafka-topics.md
-     * says those fields are for. They are 0 on any non-fill outcome.
-     */
     public record SettlementResult(
             boolean success,
             FillDecision decision,

@@ -79,7 +79,6 @@ export class MailerService {
     code: string;
   }): Promise<void> {
     if (this.transporter === null) {
-      // Local fallback keeps OTP flows testable without SMTP credentials.
       this.logger.warn(
         'SMTP is disabled; logging OTP to outbox fallback. Configure SMTP_* env vars for real delivery.',
       );

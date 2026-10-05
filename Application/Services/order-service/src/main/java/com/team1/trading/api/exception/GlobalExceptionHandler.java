@@ -27,14 +27,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.List;
 
-/**
- * Single error handler for the whole platform, as contracts/trade-api.yaml requires.
- *
- * <p>Every failure leaves the error envelope {@code {"errorCode", "message"}} and nothing else:
- * no whitelabel page, no stack trace, no bare status with an empty body. The message returned to
- * the client is always the catalogued human string; whatever an investigation needs about the
- * internal state is logged on the server and never reaches the body.
- */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -43,15 +35,6 @@ public class GlobalExceptionHandler {
     private static final String VALIDATION_MESSAGE = "Invalid input";
     private static final String INTERNAL_MESSAGE = "Internal error";
 
-    /**
-     * Every domain exception maps through the catalogue to its documented HTTP status. 404 is
-     * shared by {@code ACC-404} and {@code INS-404}, and 409 carries {@code ORD-409}, so the
-     * client branches on {@code errorCode}, never on the status alone.
-     *
-     * <p>One deviation is deliberate and contract-mandated: an order that cannot be found is
-     * served under HTTP 404 with {@code ORD-409} and "Order not found"
-     * (contracts/trade-api.yaml, DELETE /api/v1/orders/{id}).
-     */
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponse> handleDomainException(DomainException e) {
         HttpStatus status = e instanceof OrderNotFoundException
@@ -61,31 +44,18 @@ public class GlobalExceptionHandler {
         return envelope(e.getCode(), e.getMessage(), status);
     }
 
-    /**
-     * A query or path value that fails conversion (an unknown status, an unparseable instant)
-     * is invalid input, {@code VAL-422}.
-     */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         LOG.warn("Request argument type mismatch name={} value={}", e.getName(), e.getValue(), e);
         return envelope(ErrorCatalogue.VAL_422, VALIDATION_MESSAGE, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
-    /**
-     * A body that is not valid JSON, or carries a value its field cannot hold (an unknown enum
-     * constant such as a {@code side} or {@code direction}, text where a number goes), is invalid
-     * input, {@code VAL-422}, not an internal error.
-     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e) {
         LOG.warn("Request body could not be read: {}", e.getMostSpecificCause().getMessage());
         return envelope(ErrorCatalogue.VAL_422, VALIDATION_MESSAGE, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
-    /**
-     * Bean-validation failures from {@code @Valid} on a request body map to {@code VAL-422}.
-     * The offending fields are logged server-side; the client sees only the catalogued message.
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
         List<FieldError> fieldErrors = e.getBindingResult().getFieldErrors();
@@ -93,22 +63,12 @@ public class GlobalExceptionHandler {
         return envelope(ErrorCatalogue.VAL_422, VALIDATION_MESSAGE, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
-    /**
-     * JWT verification failures: missing header, wrong scheme, expired token, or forged signature.
-     * All return AUTH-401 with an identical message so attackers cannot enumerate which failure
-     * occurred. The actual reason is logged server-side.
-     */
     @ExceptionHandler(JwtAuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleJwtAuthentication(JwtAuthenticationException e) {
         LOG.warn("JWT verification failed: {}", e.getMessage(), e);
         return envelope(ErrorCatalogue.AUTH_401, "Unauthorized", HttpStatus.UNAUTHORIZED);
     }
 
-    /**
-     * Anything not covered above leaves the envelope too, so no whitelabel page can ever reach a
-     * client. The code {@code INTERNAL-500} is not part of the documented catalogue; it exists so
-     * an unforeseen failure is still an envelope the Angular application can handle.
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
         LOG.error("Unhandled exception", e);
@@ -119,11 +79,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(code, message));
     }
 
-    /**
-     * The internal state that an investigation needs, collected on the server only. The fields
-     * here (account keys, symbols, amounts, idempotency keys) must never appear in a response
-     * body.
-     */
     private static String detailFor(DomainException e) {
         if (e instanceof AccountNotFoundException x) {
             return "accountId=" + x.getAccountId();

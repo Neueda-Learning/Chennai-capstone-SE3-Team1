@@ -1,14 +1,4 @@
--- DERIVED artifact, do not edit by hand.
--- pg_dump --data-only --column-inserts of the seeded tables from the same build.
--- Source of truth is Application/Databases/PostgreSQL/seeds/.
---
--- PostgreSQL database dump
---
-
 \restrict 6FcH9VdoWZzsRWAdvYLkyxWGp0sFiQIIpCeydIyY2WdAqL93UM6kbv1rfCdkzjJ
-
--- Dumped from database version 18.4
--- Dumped by pg_dump version 18.4
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -22,10 +12,6 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Data for Name: clients; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
 INSERT INTO public.clients (client_id, name, created_on, account_state, wallet_balance, version, updated_on) VALUES (1, 'Aarav Mehta', '2026-10-04 13:21:42.804022', 'ACTIVE', 125000.00, 0, '2026-10-04 13:21:42.804022');
 INSERT INTO public.clients (client_id, name, created_on, account_state, wallet_balance, version, updated_on) VALUES (2, 'Diya Sharma', '2026-10-04 13:21:42.804022', 'ACTIVE', 48250.50, 0, '2026-10-04 13:21:42.804022');
 INSERT INTO public.clients (client_id, name, created_on, account_state, wallet_balance, version, updated_on) VALUES (3, 'Rohan Iyer', '2026-10-04 13:21:42.804022', 'ACTIVE', 310400.75, 0, '2026-10-04 13:21:42.804022');
@@ -34,10 +20,6 @@ INSERT INTO public.clients (client_id, name, created_on, account_state, wallet_b
 INSERT INTO public.clients (client_id, name, created_on, account_state, wallet_balance, version, updated_on) VALUES (6, 'Sanya Kapoor', '2026-10-04 13:21:42.804022', 'CLOSED', 0.00, 0, '2026-10-04 13:21:42.804022');
 
 
---
--- Data for Name: users; Type: TABLE DATA; Schema: auth_db; Owner: postgres
---
-
 INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, params_version, version, created_on, updated, email, phone, status) VALUES ('dc46acc7-d534-4872-a8a8-d4cff58af0f6', 'aarav.mehta', 1, '{CUSTOMER}', '$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg', 1, 0, '2026-10-04 13:21:42.804022', '2026-10-04 13:21:42.804022', 'aarav.mehta@example.com', NULL, 'ACTIVE');
 INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, params_version, version, created_on, updated, email, phone, status) VALUES ('dd2548a8-9fb3-47b6-9a7f-0059f72a8c67', 'diya.sharma', 2, '{CUSTOMER}', '$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg', 1, 0, '2026-10-04 13:21:42.804022', '2026-10-04 13:21:42.804022', 'diya.sharma@example.com', NULL, 'ACTIVE');
 INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, params_version, version, created_on, updated, email, phone, status) VALUES ('cf707651-5b84-4882-a3ef-c1f631c8b3f7', 'rohan.iyer', 3, '{CUSTOMER}', '$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg', 1, 0, '2026-10-04 13:21:42.804022', '2026-10-04 13:21:42.804022', 'rohan.iyer@example.com', NULL, 'ACTIVE');
@@ -45,10 +27,6 @@ INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, param
 INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, params_version, version, created_on, updated, email, phone, status) VALUES ('ab518f70-7c90-4ce2-a1d7-7632413ccfb4', 'vikram.rao', 5, '{CUSTOMER}', '$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg', 1, 0, '2026-10-04 13:21:42.804022', '2026-10-04 13:21:42.804022', 'vikram.rao@example.com', NULL, 'ACTIVE');
 INSERT INTO auth_db.users (id, username, account_id, roles, password_hash, params_version, version, created_on, updated, email, phone, status) VALUES ('cc578746-d8db-4e29-852d-23d863805119', 'sanya.kapoor', 6, '{CUSTOMER}', '$argon2id$v=19$m=65536,t=3,p=4$j3mfIAIipurSnElhvqSpcw$5XeGea39WSmKJJf7yQLKj/tI+pTCo9Nc2tBibLIHnzg', 1, 0, '2026-10-04 13:21:42.804022', '2026-10-04 13:21:42.804022', 'sanya.kapoor@example.com', NULL, 'ACTIVE');
 
-
---
--- Data for Name: bank_account; Type: TABLE DATA; Schema: public; Owner: postgres
---
 
 INSERT INTO public.bank_account (account_number, client_id, account_balance, bank_name, ifsc_code) VALUES ('IN45HDFC0000001234567', 1, 485200.00, 'HDFC Bank', 'HDFC0001234');
 INSERT INTO public.bank_account (account_number, client_id, account_balance, bank_name, ifsc_code) VALUES ('IN45ICIC0000002345678', 2, 129750.50, 'ICICI Bank', 'ICIC0002345');
@@ -63,10 +41,6 @@ INSERT INTO public.bank_account (account_number, client_id, account_balance, ban
 INSERT INTO public.bank_account (account_number, client_id, account_balance, bank_name, ifsc_code) VALUES ('IN45KKBK0000011234567', NULL, 225750.00, 'Kotak Mahindra', 'KKBK0011234');
 INSERT INTO public.bank_account (account_number, client_id, account_balance, bank_name, ifsc_code) VALUES ('IN45YESB0000012345678', NULL, 5000.00, 'Yes Bank', 'YESB0012345');
 
-
---
--- Data for Name: instruments; Type: TABLE DATA; Schema: public; Owner: postgres
---
 
 INSERT INTO public.instruments (instrument_id, instrument_name, active, updated_on) VALUES ('RELIANCE', 'Reliance Industries', true, NULL);
 INSERT INTO public.instruments (instrument_id, instrument_name, active, updated_on) VALUES ('TCS', 'Tata Consultancy Services', true, NULL);
@@ -122,16 +96,8 @@ INSERT INTO public.instruments (instrument_id, instrument_name, active, updated_
 INSERT INTO public.instruments (instrument_id, instrument_name, active, updated_on) VALUES ('LEGACYCORP', 'Legacy Corp', false, '2025-11-14 15:30:00');
 
 
---
--- Name: clients_client_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
 SELECT pg_catalog.setval('public.clients_client_id_seq', 6, true);
 
-
---
--- PostgreSQL database dump complete
---
 
 \unrestrict 6FcH9VdoWZzsRWAdvYLkyxWGp0sFiQIIpCeydIyY2WdAqL93UM6kbv1rfCdkzjJ
 

@@ -52,8 +52,6 @@ class MarketDataPollerTest {
     @Captor
     private ArgumentCaptor<Object> valueCaptor;
 
-    // Configured as the executor configures it, so that what this test asserts about the payload
-    // is what actually reaches the topic.
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -83,8 +81,6 @@ class MarketDataPollerTest {
     private static List<String> symbols(int count) {
         return IntStream.range(0, count).mapToObj(i -> String.format("SYM%03d", i)).toList();
     }
-
-    // --- a batch of up to 25 symbols is fetched in one request ---------------------------------
 
     @Test
     void twentyFiveSymbolsAreFetchedInOneRequest() {
@@ -125,7 +121,6 @@ class MarketDataPollerTest {
         verify(quoteClient, times(2)).getQuotes(batchCaptor.capture());
         assertThat(batchCaptor.getAllValues().get(0)).hasSize(25);
         assertThat(batchCaptor.getAllValues().get(1)).hasSize(5);
-        // The second batch is the second request, and the ledger was asked about both.
         verify(quotaLedger).pollerMaySpend(2);
     }
 
@@ -139,8 +134,6 @@ class MarketDataPollerTest {
         verifyNoInteractions(kafkaTemplate);
     }
 
-    // --- each quote is published as its own message keyed by symbol ----------------------------
-
     @Test
     void eachQuoteIsPublishedAsItsOwnMessageKeyedBySymbol() {
         List<String> universe = List.of("RELIANCE", "INFY", "ITC");
@@ -150,7 +143,6 @@ class MarketDataPollerTest {
 
         poller.pollOnce();
 
-        // One HTTP request, three Kafka messages. That asymmetry is the whole design.
         verify(quoteClient, times(1)).getQuotes(any());
         verify(kafkaTemplate, times(3))
                 .send(eq(MarketDataPoller.MARKET_DATA_TOPIC), keyCaptor.capture(), valueCaptor.capture());
@@ -163,8 +155,6 @@ class MarketDataPollerTest {
             assertThat(envelope.source()).isEqualTo("market-poller");
             assertThat(envelope.schemaVersion()).isEqualTo(1);
             assertThat(envelope.eventId()).isNotBlank();
-            // The key and the payload must name the same symbol, or a consumer keying off the
-            // partition reads a price for something else.
             assertThat(envelope.payload().get("symbol").asText()).isEqualTo(keyCaptor.getAllValues().get(i));
         }
     }
@@ -200,7 +190,6 @@ class MarketDataPollerTest {
         assertThat(envelope.payload().get("ask").decimalValue()).isEqualByComparingTo("232.77");
         assertThat(envelope.payload().get("marketState").asText()).isEqualTo("open");
         assertThat(envelope.payload().get("stale").asBoolean()).isFalse();
-        // quoteAsOf is the observation time from Fauxnance, not the poll time; eventTime is ours.
         assertThat(envelope.payload().get("quoteAsOf").asText()).startsWith("2026-09-28T09:14:58");
         assertThat(envelope.eventTime()).isNotEqualTo(envelope.payload().get("quoteAsOf").asText());
     }
@@ -221,8 +210,6 @@ class MarketDataPollerTest {
         assertThat(keyCaptor.getValue()).isEqualTo("RELIANCE");
     }
 
-    // --- the interval stays inside the daily quota ---------------------------------------------
-
     @Test
     void thePollIsSkippedWhenItWouldEatTheFillPathsReserve() {
         when(symbolUniverse.symbolsToPoll()).thenReturn(List.of("RELIANCE", "INFY"));
@@ -231,12 +218,9 @@ class MarketDataPollerTest {
 
         poller.pollOnce();
 
-        // No request, no message. The fill path keeps what is left of the key.
         verify(quoteClient, never()).getQuotes(any());
         verifyNoInteractions(kafkaTemplate);
     }
-
-    // --- a failed cycle costs one cycle, never the schedule ------------------------------------
 
     @Test
     void aFailingBatchDoesNotEscapeTheScheduledMethod() {
@@ -271,8 +255,6 @@ class MarketDataPollerTest {
         assertThatCode(() -> poller.pollOnce()).doesNotThrowAnyException();
         verifyNoInteractions(quoteClient);
     }
-
-    // --- batching itself ------------------------------------------------------------------------
 
     @Test
     void batchSplitsOnTheApiLimitAndNotSomewhereElse() {

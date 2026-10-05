@@ -36,7 +36,7 @@ from decimal import Decimal
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parents[2]  # etl-trades -> ETL -> Application -> repo root
+REPO_ROOT = HERE.parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from db_config import DbConfig, DbError, add_connection_args, quote_literal  # noqa: E402
@@ -76,10 +76,8 @@ class Simulation:
         self.clients = []
         self.instruments = []
         self.prices = {}
-        self.fills = []  # (client_id, instrument_id, order_type, side, qty, exec_price)
-        self.short_key = None  # reserved (client_id, instrument_id) for the deterministic short
-
-    # ------------------------------------------------------------ reference data
+        self.fills = []
+        self.short_key = None
 
     def load_reference(self):
         self.clients = [
@@ -110,8 +108,6 @@ class Simulation:
             floor = now - timedelta(seconds=30)
         self.start, self.end = floor, now
 
-    # ------------------------------------------------------------ helpers
-
     def _when(self) -> datetime:
         span = (self.end - self.start).total_seconds()
         return self.start + timedelta(seconds=self.rng.uniform(0, max(span, 1)))
@@ -124,16 +120,6 @@ class Simulation:
     def _emit_order(self, *, client_id, instrument_id, status, created, terminal=None,
                     executed=None, failure=None, label=None, force_side=None,
                     force_type=None):
-        # Mirrors the platform since migration 010: the live orders row is
-        # always NEW (chk_orders_status) with no executed price; settlement is
-        # a terminal order_history row carrying the idempotency key, after
-        # which the live row is deleted exactly as the executor's
-        # deleteIfNew + insertTerminal does (the history FK was dropped in 010,
-        # so history outlives the order row).
-        #
-        # FILLED fixtures are BUY-only (except the dedicated short) so the
-        # portfolio books stay an order-independent weighted average, exactly
-        # what verify_db.py's replay recomputes.
         order_id = str(uuid.uuid4())
         side = force_side or self.rng.choice(["BUY", "SELL"])
         order_type = force_type or self.rng.choice(["HOLDING", "HOLDING", "POSITION"])
@@ -180,8 +166,6 @@ class Simulation:
             )
         self.summary.append((label or status, order_id, instrument_id, side, quantity, money(price), status))
         return order_id
-
-    # ------------------------------------------------------------ order kinds
 
     def filled(self):
         created = self._when()
@@ -254,7 +238,6 @@ class Simulation:
         name = self.rng.choice(FIRST_NAMES) + " " + self.rng.choice(LAST_NAMES)
         account = "SIM" + tag.upper()
         client_id = int(self.cfg.scalar("SELECT nextval('clients_client_id_seq');"))
-        # clients first: bank_account.client_id is a foreign key to it.
         self.statements.append(
             "INSERT INTO clients (client_id, name, created_on, account_state, wallet_balance) "
             "VALUES (" + str(client_id) + ", " + quote_literal(name)
@@ -273,8 +256,6 @@ class Simulation:
             executed=self._price_for(symbol), label="BAD unknown_client",
             force_side="BUY",
         )
-
-    # -------------------------------------------- deterministic coverage tails
 
     def reserve_short_key(self):
         """Reserve a (client, symbol) pair no random fill may touch, for the
@@ -322,8 +303,6 @@ class Simulation:
             executed=self._price_for(symbol), label="SHORT position sell",
             force_side="SELL", force_type="POSITION",
         )
-
-    # ------------------------------------------------------------ run
 
     def generate(self, count: int, bad_share: float, open_share: float):
         self.reserve_short_key()
@@ -410,7 +389,6 @@ def main(argv=None) -> int:
         say("error: --count must be at least 1")
         return 2
 
-    # the secrets vault looks for its key file in the working directory
     os.chdir(REPO_ROOT)
     try:
         cfg = DbConfig.resolve(args)
