@@ -16,11 +16,11 @@ info:
     | Field | Meaning |
     |---|---|
     | `defaultAccountId` | The account the app selects for the customer after sign-in. |
-    | `channel` | How the customer wants to be notified: `EMAIL`, `SMS` or `PUSH`. |
+    | `channel` | How the customer wants to be notified: `EMAIL` or `PUSH`. |
 
-    **No email address or phone number is stored, accepted or returned by this module.** Both live
-    on `auth_db.users` and are read from there at the moment a notification is sent
-    (`decision-log/0003`). A request body that carries an `email`, `phone` or `address` property is
+    **No email address is stored, accepted or returned by this module.** It lives on
+    `auth_db.users` and is read from there at the moment a notification is sent
+    (`decision-log/0003`). A request body that carries an `email` or `address` property is
     refused as `VAL-422`.
 
     ## Authentication and access
@@ -43,8 +43,9 @@ info:
 
     ## Channel and the contact detail
 
-    `SMS` is refused with `PRF-422` while the customer has no phone number on file, because a
-    message could never be delivered on it. `EMAIL` and `PUSH` need nothing further.
+    `EMAIL` is sent to the address on the customer's profile, through the same mail account the
+    auth service uses for one-time codes. `PUSH` is the in-app inbox and needs nothing further.
+    There is no SMS channel (`decision-log/0009`).
 
     ## Not part of this contract
 
@@ -134,8 +135,8 @@ paths:
           $ref: '#/components/responses/NotYourAccount'
         '422':
           description: |
-            The body is malformed (`VAL-422`), the default account is not the customer's own, or
-            `SMS` was chosen with no phone number on file (`PRF-422`).
+            The body is malformed (`VAL-422`) or the default account is not the customer's own
+            (`PRF-422`).
           content:
             application/json:
               schema:
@@ -149,10 +150,6 @@ paths:
                   value:
                     errorCode: PRF-422
                     message: Default account is not one of your accounts
-                noPhone:
-                  value:
-                    errorCode: PRF-422
-                    message: SMS needs a phone number on your profile
 
 components:
   securitySchemes:
@@ -202,9 +199,9 @@ components:
   schemas:
     ChannelKind:
       type: string
-      enum: [EMAIL, SMS, PUSH]
+      enum: [EMAIL, PUSH]
       description: |
-        `EMAIL` and `SMS` are delivered to the address on the customer's profile. `PUSH` is
+        `EMAIL` is delivered to the address on the customer's profile. `PUSH` is
         delivered in the app, to the signed-in customer, and needs no address.
 
     PreferencesRequest:

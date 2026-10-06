@@ -190,10 +190,15 @@ class PreferenceControllerWebTest {
     }
 
     @Test
-    @DisplayName("An unknown channel and a missing field are VAL-422")
+    @DisplayName("An unknown channel (SMS is no longer one) and a missing field are VAL-422")
     void malformedBodies() throws Exception {
         signedInAs(1L, "CUSTOMER");
 
+        mockMvc.perform(put("/api/v1/accounts/1/preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"defaultAccountId\":1,\"channel\":\"SMS\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errorCode", is("VAL-422")));
         mockMvc.perform(put("/api/v1/accounts/1/preferences")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"defaultAccountId\":1,\"channel\":\"FAX\"}"))

@@ -10,6 +10,7 @@ import { provideApi } from '../../generated/trade-client';
 import { SettingsPage } from './settings-page';
 
 const URL = 'http://trade.test/api/v1/accounts/42/preferences';
+const HISTORY_URL = 'http://trade.test/api/v1/accounts/42/notification-history';
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjQyfQ.signature';
 
 describe('SettingsPage alert delivery', () => {
@@ -30,6 +31,8 @@ describe('SettingsPage alert delivery', () => {
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(SettingsPage);
     fixture.detectChanges();
+    http.expectOne((request) => request.url === HISTORY_URL).flush([]);
+    fixture.detectChanges();
     return fixture;
   }
 
@@ -45,10 +48,10 @@ describe('SettingsPage alert delivery', () => {
 
   it('shows the saved channel and the default account', () => {
     const fixture = setUp();
-    http.expectOne(URL).flush({ accountId: 42, defaultAccountId: 42, channel: 'SMS', updatedAt: '2026-10-06T10:15:30' });
+    http.expectOne(URL).flush({ accountId: 42, defaultAccountId: 42, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
     fixture.detectChanges();
 
-    expect(el(fixture, 'channel-SMS')?.getAttribute('aria-checked')).toBe('true');
+    expect(el(fixture, 'channel-PUSH')?.getAttribute('aria-checked')).toBe('true');
     expect(el(fixture, 'channel-EMAIL')?.getAttribute('aria-checked')).toBe('false');
     expect(el(fixture, 'preferences-default-account')?.textContent).toContain('#42');
     expect(el(fixture, 'preferences-not-set')).toBeNull();
@@ -87,14 +90,14 @@ describe('SettingsPage alert delivery', () => {
     http.expectOne(URL).flush({ accountId: 42, defaultAccountId: 42, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
     fixture.detectChanges();
 
-    el(fixture, 'channel-SMS')?.click();
+    el(fixture, 'channel-PUSH')?.click();
     el(fixture, 'preferences-save')?.click();
     http
       .expectOne(URL)
-      .flush({ errorCode: 'PRF-422', message: 'SMS needs a phone number on your profile' }, { status: 422, statusText: 'Unprocessable' });
+      .flush({ errorCode: 'PRF-422', message: 'Default account is not one of your accounts' }, { status: 422, statusText: 'Unprocessable' });
     fixture.detectChanges();
 
-    expect(el(fixture, 'preferences-error')?.textContent).toContain('phone number');
+    expect(el(fixture, 'preferences-error')?.textContent).toContain('account');
     expect(el(fixture, 'preferences-saved')).toBeNull();
   });
 });

@@ -9,7 +9,7 @@ public interface PreferenceResolver {
      * Nothing is cached.
      *
      * Returns Optional.empty() when no preference row exists, when the stored channel is NULL,
-     * or when the chosen channel needs an address the customer does not have (SMS with no phone).
+     * or when the stored email address is blank.
      * Throws PreferenceResolutionException when the read itself fails, or when a stored preference
      * has no auth_db.users row behind it. A missing preference is never an exception.
      */

@@ -74,19 +74,6 @@ class PreferenceServiceTest {
     }
 
     @Test
-    @DisplayName("SMS is PRF-422 while the customer has no phone number, and accepted once they do")
-    void smsNeedsAPhone() {
-        assertThatThrownBy(() -> service.put(1L, new PreferencesRequest(1L, ChannelKind.SMS)))
-                .isInstanceOf(PreferencesInvalidException.class)
-                .hasMessageContaining("phone");
-
-        jdbc.update("UPDATE users SET phone = '+919800000001' WHERE account_id = 1");
-
-        assertThat(service.put(1L, new PreferencesRequest(1L, ChannelKind.SMS)).channel())
-                .isEqualTo(ChannelKind.SMS);
-    }
-
-    @Test
     @DisplayName("One customer's preference is not visible under another account")
     void preferencesAreKeyedByAccount() {
         service.put(1L, new PreferencesRequest(1L, ChannelKind.EMAIL));

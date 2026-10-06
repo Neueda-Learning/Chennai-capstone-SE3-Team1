@@ -27,10 +27,6 @@ public class PreferenceService {
         if (!mapper.findOwnedAccountIds(accountId).contains(request.defaultAccountId())) {
             throw new PreferencesInvalidException("Default account is not one of your accounts");
         }
-        if (request.channel() == ChannelKind.SMS
-                && mapper.findPhone(accountId).filter(p -> !p.isBlank()).isEmpty()) {
-            throw new PreferencesInvalidException("SMS needs a phone number on your profile");
-        }
         String channel = request.channel().name();
         if (mapper.update(accountId, request.defaultAccountId(), channel) == 0) {
             try {

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | proposed |
+| Status | proposed; amended in part by [`0009`](0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md) (SMS is no longer a channel) |
 | Date | 2026-10-06 |
 | Decided by | drafted by SE while building Preferences (SEC3-589); to be confirmed with the instructor at the scope review |
 

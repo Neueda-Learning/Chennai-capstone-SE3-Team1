@@ -5,9 +5,11 @@ import { ErrorCatalog } from '../../core/errors/error-catalog';
 import { NotificationStore } from '../../core/notifications/notification.store';
 import { ChannelKind, PreferencesService } from '../../core/services/preferences.service';
 import { ThemeName, ThemeService } from '../../core/theme/theme.service';
+import { NotificationHistoryCard } from './notification-history-card';
 
 @Component({
   selector: 'tui-settings-page',
+  imports: [NotificationHistoryCard],
   templateUrl: './settings-page.html',
   styleUrl: './settings-page.css'
 })
@@ -25,7 +27,6 @@ export class SettingsPage {
 
   protected readonly channels: readonly { value: ChannelKind; label: string; icon: string }[] = [
     { value: 'EMAIL', label: 'Email', icon: 'bi-envelope' },
-    { value: 'SMS', label: 'SMS', icon: 'bi-chat-dots' },
     { value: 'PUSH', label: 'In-app', icon: 'bi-bell' }
   ];
 

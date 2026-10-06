@@ -9,7 +9,7 @@ import { PreferencesService } from './preferences.service';
 const URL = 'http://trade.test/api/v1/accounts/42/preferences';
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjQyfQ.signature';
 
-const STORED = { accountId: 42, defaultAccountId: 42, channel: 'SMS', updatedAt: '2026-10-06T10:15:30' };
+const STORED = { accountId: 42, defaultAccountId: 42, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' };
 
 describe('PreferencesService', () => {
   let service: PreferencesService;

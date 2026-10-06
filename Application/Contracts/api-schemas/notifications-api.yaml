@@ -1,0 +1,161 @@
+openapi: 3.1.0
+
+info:
+  title: Customer Notifications API
+  version: 1.0.0
+  summary: The customer's own history of notifications and how each one was delivered.
+  description: |
+    Binding contract for the Customer Notifications module of the Trade REST API
+    (`com.team1.trading.api.notifications`). It is written before the controller, and the
+    controller implements it exactly.
+
+    ## What the module does
+
+    The module consumes `trade-events` in its own consumer group (`notification-service`) and
+    records one notification for every `ORDER_FILLED`, `ORDER_REJECTED` and `ORDER_CANCELLED`
+    event. For each one it asks Customer Preferences, at that moment, which channel the customer
+    wants, records the channel on the notification, and hands the message to that channel. A
+    rejection is recorded exactly as a fill is.
+
+    The route below is the only way a customer reaches the module. It is read-only.
+
+    ## Delivery state
+
+    | `status` | Meaning |
+    |---|---|
+    | `PENDING_CHANNEL` | Recorded, but the customer has no usable channel (no preference stored). It is sent once one exists (`decision-log/0004`, `0007`). |
+    | `QUEUED` | Recorded with a channel, waiting to be handed to it. |
+    | `SENT` | Handed to the channel. |
+    | `FAILED` | The channel refused or could not take it. |
+
+    The state is the module's own. It is not the Kafka offset: the offset is committed once the
+    notification is durably recorded, not once the message has been sent.
+
+    ## Authentication and access
+
+    Every route requires a valid signed JWT. A missing, malformed, expired or wrongly signed token
+    is `AUTH-401`, 401.
+
+    A valid token whose `accountId` claim does not equal the `{accountId}` in the path is
+    `ACC-403`, 403. There is no administrator exception: a customer's notifications are the
+    customer's own. The check is made before the database is touched.
+
+    ## What is never returned
+
+    The destination (email address) is stored on the notification row for audit and
+    is never returned. The response names the channel kind only.
+
+    ## Routes that do not exist
+
+    Handing a price-alert notification to the module is a Java interface
+    (`NotificationDelivery`), not a route (`decision-log/0006`). No path under `/api/v1/` accepts
+    a message to deliver, and none accepts a destination.
+
+    ## Relation to `GET /api/v1/accounts/{accountId}/notifications`
+
+    That older route is an activity feed derived from orders and wallet transfers and drives the
+    bell in the Angular header. It is unchanged. This route is the delivery ledger
+    (`decision-log/0008`).
+
+servers:
+  - url: http://localhost:8080
+    description: Local Trade REST API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/accounts/{accountId}/notification-history:
+    get:
+      operationId: getNotificationHistory
+      summary: The account's notifications, newest first, with channel and delivery state.
+      tags: [Notifications]
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30; values above 100 are served as 100; values below 1 are served as 1.
+          schema: { type: integer, format: int32 }
+        - name: before
+          in: query
+          required: false
+          description: Return only notifications created strictly before this instant. Pass the `createdAt` of the last item of the previous page.
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: The page, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NotificationHistoryEntry" }
+        "401":
+          description: No valid token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: The token is for a different account (`ACC-403`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: A query parameter is not acceptable (`VAL-422`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChannelKind:
+      type: string
+      enum: [EMAIL, PUSH]
+
+    NotificationStatus:
+      type: string
+      enum: [PENDING_CHANNEL, QUEUED, SENT, FAILED]
+
+    NotificationKind:
+      type: string
+      enum: [ORDER_FILLED, ORDER_REJECTED, ORDER_CANCELLED, PRICE_ALERT]
+
+    NotificationHistoryEntry:
+      type: object
+      required: [id, kind, message, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/NotificationKind" }
+        message:
+          type: string
+          description: The text of the notification. Contains no credentials, tokens or card data.
+        channel:
+          description: The channel resolved for this notification. Null while the status is `PENDING_CHANNEL`.
+          oneOf:
+            - { $ref: "#/components/schemas/ChannelKind" }
+            - { type: "null" }
+        status: { $ref: "#/components/schemas/NotificationStatus" }
+        createdAt: { type: string, format: date-time }
+        deliveredAt:
+          description: When the notification was handed to the channel. Null until `SENT`.
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
+
+    ErrorResponse:
+      type: object
+      required: [errorCode, message]
+      properties:
+        errorCode:
+          type: string
+          enum: [ACC-403, VAL-422, AUTH-401]
+        message: { type: string }

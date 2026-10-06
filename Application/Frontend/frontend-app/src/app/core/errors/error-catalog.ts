@@ -32,7 +32,7 @@ export const tradeErrorMessageByCode: Readonly<Record<string, string>> = {
   'TRF-400': 'The transfer side being debited cannot cover the amount.',
   'TRF-409': 'The idempotency key for this transfer has already been used.',
   'PRF-404': 'No notification preference has been saved for this account yet.',
-  'PRF-422': 'That preference cannot be saved. Choose one of your own accounts, and add a phone number to your profile to use SMS.',
+  'PRF-422': 'That preference cannot be saved. Choose one of your own accounts.',
   'INTERNAL-500': 'An unexpected error occurred. Please try again shortly.'
 };
 

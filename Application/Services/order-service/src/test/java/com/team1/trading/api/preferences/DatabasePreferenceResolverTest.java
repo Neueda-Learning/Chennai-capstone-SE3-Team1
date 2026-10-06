@@ -69,23 +69,6 @@ class DatabasePreferenceResolverTest {
     }
 
     @Test
-    @DisplayName("SMS resolves to the phone on auth_db.users")
-    void smsFromUsers() {
-        jdbc.update("UPDATE users SET phone = '+919800000002' WHERE account_id = 2");
-        store(2L, "SMS");
-
-        assertThat(resolver.resolve(2L)).contains(new ResolvedChannel(ChannelKind.SMS, "+919800000002"));
-    }
-
-    @Test
-    @DisplayName("SMS with no phone on file resolves to empty so Notifications holds the message")
-    void smsWithoutPhone() {
-        store(1L, "SMS");
-
-        assertThat(resolver.resolve(1L)).isEmpty();
-    }
-
-    @Test
     @DisplayName("PUSH resolves to an in-app address and needs no contact detail")
     void pushNeedsNoContactDetail() {
         store(1L, "PUSH");

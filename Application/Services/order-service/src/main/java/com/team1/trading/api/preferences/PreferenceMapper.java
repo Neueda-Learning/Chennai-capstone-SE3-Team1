@@ -47,16 +47,8 @@ public interface PreferenceMapper {
     List<Long> findOwnedAccountIds(@Param("accountId") Long accountId);
 
     @Select("""
-            SELECT phone
-            FROM users
-            WHERE account_id = #{accountId}
-            """)
-    @Options(flushCache = Options.FlushCachePolicy.TRUE)
-    Optional<String> findPhone(@Param("accountId") Long accountId);
-
-    @Select("""
             SELECT p.channel AS channel, p.channel_contact_override AS contactOverride,
-                   u.email AS email, u.phone AS phone
+                   u.email AS email
             FROM customer_preferences p
             LEFT JOIN users u ON u.account_id = p.account_id
             WHERE p.account_id = #{accountId}
@@ -84,7 +76,6 @@ public interface PreferenceMapper {
         private String channel;
         private String contactOverride;
         private String email;
-        private String phone;
 
         public String getChannel() { return channel; }
         public void setChannel(String channel) { this.channel = channel; }
@@ -92,8 +83,6 @@ public interface PreferenceMapper {
         public void setContactOverride(String contactOverride) { this.contactOverride = contactOverride; }
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
 
         @Override
         public String toString() {

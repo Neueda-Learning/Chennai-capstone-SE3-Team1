@@ -56,6 +56,6 @@ public class DatabasePreferenceResolver implements PreferenceResolver {
         if (row.getContactOverride() != null && !row.getContactOverride().isBlank()) {
             return row.getContactOverride();
         }
-        return kind == ChannelKind.EMAIL ? row.getEmail() : row.getPhone();
+        return row.getEmail();
     }
 }

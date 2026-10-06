@@ -1,0 +1,32 @@
+<div class="card" data-testid="history-card">
+  <div class="card-header">
+    <h2 class="card-title">Message history</h2>
+  </div>
+  @if (error() !== null) {
+    <p class="small text-danger mb-2" role="alert" data-testid="history-error">{{ error() }}</p>
+  }
+  @if (entries().length === 0 && !loading() && error() === null) {
+    <p class="small text-muted-green mb-0" data-testid="history-empty">
+      No messages yet. Order results and price alerts appear here, whether or not they could be sent.
+    </p>
+  }
+  <ul class="list-unstyled mb-0">
+    @for (entry of entries(); track entry.id) {
+      <li class="py-2 border-bottom" [attr.data-testid]="'history-' + entry.id">
+        <div data-testid="history-message">{{ entry.message }}</div>
+        <div class="small text-muted-green">
+          <span data-testid="history-status" [attr.data-status]="entry.status">{{ statusText(entry) }}</span>
+          &middot; {{ entry.createdAt | date: 'medium' }}
+        </div>
+      </li>
+    }
+  </ul>
+  @if (loading()) {
+    <p class="small text-muted-green mb-0" data-testid="history-loading">Loading...</p>
+  }
+  @if (canLoadMore() && !loading()) {
+    <button type="button" class="btn-custom btn-custom-outline-primary mt-2" data-testid="history-more" (click)="loadMore()">
+      Show older messages
+    </button>
+  }
+</div>

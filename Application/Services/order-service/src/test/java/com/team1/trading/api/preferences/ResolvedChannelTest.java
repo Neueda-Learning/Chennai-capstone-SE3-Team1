@@ -21,7 +21,7 @@ class ResolvedChannelTest {
     @DisplayName("A blank or null address is refused at construction")
     void blankAddressRefused() {
         assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.EMAIL, " ")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.SMS, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.PUSH, null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

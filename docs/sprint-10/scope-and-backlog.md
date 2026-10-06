@@ -20,7 +20,7 @@ Four packages inside the Trade REST API (`Application/Services/order-service`, b
 | Preference history, revert, change-event publishing | Preferences | Out of scope in the brief; nothing downstream needs it |
 | Multiple contact points per channel; `channel_contact_override` routes | Preferences | Column exists ([`0003`](../../decision-log/0003-preferences-owns-contact-details-other-modules-reference-them.md)) but no route sets it this sprint |
 | Digest batching, read receipts, sophisticated retry | Notifications | Out of scope in the brief; the 60 s `PENDING_CHANNEL` scanner is the only retry |
-| SMS and push providers | Notifications | One real channel is the criterion; email is built. SMS and PUSH are valid preference values but have no sender, so those notifications stay recorded in the ledger and are not sent |
+| SMS channel and push providers | Preferences, Notifications | One real channel is the criterion; email is built, using the SMTP account the auth service already uses for one-time codes. SMS is not offered at all ([`0009`](../../decision-log/0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md)); PUSH is the in-app inbox, so it is `SENT` once recorded |
 | Percentage-move alerts, browser push, per-delivery alert history | Watchlists | Out of scope in the brief |
 | Alert auto-reset / repeating alerts | Watchlists | Rejected in [`0005`](../../decision-log/0005-a-price-alert-fires-once-then-deactivates.md) |
 | HTTP routes for resolver or delivery | Preferences, Notifications | Rejected in [`0006`](../../decision-log/0006-watchlists-delivers-via-a-java-interface-not-an-http-route.md); this is a security decision, not a time saving |
@@ -28,7 +28,7 @@ Four packages inside the Trade REST API (`Application/Services/order-service`, b
 
 ### Starting point in the repository
 
-- Notifications is partly present: a DB-polling notification path exists, but it does not consume `trade-events`, has no `eventId` idempotency, no preference lookup and no recorded channel. It is rebuilt around the consumer rather than extended.
+- Notifications: the pre-existing DB-polling feed (`GET .../notifications`) is kept for the bell. The module adds a `trade-events` consumer (group `notification-service`), the `notifications` ledger with `UNIQUE(event_id)`, preference lookup, channel senders and the `/notification-history` route (built 2026-10-06, SEC3-590).
 - Portfolio is live (`MarketDataListener`, group `portfolio-service`) but is served at `/api/v1/accounts/{id}/portfolio` with a response shape that differs from `contracts/portfolio-api.yaml`. Closing that gap is the Portfolio work.
 - Preferences and Watchlists have no code.
 
@@ -41,13 +41,13 @@ Every route sits behind the standard bearer-token verifier, takes the account fr
 | Method | Path | Purpose | Notes |
 |---|---|---|---|
 | GET | `/api/v1/accounts/{accountId}/preferences` | Read the customer's preferences | `404 PRF-404` when none stored; the settings screen treats this as "not set yet" |
-| PUT | `/api/v1/accounts/{accountId}/preferences` | Create or replace `{defaultAccountId, channel}` | `channel` ∈ `EMAIL`/`SMS`/`PUSH`; `defaultAccountId` must belong to the same customer, else `PRF-422` |
+| PUT | `/api/v1/accounts/{accountId}/preferences` | Create or replace `{defaultAccountId, channel}` | `channel` ∈ `EMAIL`/`PUSH`; `defaultAccountId` must belong to the same customer, else `PRF-422` |
 
 ### Notifications (no contract supplied — proposed)
 
 | Method | Path | Purpose | Notes |
 |---|---|---|---|
-| GET | `/api/v1/accounts/{accountId}/notifications` | Notification history, newest first | `limit` and `before` cursor; returns status and channel kind, never the stored address. This path already exists in `AccountController` and is served by `NotificationMapper` from `orders`/`order_history`/`wallet_transfers`; the Notifications module takes over the implementation behind the same path so the Angular inbox keeps working, and the old query is deleted |
+| GET | `/api/v1/accounts/{accountId}/notification-history` | Notification ledger, newest first | `limit` (default 30, 1–100) and `before` cursor; returns status and channel kind, never the stored address. The existing `GET /api/v1/accounts/{accountId}/notifications` (derived activity feed behind the bell, `NotificationMapper`) is left unchanged, so the new ledger is served at its own path ([`0008`](../../decision-log/0008-the-notification-ledger-has-its-own-history-route-and-honest-delivery-states.md)) |
 
 ### Watchlists and alerts (no contract supplied — proposed)
 

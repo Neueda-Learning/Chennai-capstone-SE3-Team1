@@ -230,7 +230,7 @@ CREATE TABLE public.customer_preferences (
     channel_contact_override character varying(150),
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     updated_at timestamp without time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_customer_preferences_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'SMS'::character varying, 'PUSH'::character varying])::text[]))))
+    CONSTRAINT chk_customer_preferences_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'PUSH'::character varying])::text[]))))
 );
 
 
@@ -294,6 +294,24 @@ CREATE SEQUENCE public.market_quotes_quote_id_seq
 
 
 ALTER SEQUENCE public.market_quotes_quote_id_seq OWNED BY public.market_quotes.quote_id;
+
+
+CREATE TABLE public.notifications (
+    id uuid NOT NULL,
+    event_id character varying(64) NOT NULL,
+    account_id bigint NOT NULL,
+    kind character varying(20) NOT NULL,
+    channel character varying(10),
+    address character varying(150),
+    status character varying(20) NOT NULL,
+    failure_code character varying(40),
+    payload text NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    delivered_at timestamp without time zone,
+    CONSTRAINT chk_notifications_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'PUSH'::character varying])::text[])))),
+    CONSTRAINT chk_notifications_kind CHECK (((kind)::text = ANY ((ARRAY['ORDER_FILLED'::character varying, 'ORDER_REJECTED'::character varying, 'ORDER_CANCELLED'::character varying, 'PRICE_ALERT'::character varying])::text[]))),
+    CONSTRAINT chk_notifications_status CHECK (((status)::text = ANY ((ARRAY['PENDING_CHANNEL'::character varying, 'QUEUED'::character varying, 'SENT'::character varying, 'FAILED'::character varying])::text[])))
+);
 
 
 CREATE TABLE public.order_history (
@@ -517,6 +535,10 @@ ALTER TABLE ONLY public.market_quotes
     ADD CONSTRAINT market_quotes_pkey PRIMARY KEY (quote_id);
 
 
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+
+
 ALTER TABLE ONLY public.order_history
     ADD CONSTRAINT order_history_pkey PRIMARY KEY (history_id);
 
@@ -539,6 +561,10 @@ ALTER TABLE ONLY public.schema_migrations
 
 ALTER TABLE ONLY public.bank_account
     ADD CONSTRAINT uq_bank_account_client_id UNIQUE (client_id);
+
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT uq_notifications_event_id UNIQUE (event_id);
 
 
 ALTER TABLE ONLY public.orders
@@ -580,6 +606,12 @@ CREATE INDEX idx_instruments_active ON public.instruments USING btree (active);
 
 
 CREATE INDEX idx_market_quotes_instrument_received ON public.market_quotes USING btree (instrument_id, received_at DESC);
+
+
+CREATE INDEX idx_notifications_account_created ON public.notifications USING btree (account_id, created_at DESC);
+
+
+CREATE INDEX idx_notifications_status_created ON public.notifications USING btree (status, created_at) WHERE ((status)::text = ANY ((ARRAY['PENDING_CHANNEL'::character varying, 'QUEUED'::character varying])::text[]));
 
 
 CREATE INDEX idx_order_history_client_id ON public.order_history USING btree (client_id);
@@ -666,6 +698,10 @@ ALTER TABLE ONLY public.bank_account
 
 ALTER TABLE ONLY public.market_quotes
     ADD CONSTRAINT market_quotes_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
+
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
 
 
 ALTER TABLE ONLY public.orders
