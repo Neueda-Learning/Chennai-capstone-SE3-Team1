@@ -47,7 +47,7 @@ Every route sits behind the standard bearer-token verifier, takes the account fr
 
 | Method | Path | Purpose | Notes |
 |---|---|---|---|
-| GET | `/api/v1/accounts/{accountId}/notifications` | Notification history, newest first | `limit` and `before` cursor; returns status and channel kind, never the stored address |
+| GET | `/api/v1/accounts/{accountId}/notifications` | Notification history, newest first | `limit` and `before` cursor; returns status and channel kind, never the stored address. This path already exists in `AccountController` and is served by `NotificationMapper` from `orders`/`order_history`/`wallet_transfers`; the Notifications module takes over the implementation behind the same path so the Angular inbox keeps working, and the old query is deleted |
 
 ### Watchlists and alerts (no contract supplied — proposed)
 

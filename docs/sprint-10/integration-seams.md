@@ -65,7 +65,7 @@ public record ResolvedChannel(ChannelKind kind, String address) {
 public enum ChannelKind { EMAIL, SMS, PUSH }
 ```
 
-`address` is personal data. Loggers in `com.team1.trading.api.notifications` redact any field named `address` or `contact` at any depth; the Preferences module never logs the address at all.
+`address` is personal data. Loggers in `com.team1.trading.api.notifications` redact any field named `address` or `contact` at any depth; the Preferences module never logs the address at all. A Java record prints every component from its default `toString()`, so `ResolvedChannel` overrides `toString()` to mask `address`, so logging a `ResolvedChannel` can never print the contact detail.
 
 ### Behaviour the caller depends on
 
