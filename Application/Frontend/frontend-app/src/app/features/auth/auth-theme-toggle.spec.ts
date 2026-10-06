@@ -6,6 +6,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 
 import { THEME_STORAGE } from '../../core/theme/theme.service';
 import { provideApi } from '../../generated/auth-client';
+import { provideApi as provideTradeApi } from '../../generated/trade-client';
 import { ForgotPasswordPage } from './forgot-password-page';
 import { LoginPage } from './login-page';
 import { RegisterPage } from './register-page';
@@ -34,6 +35,7 @@ describe('theme toggle on the pages without a navbar', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideApi({ basePath: 'http://auth.test' }),
+        provideTradeApi({ basePath: 'http://trade.test' }),
         { provide: THEME_STORAGE, useValue: window.sessionStorage },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } }
       ]

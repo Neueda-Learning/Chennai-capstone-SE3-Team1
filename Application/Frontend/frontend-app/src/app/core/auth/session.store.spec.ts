@@ -255,6 +255,24 @@ describe('SessionStore', () => {
     expect(store.accountId()).toBe(12);
   });
 
+  it('selectAccount accepts only the account the token was issued for', () => {
+    const local = new MemoryStorage();
+    const store = createStore({ local });
+    store.signIn(jwt({ accountId: 7 }), null, null);
+
+    expect(store.selectAccount(7)).toBe(true);
+    expect(store.accountId()).toBe(7);
+    expect(store.selectAccount(8)).toBe(false);
+    expect(store.accountId()).toBe(7);
+  });
+
+  it('selectAccount refuses when nobody is signed in', () => {
+    const store = createStore();
+
+    expect(store.selectAccount(7)).toBe(false);
+    expect(store.accountId()).toBeNull();
+  });
+
   it('signOut clears the session from both stores', () => {
     const session = new MemoryStorage();
     const local = new MemoryStorage();

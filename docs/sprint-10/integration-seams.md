@@ -39,7 +39,9 @@ public interface PreferenceResolver {
      *
      * Returns Optional.empty() when:
      *   - no preference row exists for the account, or
-     *   - a preference row exists but channel is NULL (reserved for a future "no channel" state).
+     *   - a preference row exists but channel is NULL (reserved for a future "no channel" state), or
+     *   - the stored channel needs an address the customer has not given (SMS with no phone
+     *     on file and no override) -- see decision-log/0007.
      *
      * Throws PreferenceResolutionException when the resolver is reachable but the
      * underlying read fails (DB error, auth_db row missing for a known preference).
@@ -74,6 +76,7 @@ public enum ChannelKind { EMAIL, SMS, PUSH }
 | Preference exists, channel resolves | `Optional.of(ResolvedChannel)` | Write notification row with `status = QUEUED`, resolved channel/address recorded, deliver on the queue | — |
 | No preference row for the account | `Optional.empty()` | Write notification row with `status = PENDING_CHANNEL`, `channel = NULL`; the retry scanner re-resolves every 60 s | [`decision-log/0004`](../../decision-log/0004-notifications-holds-messages-as-pending-channel-when-no-preference-is-stored.md) |
 | Preference row exists but channel is NULL (reserved) | `Optional.empty()` | Same as above — notification is held, not sent on a default | [`decision-log/0004`](../../decision-log/0004-notifications-holds-messages-as-pending-channel-when-no-preference-is-stored.md) |
+| Stored channel needs an address the customer has not given (SMS, no phone, no override) | `Optional.empty()` | Same as above — notification is held until a phone appears on the profile | [`decision-log/0007`](../../decision-log/0007-default-account-is-the-customers-own-and-a-missing-address-resolves-to-empty.md) |
 | Resolver throws `PreferenceResolutionException` | — | Catch at the Kafka consumer boundary; write notification row with `status = PENDING_CHANNEL`, log the exception once with the `event_id` only (no account identifier beyond the one on the row), **do not** fall back to a hardcoded channel, commit the Kafka offset. The 60 s scanner will retry. | [`decision-log/0003`](../../decision-log/0003-preferences-owns-contact-details-other-modules-reference-them.md), [`decision-log/0004`](../../decision-log/0004-notifications-holds-messages-as-pending-channel-when-no-preference-is-stored.md) |
 
 Notifications **never** falls back to `users.email` on its own. A failure path that reaches past Preferences is a second place deciding how to contact a customer, which is the duplication [`decision-log/0003`](../../decision-log/0003-preferences-owns-contact-details-other-modules-reference-them.md) rules out.

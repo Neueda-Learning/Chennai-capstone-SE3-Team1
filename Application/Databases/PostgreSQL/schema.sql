@@ -223,6 +223,17 @@ CREATE SEQUENCE public.clients_client_id_seq
 ALTER SEQUENCE public.clients_client_id_seq OWNED BY public.clients.client_id;
 
 
+CREATE TABLE public.customer_preferences (
+    account_id bigint NOT NULL,
+    default_account_id bigint NOT NULL,
+    channel character varying(10),
+    channel_contact_override character varying(150),
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_customer_preferences_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'SMS'::character varying, 'PUSH'::character varying])::text[]))))
+);
+
+
 CREATE TABLE public.daily_candle_syncs (
     instrument_id character varying(20) NOT NULL,
     synced_on date NOT NULL,
@@ -482,6 +493,10 @@ ALTER TABLE ONLY public.clients
     ADD CONSTRAINT clients_pkey PRIMARY KEY (client_id);
 
 
+ALTER TABLE ONLY public.customer_preferences
+    ADD CONSTRAINT customer_preferences_pkey PRIMARY KEY (account_id);
+
+
 ALTER TABLE ONLY public.daily_candle_syncs
     ADD CONSTRAINT daily_candle_syncs_pkey PRIMARY KEY (instrument_id);
 
@@ -627,6 +642,14 @@ ALTER TABLE ONLY auth_db.refresh_tokens
 
 ALTER TABLE ONLY auth_db.users
     ADD CONSTRAINT users_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
+
+
+ALTER TABLE ONLY public.customer_preferences
+    ADD CONSTRAINT customer_preferences_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
+
+
+ALTER TABLE ONLY public.customer_preferences
+    ADD CONSTRAINT customer_preferences_default_account_id_fkey FOREIGN KEY (default_account_id) REFERENCES public.clients(client_id);
 
 
 ALTER TABLE ONLY public.daily_candle_syncs

@@ -1,0 +1,267 @@
+openapi: 3.1.0
+
+info:
+  title: Customer Preferences API
+  version: 1.0.0
+  summary: The customer's notification channel and default account.
+  description: |
+    Binding contract for the Customer Preferences module of the Trade REST API
+    (`com.team1.trading.api.preferences`). It is written before the controller, and the controller
+    implements it exactly.
+
+    ## What a preference holds
+
+    One row per customer, keyed by the customer's trading account:
+
+    | Field | Meaning |
+    |---|---|
+    | `defaultAccountId` | The account the app selects for the customer after sign-in. |
+    | `channel` | How the customer wants to be notified: `EMAIL`, `SMS` or `PUSH`. |
+
+    **No email address or phone number is stored, accepted or returned by this module.** Both live
+    on `auth_db.users` and are read from there at the moment a notification is sent
+    (`decision-log/0003`). A request body that carries an `email`, `phone` or `address` property is
+    refused as `VAL-422`.
+
+    ## Authentication and access
+
+    Every route requires a valid signed JWT. A missing, malformed, expired or wrongly signed token
+    is `AUTH-401`, 401.
+
+    A valid token whose `accountId` claim does not equal the `{accountId}` in the path is
+    `ACC-403`, 403, on both routes. There is no administrator exception on these routes: a
+    customer's notification choices are the customer's own, and the check is made before the
+    database is touched, so a refused request does not reveal whether the other account has stored
+    a preference.
+
+    ## Default account
+
+    `defaultAccountId` must be an account the same customer owns, otherwise `PRF-422`, 422. On
+    the current platform a customer owns exactly one trading account, so the only accepted value is
+    the customer's own `accountId` (`decision-log/0007`). The field exists so that the day a
+    customer can hold several accounts the contract does not change.
+
+    ## Channel and the contact detail
+
+    `SMS` is refused with `PRF-422` while the customer has no phone number on file, because a
+    message could never be delivered on it. `EMAIL` and `PUSH` need nothing further.
+
+    ## Not part of this contract
+
+    The resolver that Notifications uses to learn the customer's channel and address is a Java
+    interface (`PreferenceResolver`), not a route. No path in this file, or anywhere under
+    `/api/v1/`, resolves a contact detail (`decision-log/0006`).
+  contact:
+    name: Enterprise Trading Platform, programme materials
+  license:
+    name: Instructional use only
+
+servers:
+  - url: http://localhost:8080
+    description: Local development, run from Docker Compose
+  - url: http://trade-api:8080
+    description: Service name inside the Docker Compose network
+
+tags:
+  - name: Preferences
+    description: The customer's notification channel and default account.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/accounts/{accountId}/preferences:
+    parameters:
+      - $ref: '#/components/parameters/AccountIdPath'
+    get:
+      tags: [Preferences]
+      operationId: getPreferences
+      summary: Read the customer's preferences
+      description: |
+        Returns the stored preference. When the customer has never saved one the answer is
+        `PRF-404`, 404; the settings screen treats that as "not set yet", not as a failure.
+      responses:
+        '200':
+          description: The stored preference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '403':
+          $ref: '#/components/responses/NotYourAccount'
+        '404':
+          description: No preference has been stored for this account yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notSet:
+                  value:
+                    errorCode: PRF-404
+                    message: Preferences not set
+    put:
+      tags: [Preferences]
+      operationId: putPreferences
+      summary: Create or replace the customer's preferences
+      description: |
+        Stores `defaultAccountId` and `channel` for the account in the path. The request replaces
+        any earlier preference; calling it twice with the same body leaves the same result.
+        The first call creates the preference, so it never answers `PRF-404`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferencesRequest'
+            examples:
+              email:
+                value:
+                  defaultAccountId: 1
+                  channel: EMAIL
+      responses:
+        '200':
+          description: The preference as stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '403':
+          $ref: '#/components/responses/NotYourAccount'
+        '422':
+          description: |
+            The body is malformed (`VAL-422`), the default account is not the customer's own, or
+            `SMS` was chosen with no phone number on file (`PRF-422`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                badBody:
+                  value:
+                    errorCode: VAL-422
+                    message: Invalid input
+                notOwn:
+                  value:
+                    errorCode: PRF-422
+                    message: Default account is not one of your accounts
+                noPhone:
+                  value:
+                    errorCode: PRF-422
+                    message: SMS needs a phone number on your profile
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A JWT issued by the auth service. The claims contract is defined in `auth-api.yaml`.
+
+  parameters:
+    AccountIdPath:
+      name: accountId
+      in: path
+      required: true
+      description: The numeric account id. It must equal the `accountId` claim in the token.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        example: 1
+
+  responses:
+    Unauthorised:
+      description: The token is missing, malformed, expired or wrongly signed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorised:
+              value:
+                errorCode: AUTH-401
+                message: Unauthorized
+    NotYourAccount:
+      description: The token is valid but its `accountId` claim is not the account in the path.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notYours:
+              value:
+                errorCode: ACC-403
+                message: Account not active
+
+  schemas:
+    ChannelKind:
+      type: string
+      enum: [EMAIL, SMS, PUSH]
+      description: |
+        `EMAIL` and `SMS` are delivered to the address on the customer's profile. `PUSH` is
+        delivered in the app, to the signed-in customer, and needs no address.
+
+    PreferencesRequest:
+      type: object
+      additionalProperties: false
+      required: [defaultAccountId, channel]
+      properties:
+        defaultAccountId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The account the app selects after sign-in. Must be one of the customer's own.
+          example: 1
+        channel:
+          $ref: '#/components/schemas/ChannelKind'
+
+    PreferencesResponse:
+      type: object
+      additionalProperties: false
+      required: [accountId, defaultAccountId, channel, updatedAt]
+      properties:
+        accountId:
+          type: integer
+          format: int64
+          description: The account the preference belongs to; the account in the path.
+          example: 1
+        defaultAccountId:
+          type: integer
+          format: int64
+          example: 1
+        channel:
+          $ref: '#/components/schemas/ChannelKind'
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the preference was last written.
+          example: '2026-10-06T10:15:30'
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [errorCode, message]
+      description: The single error envelope used by every route of the Trade REST API.
+      properties:
+        errorCode:
+          type: string
+          enum: [ACC-403, PRF-404, PRF-422, VAL-422, AUTH-401]
+          description: |
+            | Code | HTTP | Meaning |
+            |---|---|---|
+            | `ACC-403` | 403 | The token is not for the account in the path |
+            | `PRF-404` | 404 | No preference stored for this account yet |
+            | `PRF-422` | 422 | Default account is not the customer's own, or the channel cannot be delivered on |
+            | `VAL-422` | 422 | Malformed body or unknown property |
+            | `AUTH-401` | 401 | Unauthorised or invalid token |
+          example: PRF-404
+        message:
+          type: string
+          description: Short description for a human. Never a stack trace, SQL fragment or class name.
+          example: Preferences not set

@@ -13,11 +13,11 @@ export interface ErrorCatalogueEntry {
   appliesTo: 'trade' | 'auth' | 'both';
 }
 
-export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'INTERNAL-500'] as const;
+export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'INTERNAL-500'] as const;
 
 export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422', 'AUTH-410'] as const;
 
-export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'INTERNAL-500'] as const;
+export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'INTERNAL-500'] as const;
 
 export const AUTH_SIGNIN_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
@@ -31,6 +31,8 @@ export const tradeErrorMessageByCode: Readonly<Record<string, string>> = {
   'AUTH-401': 'The session has expired or the sign-in was refused. Please sign in again.',
   'TRF-400': 'The transfer side being debited cannot cover the amount.',
   'TRF-409': 'The idempotency key for this transfer has already been used.',
+  'PRF-404': 'No notification preference has been saved for this account yet.',
+  'PRF-422': 'That preference cannot be saved. Choose one of your own accounts, and add a phone number to your profile to use SMS.',
   'INTERNAL-500': 'An unexpected error occurred. Please try again shortly.'
 };
 

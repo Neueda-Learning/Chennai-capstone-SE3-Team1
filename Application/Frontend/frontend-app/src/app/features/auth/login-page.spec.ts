@@ -5,9 +5,11 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 
 import { SessionStore } from '../../core/auth/session.store';
 import { provideApi } from '../../generated/auth-client';
+import { provideApi as provideTradeApi } from '../../generated/trade-client';
 import { LoginPage } from './login-page';
 
 const AUTH_URL = 'http://auth.test/auth/login';
+const PREFERENCES_URL = 'http://trade.test/api/v1/accounts/42/preferences';
 
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjQyfQ.signature';
 
@@ -30,6 +32,7 @@ describe('LoginPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideApi({ basePath: 'http://auth.test' }),
+        provideTradeApi({ basePath: 'http://trade.test' }),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } } }
       ]
     });
@@ -140,6 +143,54 @@ describe('LoginPage', () => {
     expect(session.accountId()).toBe(42);
     expect(session.accessToken()).toBe(TOKEN);
     expect(session.refreshToken()).toBe('refresh-token-1');
+
+    http.expectOne(PREFERENCES_URL).flush({ errorCode: 'PRF-404', message: 'Preferences not set' }, { status: 404, statusText: 'Not Found' });
+    expect(navigate).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('applies the stored default account before the first screen', async () => {
+    const { fixture, session, router } = setUp();
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const select = vi.spyOn(session, 'selectAccount');
+    fillCredentials(fixture, 'jane.doe', 'correct horse');
+
+    submit(fixture);
+    http.expectOne(AUTH_URL).flush(tokenResponse());
+
+    const lookup = http.expectOne(PREFERENCES_URL);
+    expect(lookup.request.method).toBe('GET');
+    expect(navigate).not.toHaveBeenCalled();
+    lookup.flush({ accountId: 42, defaultAccountId: 42, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
+
+    expect(select).toHaveBeenCalledWith(42);
+    expect(session.accountId()).toBe(42);
+    expect(navigate).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('ignores a stored default account the token does not belong to', async () => {
+    const { fixture, session, router } = setUp();
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    fillCredentials(fixture, 'jane.doe', 'correct horse');
+
+    submit(fixture);
+    http.expectOne(AUTH_URL).flush(tokenResponse());
+    http.expectOne(PREFERENCES_URL).flush({ accountId: 42, defaultAccountId: 7, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
+
+    expect(session.accountId()).toBe(42);
+    expect(navigate).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('still signs the trader in when the preferences lookup fails', async () => {
+    const { fixture, session, router } = setUp();
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    fillCredentials(fixture, 'jane.doe', 'correct horse');
+
+    submit(fixture);
+    http.expectOne(AUTH_URL).flush(tokenResponse());
+    http.expectOne(PREFERENCES_URL).error(new ProgressEvent('network'));
+
+    expect(session.isSignedIn()).toBe(true);
+    expect(session.accountId()).toBe(42);
     expect(navigate).toHaveBeenCalledWith('/dashboard');
   });
 
@@ -151,6 +202,7 @@ describe('LoginPage', () => {
     submit(fixture);
     http.expectOne(AUTH_URL).flush(tokenResponse());
     fixture.detectChanges();
+    http.expectOne(PREFERENCES_URL).flush({ errorCode: 'PRF-404', message: 'Preferences not set' }, { status: 404, statusText: 'Not Found' });
 
     expect(session.isSignedIn()).toBe(true);
     expect(navigate).toHaveBeenCalledWith('/blotter');

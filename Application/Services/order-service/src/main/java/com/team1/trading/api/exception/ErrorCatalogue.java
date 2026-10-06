@@ -17,6 +17,8 @@ public final class ErrorCatalogue {
     public static final String TRF_400 = "TRF-400";
     public static final String TRF_409 = "TRF-409";
     public static final String AUTH_401 = "AUTH-401";
+    public static final String PRF_404 = "PRF-404";
+    public static final String PRF_422 = "PRF-422";
 
     public static final String INTERNAL_500 = "INTERNAL-500";
 
@@ -31,6 +33,8 @@ public final class ErrorCatalogue {
             Map.entry(TRF_400, HttpStatus.BAD_REQUEST),
             Map.entry(TRF_409, HttpStatus.CONFLICT),
             Map.entry(AUTH_401, HttpStatus.UNAUTHORIZED),
+            Map.entry(PRF_404, HttpStatus.NOT_FOUND),
+            Map.entry(PRF_422, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(INTERNAL_500, HttpStatus.INTERNAL_SERVER_ERROR)
     );
 

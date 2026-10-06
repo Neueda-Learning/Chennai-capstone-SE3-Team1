@@ -65,6 +65,16 @@ export class SessionStore {
     this.clearSession();
   }
 
+  selectAccount(accountId: number): boolean {
+    const token = this.token();
+    if (token === null || decodeAccountId(token) !== accountId) {
+      return false;
+    }
+    this.account.set(accountId);
+    this.persist();
+    return true;
+  }
+
   adoptTokens(accessToken: string, accountId: number | null, refreshToken: string | null): void {
     this.token.set(accessToken);
     this.refresh.set(refreshToken);

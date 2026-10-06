@@ -50,4 +50,58 @@
       </p>
     </div>
   </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100" data-testid="preferences-card">
+      <div class="card-header">
+        <h2 class="card-title">Alert delivery</h2>
+      </div>
+      @if (loading()) {
+        <p class="small text-muted-green mb-0" data-testid="preferences-loading">Loading your saved choice...</p>
+      } @else {
+        <p class="small mb-2" data-testid="preferences-default-account">
+          Default account: <strong>#{{ accountId() }}</strong>
+        </p>
+        @if (notSetYet()) {
+          <p class="small text-muted-green mb-2" data-testid="preferences-not-set">
+            You have not chosen how to be reached yet. Pick a channel and save.
+          </p>
+        }
+        <div class="d-flex gap-2 mb-2" role="radiogroup" aria-label="Alert channel">
+          @for (option of channels; track option.value) {
+            <button
+              type="button"
+              role="radio"
+              class="btn-custom flex-grow-1"
+              [attr.data-testid]="'channel-' + option.value"
+              [attr.aria-checked]="channel() === option.value"
+              [class.btn-custom-primary]="channel() === option.value"
+              [class.btn-custom-outline-primary]="channel() !== option.value"
+              (click)="setChannel(option.value)"
+            >
+              <i class="bi" [class]="'bi ' + option.icon"></i> {{ option.label }}
+            </button>
+          }
+        </div>
+        <p class="small text-muted-green mb-2">
+          Email and SMS use the contact details on your profile. SMS needs a phone number there.
+        </p>
+        <button
+          type="button"
+          class="btn-custom btn-custom-primary"
+          data-testid="preferences-save"
+          [disabled]="saving()"
+          (click)="save()"
+        >
+          Save
+        </button>
+        @if (saved()) {
+          <p class="small mt-2 mb-0" data-testid="preferences-saved">Saved.</p>
+        }
+        @if (error() !== null) {
+          <p class="small text-danger mt-2 mb-0" role="alert" data-testid="preferences-error">{{ error() }}</p>
+        }
+      }
+    </div>
+  </div>
 </div>

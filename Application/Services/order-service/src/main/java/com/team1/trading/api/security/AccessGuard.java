@@ -20,6 +20,13 @@ public class AccessGuard {
         }
     }
 
+    public void requireOwner(Long accountId) {
+        Long tokenAccountId = claims().getAccountId();
+        if (tokenAccountId == null || accountId == null || !tokenAccountId.equals(accountId)) {
+            throw new AccountNotActiveException(accountId, "TOKEN");
+        }
+    }
+
     public void requireOwnerOrAdmin(Long clientId) {
         requireOwnerOrAdmin(Optional.ofNullable(clientId));
     }

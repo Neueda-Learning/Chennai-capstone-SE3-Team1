@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ErrorCatalog } from '../../core/errors/error-catalog';
 import { ReturnUrlStore } from '../../core/auth/return-url.store';
 import { SessionStore } from '../../core/auth/session.store';
+import { PreferencesService } from '../../core/services/preferences.service';
 import { AuthService, LoginRequest, TokenResponse } from '../../generated/auth-client';
 import { ThemeToggle } from '../../core/theme/theme-toggle';
 
@@ -21,6 +22,7 @@ export class LoginPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly returnUrl = inject(ReturnUrlStore);
+  private readonly preferences = inject(PreferencesService);
 
   protected readonly passwordVisible = signal(false);
   protected readonly submitted = signal(false);
@@ -81,7 +83,14 @@ export class LoginPage {
     const destination = this.returnUrl.consume(
       this.route.snapshot.queryParamMap.get(ReturnUrlStore.param)
     );
-    void this.router.navigateByUrl(destination);
+    const accountId = this.session.accountId();
+    if (accountId === null) {
+      void this.router.navigateByUrl(destination);
+      return;
+    }
+    this.preferences.applyDefaultAccount(accountId).subscribe(() => {
+      void this.router.navigateByUrl(destination);
+    });
   }
 
   private onSignInFailed(failure: HttpErrorResponse): void {
