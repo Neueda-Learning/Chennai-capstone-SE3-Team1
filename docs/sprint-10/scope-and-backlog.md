@@ -141,12 +141,12 @@ Story IDs are local to this document (PRF, NTF, WLT, PFL, INT, SEC, DOC). Each i
 
 | ID | Story | Acceptance criteria |
 |---|---|---|
-| INT-1 | End-to-end chain | With live quotes and Kafka: place an order, receive a notification on the stored channel; cross an alert threshold, receive the alert on the same channel; replay produces no duplicates |
+| INT-1 | End-to-end chain | With live quotes and Kafka: place an order, receive a notification on the stored channel; cross an alert threshold, receive the alert on the same channel; replay produces no duplicates. Run with `scripts/e2e_live.py`; steps, limits and the run record are in [`e2e-live-run.md`](e2e-live-run.md) |
 | INT-2 | Module boundary check | A grep over each package finds imports of other modules only through the interfaces in the seams document |
 | SEC-1 | Combined OWASP Top Ten review | One document from `security-review/TEMPLATE.md`, all ten categories, findings addressed or listed with an owner |
 | DOC-1 | Decision log | At least six entries in the template shape (0001–0006 present) |
-| TST-1 | Tests | Unit and integration tests per module including authorisation-failure cases for every route |
-| TEAM-1 | Showcase readiness | Each member can walk every module unaided |
+| TST-1 | Tests | Unit and integration tests per module including authorisation-failure cases for every route. `ModuleRouteAuthorisationTest` covers all 17 account routes from the live handler mapping; `module-reachability.spec.ts` covers the Angular side |
+| TEAM-1 | Showcase readiness | Each member can walk every module unaided. Sessions, questions and the Friday check are in [`rotation-plan.md`](rotation-plan.md) |
 
 ## 5. What is brought to the instructor
 
