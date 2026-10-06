@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { provideApi } from '../../generated/trade-client';
 import { SessionStore } from '../auth/session.store';
-import { ChatStore, MAX_MESSAGES_SENT, MAX_TEXT } from './chat.store';
+import { ChatEntry, ChatStore, MAX_MESSAGES_SENT, MAX_TEXT } from './chat.store';
 
 const BASE = 'http://trade.test';
 const URL = `${BASE}/api/v1/accounts/7/chat`;
@@ -47,7 +47,9 @@ describe('ChatStore', () => {
 
     store.send('  How is my portfolio?  ');
     expect(store.sending()).toBe(true);
-    expect(store.messages()).toEqual([{ role: 'user', text: 'How is my portfolio?', suggestions: [] }]);
+    expect(store.messages()).toEqual([
+      { role: 'user', text: 'How is my portfolio?', suggestions: [], alerts: [], lists: [], links: [] }
+    ]);
 
     const request = http.expectOne(URL);
     expect(request.request.method).toBe('POST');
@@ -61,7 +63,10 @@ describe('ChatStore', () => {
     expect(store.messages()[1]).toEqual({
       role: 'assistant',
       text: 'You hold TCS.',
-      suggestions: [{ symbol: 'TCS', side: 'SELL', quantity: 2, reason: 'Concentration' }]
+      suggestions: [{ symbol: 'TCS', side: 'SELL', quantity: 2, reason: 'Concentration' }],
+      alerts: [],
+      lists: [],
+      links: []
     });
   });
 
@@ -106,7 +111,10 @@ describe('ChatStore', () => {
     const history = Array.from({ length: 30 }, (_, i) => ({
       role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
       text: i % 2 === 1 ? 'a'.repeat(MAX_TEXT + 500) : `q${i}`,
-      suggestions: []
+      suggestions: [],
+      alerts: [],
+      lists: [],
+      links: []
     }));
     store.messages.set(history);
 
@@ -201,6 +209,150 @@ describe('ChatStore', () => {
     sessionStorage.setItem('tui.chat.v1', JSON.stringify([{ role: 'system', text: 'x', suggestions: [] }, 5, null]));
     configure();
     expect(store.messages()).toEqual([]);
+  });
+
+  describe('proposals', () => {
+    const ALERTS = `${BASE}/api/v1/accounts/7/alerts`;
+    const LISTS = `${BASE}/api/v1/accounts/7/watchlists`;
+    const alertProposal = {
+      symbol: 'TCS',
+      threshold: 2850,
+      direction: 'BELOW',
+      reason: 'Support',
+      currentPrice: 3000,
+      percentFromNow: -5
+    };
+
+    function reply(extra: Record<string, unknown>): void {
+      store.send('hello');
+      http.expectOne(URL).flush({ reply: 'ok', suggestions: [], ...extra });
+    }
+
+    const last = (): ChatEntry => store.messages().at(-1) as ChatEntry;
+
+    it('shows proposals as cards that have not been acted on, and nothing is sent to the server by them', () => {
+      configure();
+
+      reply({ alertProposals: [alertProposal], watchlistProposals: [{ mode: 'CREATE', name: 'Banks', watchlistId: null, symbols: ['SBIN'], reason: 'r' }] });
+
+      expect(last().alerts[0]).toEqual({ proposal: alertProposal, status: 'idle', note: null });
+      expect(last().lists[0].status).toBe('idle');
+      http.expectNone(ALERTS);
+      http.expectNone(LISTS);
+    });
+
+    it('creates the alert only when the customer confirms, with the proposed level and direction', () => {
+      configure();
+      reply({ alertProposals: [alertProposal] });
+
+      store.confirmAlert(last(), 0);
+      expect(last().alerts[0].status).toBe('working');
+      const request = http.expectOne(ALERTS);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ symbol: 'TCS', threshold: 2850, direction: 'BELOW' });
+      request.flush({ id: 'a1', symbol: 'TCS', threshold: 2850, direction: 'BELOW', state: 'ARMED' });
+
+      expect(last().alerts[0].status).toBe('done');
+    });
+
+    it('does not create it twice if pressed again while working or after it is done', () => {
+      configure();
+      reply({ alertProposals: [alertProposal] });
+      const entry = last();
+
+      store.confirmAlert(entry, 0);
+      store.confirmAlert(last(), 0);
+      http.expectOne(ALERTS).flush({ id: 'a1' });
+      store.confirmAlert(last(), 0);
+
+      http.expectNone(ALERTS);
+    });
+
+    it('lets a failed alert be tried again, and a declined one goes away', () => {
+      configure();
+      reply({ alertProposals: [alertProposal, { ...alertProposal, symbol: 'INFY' }] });
+
+      store.confirmAlert(last(), 0);
+      http.expectOne(ALERTS).flush({}, { status: 500, statusText: 'x' });
+      expect(last().alerts[0].status).toBe('failed');
+      expect(last().alerts[0].note).not.toBeNull();
+
+      store.confirmAlert(last(), 0);
+      http.expectOne(ALERTS).flush({ id: 'a1' });
+      expect(last().alerts[0].status).toBe('done');
+
+      store.dismiss(last(), 'alerts', 1);
+      expect(last().alerts[1].status).toBe('dismissed');
+      http.expectNone(ALERTS);
+    });
+
+    it('creates a new watchlist and then puts the stocks in it', () => {
+      configure();
+      reply({ watchlistProposals: [{ mode: 'CREATE', name: 'Banks', watchlistId: null, symbols: ['SBIN', 'HDFCBANK'], reason: 'r' }] });
+
+      store.confirmList(last(), 0);
+      const create = http.expectOne(LISTS);
+      expect(create.request.body).toEqual({ name: 'Banks' });
+      create.flush({ id: 'w9', name: 'Banks', createdAt: 'now', instruments: [] });
+      const requests = http.match(`${LISTS}/w9/instruments`);
+      expect(requests.map((r) => r.request.body.symbol).sort()).toEqual(['HDFCBANK', 'SBIN']);
+      requests.forEach((r) =>
+        r.flush({ symbol: r.request.body.symbol, name: 'n', price: 1, currency: 'INR', changePercent: 0, stale: false, quoteAsOf: null })
+      );
+
+      expect(last().lists[0].status).toBe('done');
+    });
+
+    it('adds to the customer\'s own watchlist without creating another', () => {
+      configure();
+      reply({ watchlistProposals: [{ mode: 'ADD', name: 'Banks', watchlistId: 'w1', symbols: ['SBIN'], reason: 'r' }] });
+
+      store.confirmList(last(), 0);
+
+      http.expectNone(LISTS);
+      http.expectOne(`${LISTS}/w1/instruments`).flush({ symbol: 'SBIN', name: 'n', price: 1, currency: 'INR', changePercent: 0, stale: false, quoteAsOf: null });
+      expect(last().lists[0].status).toBe('done');
+    });
+
+    it('reports a watchlist that could not be made', () => {
+      configure();
+      reply({ watchlistProposals: [{ mode: 'CREATE', name: 'Banks', watchlistId: null, symbols: ['SBIN'], reason: 'r' }] });
+
+      store.confirmList(last(), 0);
+      http.expectOne(LISTS).flush({}, { status: 500, statusText: 'x' });
+
+      expect(last().lists[0].status).toBe('failed');
+    });
+
+    it('keeps only links to the app\'s own pages', () => {
+      configure();
+
+      reply({
+        links: [
+          { label: 'Settings', path: '/app/settings', query: {} },
+          { label: 'Elsewhere', path: 'https://evil.example', query: {} },
+          { label: 'Other', path: '/admin', query: {} }
+        ]
+      });
+
+      expect(last().links.map((l) => l.path)).toEqual(['/app/settings']);
+    });
+
+    it('restores cards from the session, and one that was mid-request waits for a click again', () => {
+      configure();
+      reply({ alertProposals: [alertProposal, { ...alertProposal, symbol: 'INFY' }] });
+      store.confirmAlert(last(), 0); // left working
+      http.expectOne(ALERTS);
+      store.dismiss(last(), 'alerts', 1);
+      TestBed.tick();
+      const saved = sessionStorage.getItem('tui.chat.v1');
+
+      TestBed.resetTestingModule();
+      sessionStorage.setItem('tui.chat.v1', saved as string);
+      configure();
+
+      expect(last().alerts.map((c) => c.status)).toEqual(['idle', 'dismissed']);
+    });
   });
 
   it('toggles and closes the panel', () => {

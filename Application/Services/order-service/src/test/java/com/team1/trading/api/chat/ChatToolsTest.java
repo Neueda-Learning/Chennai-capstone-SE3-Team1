@@ -56,13 +56,15 @@ class ChatToolsTest {
     private CandleService candles;
     @Mock
     private InstrumentMapper instruments;
+    @Mock
+    private ChatWorkspaceTools workspace;
 
     private ChatTools tools;
     private ChatContext context;
 
     @BeforeEach
     void setUp() {
-        tools = new ChatTools(accounts, market, candles, instruments);
+        tools = new ChatTools(accounts, market, candles, instruments, workspace);
         context = new ChatContext(ACCOUNT, TOKEN_ACCOUNT, new ArrayList<>());
     }
 
@@ -454,6 +456,32 @@ class ChatToolsTest {
         String reason = context.suggestions().get(0).reason();
         assertThat(reason).doesNotContain("\r").doesNotContain("\n");
         assertThat(reason.length()).isEqualTo(300);
+    }
+
+    // ---- the alerts, watchlists and navigation tools live in their own class
+
+    @Test
+    @DisplayName("Their tools are offered alongside these, and run through the same scoping and error handling")
+    void delegatesToTheWorkspaceTools() {
+        LlmClient.ToolSpec extra = new LlmClient.ToolSpec("propose_alert", "d", JSON.createObjectNode());
+        given(workspace.specs()).willReturn(List.of(extra));
+        given(workspace.handles("propose_alert")).willReturn(true);
+        given(workspace.execute(org.mockito.ArgumentMatchers.eq("propose_alert"), any(), org.mockito.ArgumentMatchers.same(context)))
+                .willReturn(args("{\"recorded\":true}"));
+
+        assertThat(tools.specs().stream().map(LlmClient.ToolSpec::name).toList()).endsWith("propose_alert");
+        assertThat(tools.execute("propose_alert", args("{}"), context).get("recorded").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("A failure inside one of their tools is an error result, never an exception")
+    void workspaceFailureBecomesAResult() {
+        given(workspace.handles("get_alerts")).willReturn(true);
+        given(workspace.execute(org.mockito.ArgumentMatchers.eq("get_alerts"), any(), any())).willThrow(new IllegalStateException("db down"));
+
+        JsonNode result = tools.execute("get_alerts", args("{}"), context);
+
+        assertThat(result.get("error").asText()).isEqualTo("That data could not be read right now.");
     }
 
     // ---- failure handling

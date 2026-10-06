@@ -2,8 +2,8 @@ import { Component, ElementRef, HostListener, effect, inject, signal, untracked,
 import { Router } from '@angular/router';
 
 import { Block, parseMessage } from './chat-format';
-import { OrderSuggestion } from './chat.service';
-import { ChatStore, MAX_TEXT } from './chat.store';
+import { NavLink, OrderSuggestion } from './chat.service';
+import { ChatStore, MAX_TEXT, isAppLink } from './chat.store';
 
 /** Where a "consider this order" button goes: the order page, pre-filled. The customer still presses Buy or Sell. */
 export function orderLink(suggestion: OrderSuggestion): { symbol: string; side: string; quantity: number } {
@@ -94,6 +94,19 @@ export class ChatWidget {
   protected openOrder(suggestion: OrderSuggestion): void {
     void this.router.navigate(['/app/orders'], { queryParams: orderLink(suggestion) });
     this.store.close();
+  }
+
+  /** A "go there" button: only the app's own pages are followed, with the page's own query options. */
+  protected go(link: NavLink): void {
+    if (!isAppLink(link)) {
+      return;
+    }
+    void this.router.navigate([link.path], { queryParams: link.query ?? {} });
+    this.store.close();
+  }
+
+  protected percent(value: number): string {
+    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
   }
 
   @HostListener('document:keydown.escape')

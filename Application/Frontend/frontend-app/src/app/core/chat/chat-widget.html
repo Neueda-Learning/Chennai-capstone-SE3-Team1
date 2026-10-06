@@ -32,7 +32,8 @@
           <div class="chat-intro">
             <p>
               Ask about your portfolio, a stock's recent behaviour, or what a term means. I use your holdings and
-              the prices in this app, and I can suggest an order for you to review. I never place one myself.
+              the prices in this app. I can suggest orders, price alerts and watchlists, and point you to any page, but
+              nothing is placed or saved until you press the button.
             </p>
             <div class="chat-starters">
               @for (starter of starters; track starter) {
@@ -73,6 +74,73 @@
                 }
               }
             </div>
+            @for (item of entry.alerts; track $index) {
+              @if (item.status !== 'dismissed') {
+                <div class="chat-suggestion chat-card" data-testid="chat-alert-card">
+                  <div class="chat-suggestion-head">
+                    <i class="bi bi-bell-fill" aria-hidden="true"></i>
+                    <strong>{{ item.proposal.symbol }} {{ item.proposal.direction === 'ABOVE' ? 'rises to' : 'falls to' }} &#8377;{{ item.proposal.threshold }}</strong>
+                  </div>
+                  <small class="chat-card-sub">
+                    Now &#8377;{{ item.proposal.currentPrice }} &middot; {{ percent(item.proposal.percentFromNow) }} from now
+                  </small>
+                  <p>{{ item.proposal.reason }}</p>
+                  @if (item.status === 'done') {
+                    <span class="chat-card-done" data-testid="chat-card-done"><i class="bi bi-check-circle-fill"></i> Alert set</span>
+                  } @else {
+                    @if (item.status === 'failed') {
+                      <div class="chat-card-failed" role="alert" data-testid="chat-card-failed">{{ item.note }}</div>
+                    }
+                    <div class="chat-card-actions">
+                      <button type="button" class="chat-open-order" data-testid="chat-confirm-alert" [disabled]="item.status === 'working'" (click)="store.confirmAlert(entry, $index)">
+                        {{ item.status === 'working' ? 'Setting…' : item.status === 'failed' ? 'Try again' : 'Set this alert' }}
+                      </button>
+                      <button type="button" class="chat-card-dismiss" data-testid="chat-dismiss" [disabled]="item.status === 'working'" (click)="store.dismiss(entry, 'alerts', $index)">Not now</button>
+                    </div>
+                  }
+                </div>
+              }
+            }
+            @for (item of entry.lists; track $index) {
+              @if (item.status !== 'dismissed') {
+                <div class="chat-suggestion chat-card" data-testid="chat-list-card">
+                  <div class="chat-suggestion-head">
+                    <i class="bi bi-eye-fill" aria-hidden="true"></i>
+                    <strong>{{ item.proposal.mode === 'ADD' ? 'Add to' : 'New watchlist:' }} {{ item.proposal.name }}</strong>
+                  </div>
+                  <div class="chat-chips">
+                    @for (symbol of item.proposal.symbols; track symbol) {
+                      <span class="chat-chip">{{ symbol }}</span>
+                    }
+                  </div>
+                  <p>{{ item.proposal.reason }}</p>
+                  @if (item.status === 'done') {
+                    <span class="chat-card-done" data-testid="chat-card-done">
+                      <i class="bi bi-check-circle-fill"></i> {{ item.note ?? (item.proposal.mode === 'ADD' ? 'Added' : 'Watchlist created') }}
+                    </span>
+                  } @else {
+                    @if (item.status === 'failed') {
+                      <div class="chat-card-failed" role="alert" data-testid="chat-card-failed">{{ item.note }}</div>
+                    }
+                    <div class="chat-card-actions">
+                      <button type="button" class="chat-open-order" data-testid="chat-confirm-list" [disabled]="item.status === 'working'" (click)="store.confirmList(entry, $index)">
+                        {{ item.status === 'working' ? 'Saving…' : item.status === 'failed' ? 'Try again' : item.proposal.mode === 'ADD' ? 'Add these' : 'Create watchlist' }}
+                      </button>
+                      <button type="button" class="chat-card-dismiss" data-testid="chat-dismiss" [disabled]="item.status === 'working'" (click)="store.dismiss(entry, 'lists', $index)">Not now</button>
+                    </div>
+                  }
+                </div>
+              }
+            }
+            @if (entry.links.length > 0) {
+              <div class="chat-links">
+                @for (link of entry.links; track $index) {
+                  <button type="button" class="chat-go" data-testid="chat-go" (click)="go(link)">
+                    {{ link.label }} <i class="bi bi-arrow-right-short"></i>
+                  </button>
+                }
+              </div>
+            }
             @for (suggestion of entry.suggestions; track $index) {
               <div class="chat-suggestion" data-testid="chat-suggestion">
                 <div class="chat-suggestion-head">

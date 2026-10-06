@@ -164,8 +164,8 @@ describe('ChatWidget', () => {
       setUp();
       await open();
       store.messages.set([
-        { role: 'user', text: 'Hi', suggestions: [] },
-        { role: 'assistant', text: 'You hold **TCS**.\n* first point\n* second point', suggestions: [] }
+        { role: 'user', text: 'Hi', suggestions: [], alerts: [], lists: [], links: [] },
+        { role: 'assistant', text: 'You hold **TCS**.\n* first point\n* second point', suggestions: [], alerts: [], lists: [], links: [] }
       ]);
       await settle();
 
@@ -178,7 +178,7 @@ describe('ChatWidget', () => {
     it('renders a heading as a heading, without the hash marks', async () => {
       setUp();
       await open();
-      store.messages.set([{ role: 'assistant', text: '### Statistical Outlook\nThe stock leans bearish.', suggestions: [] }]);
+      store.messages.set([{ role: 'assistant', text: '### Statistical Outlook\nThe stock leans bearish.', suggestions: [], alerts: [], lists: [], links: [] }]);
       await settle();
 
       const answer = all('chat-message')[0];
@@ -190,7 +190,7 @@ describe('ChatWidget', () => {
       setUp();
       await open();
       store.messages.set([
-        { role: 'assistant', text: '<img src=x onerror="window.__pwned=1"> <b>not bold</b>', suggestions: [] }
+        { role: 'assistant', text: '<img src=x onerror="window.__pwned=1"> <b>not bold</b>', suggestions: [], alerts: [], lists: [], links: [] }
       ]);
       await settle();
 
@@ -208,7 +208,7 @@ describe('ChatWidget', () => {
     it('shows a suggestion as a card with the side, quantity, symbol and reason', async () => {
       setUp();
       await open();
-      store.messages.set([{ role: 'assistant', text: 'Consider this.', suggestions: [suggestion] }]);
+      store.messages.set([{ role: 'assistant', text: 'Consider this.', suggestions: [suggestion], alerts: [], lists: [], links: [] }]);
       await settle();
 
       const card = q('chat-suggestion') as HTMLElement;
@@ -222,7 +222,7 @@ describe('ChatWidget', () => {
     it('opens the order form pre-filled, closes the panel, and places nothing', async () => {
       setUp();
       await open();
-      store.messages.set([{ role: 'assistant', text: 'Consider this.', suggestions: [suggestion] }]);
+      store.messages.set([{ role: 'assistant', text: 'Consider this.', suggestions: [suggestion], alerts: [], lists: [], links: [] }]);
       await settle();
 
       q('chat-open-order')?.click();
@@ -257,7 +257,7 @@ describe('ChatWidget', () => {
     it('starts a new conversation with the reset button', async () => {
       setUp();
       await open();
-      store.messages.set([{ role: 'user', text: 'Hi', suggestions: [] }]);
+      store.messages.set([{ role: 'user', text: 'Hi', suggestions: [], alerts: [], lists: [], links: [] }]);
       await settle();
       expect(all('chat-message').length).toBe(1);
 
@@ -269,6 +269,92 @@ describe('ChatWidget', () => {
     });
   });
 
+  describe('cards and links', () => {
+    const base = { role: 'assistant' as const, text: 'Here is an idea.', suggestions: [], alerts: [], lists: [], links: [] };
+
+    it('shows an alert card with the level and distance, and a button that sets it', async () => {
+      setUp();
+      await open();
+      store.messages.set([
+        {
+          ...base,
+          alerts: [
+            {
+              proposal: { symbol: 'TCS', threshold: 2850, direction: 'BELOW', reason: 'Support', currentPrice: 3000, percentFromNow: -5 },
+              status: 'idle',
+              note: null
+            }
+          ]
+        }
+      ]);
+      await settle();
+
+      const card = q('chat-alert-card') as HTMLElement;
+      expect(card.textContent).toContain('TCS falls to');
+      expect(card.textContent).toContain('2850');
+      expect(card.textContent).toContain('-5.0% from now');
+
+      q('chat-confirm-alert')?.click();
+      await settle();
+      http.expectOne(`${BASE}/api/v1/accounts/7/alerts`).flush({ id: 'a1' });
+      await settle();
+
+      expect(q('chat-card-done')?.textContent).toContain('Alert set');
+      expect(q('chat-confirm-alert')).toBeNull();
+    });
+
+    it('shows a watchlist card with its stocks, and "Not now" removes it', async () => {
+      setUp();
+      await open();
+      store.messages.set([
+        {
+          ...base,
+          lists: [{ proposal: { mode: 'CREATE', name: 'Banks', watchlistId: null, symbols: ['SBIN', 'HDFCBANK'], reason: 'Lenders' }, status: 'idle', note: null }]
+        }
+      ]);
+      await settle();
+
+      const card = q('chat-list-card') as HTMLElement;
+      expect(card.textContent).toContain('New watchlist: Banks');
+      expect(card.querySelectorAll('.chat-chip').length).toBe(2);
+      expect(q('chat-confirm-list')?.textContent).toContain('Create watchlist');
+
+      q('chat-dismiss')?.click();
+      await settle();
+
+      expect(q('chat-list-card')).toBeNull();
+      http.expectNone(`${BASE}/api/v1/accounts/7/watchlists`);
+    });
+
+    it('a go-there button opens the page with its options and closes the panel', async () => {
+      setUp();
+      await open();
+      const spy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      store.messages.set([{ ...base, links: [{ label: 'Open TCS alerts', path: '/app/watchlists', query: { alert: 'TCS' } }] }]);
+      await settle();
+
+      expect(q('chat-go')?.textContent).toContain('Open TCS alerts');
+      q('chat-go')?.click();
+      await settle();
+
+      expect(spy).toHaveBeenCalledWith(['/app/watchlists'], { queryParams: { alert: 'TCS' } });
+      expect(q('chat-panel')).toBeNull();
+    });
+
+    it('never follows a link that is not one of the app\'s pages', async () => {
+      setUp();
+      await open();
+      const spy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      store.messages.set([{ ...base, links: [{ label: 'Bad', path: 'https://evil.example', query: {} }] }]);
+      await settle();
+
+      q('chat-go')?.click();
+      await settle();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
   it('is honest about what it is: not advice, and that a third party processes the questions', async () => {
     setUp();
     await open();
@@ -276,6 +362,6 @@ describe('ChatWidget', () => {
     const text = (q('chat-panel') as HTMLElement).textContent ?? '';
     expect(text).toContain('not financial advice');
     expect(text).toContain('third-party AI service');
-    expect(text).toContain('never place one myself');
+    expect(text).toContain('until you press the button');
   });
 });

@@ -1,6 +1,7 @@
 package com.team1.trading.api.chat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.team1.trading.api.chat.ChatAction.NavigationLink;
 import com.team1.trading.api.chat.ChatTools.ChatContext;
 import com.team1.trading.api.chat.LlmClient.LlmResult;
 import com.team1.trading.api.chat.LlmClient.ToolCall;
@@ -95,9 +96,14 @@ public class ChatService {
 
         // An audit line, not a transcript: who, how much, which tools, what was suggested. No message
         // text and no portfolio data is logged.
-        log.info("[chat] account={} messages={} tools={} suggestions={} ms={}", accountId, messages.size(), used,
+        log.info("[chat] account={} messages={} tools={} suggestions={} alertProposals={} watchlistProposals={} links={} ms={}",
+                accountId, messages.size(), used,
                 context.suggestions().stream().map(s -> s.side() + " " + s.quantity() + " " + s.symbol()).toList(),
+                context.alertProposals().stream().map(a -> a.symbol() + " " + a.direction() + " " + a.threshold()).toList(),
+                context.watchlistProposals().stream().map(w -> w.mode() + " " + w.name() + " x" + w.symbols().size()).toList(),
+                context.links().stream().map(NavigationLink::path).toList(),
                 System.currentTimeMillis() - started);
-        return new ChatResponse(reply, List.copyOf(context.suggestions()));
+        return new ChatResponse(reply, List.copyOf(context.suggestions()), List.copyOf(context.alertProposals()),
+                List.copyOf(context.watchlistProposals()), List.copyOf(context.links()));
     }
 }

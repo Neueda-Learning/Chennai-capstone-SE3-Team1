@@ -15,6 +15,11 @@ info:
     placed. A client shows each one as a button that opens the order form pre-filled
     (`/app/orders?symbol=TCS&side=SELL&quantity=20`), and the customer places the order themselves.
 
+    Alerts and watchlists work the same way: the assistant reads them, and `alertProposals` and
+    `watchlistProposals` are things it suggests. Nothing is created by the chat call. The client shows each
+    as a card, and only when the customer confirms does it call the ordinary alert or watchlist endpoints
+    as them. `links` are "go there" buttons to the app's own pages.
+
     ## Errors
 
     | Code | HTTP | Meaning |
@@ -115,3 +120,43 @@ components:
           maxItems: 3
           items:
             $ref: '#/components/schemas/OrderSuggestion'
+        alertProposals:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            required: [symbol, threshold, direction, reason, currentPrice, percentFromNow]
+            properties:
+              symbol: { type: string }
+              threshold: { type: number, description: Rounded to two decimals; within 0.2x to 5x of the live price. }
+              direction: { type: string, enum: [ABOVE, BELOW], description: Worked out from the level against the live price. }
+              reason: { type: string, maxLength: 300 }
+              currentPrice: { type: number }
+              percentFromNow: { type: number }
+        watchlistProposals:
+          type: array
+          maxItems: 2
+          items:
+            type: object
+            required: [mode, name, symbols, reason]
+            properties:
+              mode: { type: string, enum: [CREATE, ADD], description: ADD when the name matches a watchlist the customer already has. }
+              name: { type: string, maxLength: 60 }
+              watchlistId: { type: string, nullable: true, description: Set for ADD. }
+              symbols: { type: array, maxItems: 25, items: { type: string }, description: Tradable instruments only; for ADD, only those not already on the list. }
+              reason: { type: string, maxLength: 300 }
+        links:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            required: [label, path, query]
+            properties:
+              label: { type: string, maxLength: 60 }
+              path:
+                type: string
+                enum: [/app/dashboard, /app/portfolio, /app/orders, /app/blotter, /app/watchlists, /app/account, /app/settings, /app/bank-accounts]
+              query:
+                type: object
+                additionalProperties: { type: string }
+                description: symbol, side and quantity for /app/orders; alert for /app/watchlists; q for /app/blotter.

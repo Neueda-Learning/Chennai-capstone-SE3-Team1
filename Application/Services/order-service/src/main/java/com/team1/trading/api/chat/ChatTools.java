@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.team1.trading.api.chat.ChatAction.AlertProposal;
+import com.team1.trading.api.chat.ChatAction.NavigationLink;
+import com.team1.trading.api.chat.ChatAction.WatchlistProposal;
 import com.team1.trading.api.chat.LlmClient.ToolSpec;
 import com.team1.trading.api.dto.BalanceResponse;
 import com.team1.trading.api.dto.CandleResponse;
@@ -24,6 +27,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -62,21 +66,33 @@ public class ChatTools {
     private final MarketService market;
     private final CandleService candles;
     private final InstrumentMapper instruments;
+    private final ChatWorkspaceTools workspace;
 
     public ChatTools(AccountService accounts, MarketService market, CandleService candles,
-                     InstrumentMapper instruments) {
+                     InstrumentMapper instruments, ChatWorkspaceTools workspace) {
         this.accounts = accounts;
         this.market = market;
         this.candles = candles;
         this.instruments = instruments;
+        this.workspace = workspace;
     }
 
     /** One conversation turn's scope: who is asking, and the suggestions collected so far. */
-    public record ChatContext(long accountId, Long tokenAccountId, List<OrderSuggestion> suggestions) {
+    public record ChatContext(
+            long accountId,
+            Long tokenAccountId,
+            List<OrderSuggestion> suggestions,
+            List<AlertProposal> alertProposals,
+            List<WatchlistProposal> watchlistProposals,
+            List<NavigationLink> links) {
+
+        public ChatContext(long accountId, Long tokenAccountId, List<OrderSuggestion> suggestions) {
+            this(accountId, tokenAccountId, suggestions, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        }
     }
 
     public List<ToolSpec> specs() {
-        return List.of(
+        List<ToolSpec> own = List.of(
                 spec(ACCOUNT_SUMMARY,
                         "The user's cash balance and holdings valued at the latest prices: quantity, average cost, "
                                 + "current price, value, profit or loss and share of the portfolio for each holding, plus "
@@ -116,6 +132,9 @@ public class ChatTools {
                                 .prop("side", "STRING", "BUY or SELL").required("side")
                                 .prop("quantity", "INTEGER", "Number of shares, a whole number").required("quantity")
                                 .prop("reason", "STRING", "One sentence on why").required("reason")));
+        List<ToolSpec> all = new ArrayList<>(own);
+        all.addAll(workspace.specs());
+        return all;
     }
 
     /** Runs one tool. Never throws: a failure becomes an {"error": ...} result the model can explain. */
@@ -129,7 +148,7 @@ public class ChatTools {
                 case PRICE_STATS -> priceStats(safeArgs);
                 case OUTLOOK -> outlook(safeArgs, context);
                 case SUGGEST_ORDER -> suggestOrder(safeArgs, context);
-                default -> error("Unknown tool " + name);
+                default -> workspace.handles(name) ? workspace.execute(name, safeArgs, context) : error("Unknown tool " + name);
             };
         } catch (DomainException e) {
             return error(e.getMessage());
@@ -360,34 +379,11 @@ public class ChatTools {
 
     // ---- schema builder
 
-    private static ToolSpec spec(String name, String description, Schema schema) {
+    private static ToolSpec spec(String name, String description, ToolSchema schema) {
         return new ToolSpec(name, description, schema.build());
     }
 
-    private static Schema schema() {
-        return new Schema();
-    }
-
-    private static final class Schema {
-        private final ObjectNode root = JSON.createObjectNode().put("type", "OBJECT");
-        private final ObjectNode properties = root.putObject("properties");
-        private final ArrayNode required = JSON.createArrayNode();
-
-        Schema prop(String name, String type, String description) {
-            properties.putObject(name).put("type", type).put("description", description);
-            return this;
-        }
-
-        Schema required(String name) {
-            required.add(name);
-            return this;
-        }
-
-        ObjectNode build() {
-            if (!required.isEmpty()) {
-                root.set("required", required);
-            }
-            return root;
-        }
+    private static ToolSchema schema() {
+        return ToolSchema.object();
     }
 }

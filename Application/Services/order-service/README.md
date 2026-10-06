@@ -62,12 +62,13 @@ about what is sent and when, not about a broker.
 
 `POST /api/v1/accounts/{id}/chat` powers the assistant overlay in the UI. The body is the conversation
 so far, `{ "messages": [{ "role": "user" | "assistant", "text": "..." }] }` (at most 20 messages of 1,500
-characters; only those two roles are accepted). The answer is `{ "reply": "...", "suggestions": [...] }`.
+characters; only those two roles are accepted). The answer is `{ "reply": "...", "suggestions": [...], "alertProposals": [...], "watchlistProposals": [...], "links": [...] }`.
 The contract is `Application/Contracts/api-schemas/chat-api.yaml`.
 
 **How it answers.** The model (Gemini, through `GeminiClient`, behind the provider-neutral `LlmClient`)
-is given six tools and decides which to call: `get_account_summary`, `get_recent_orders`,
-`get_market_overview`, `get_price_stats`, `get_outlook` and `suggest_order`. Everything numeric (valuation, profit and
+is given eleven tools and decides which to call: `get_account_summary`, `get_recent_orders`,
+`get_market_overview`, `get_price_stats`, `get_outlook` and `suggest_order`, plus (in `ChatWorkspaceTools`) `get_alerts`,
+`get_watchlists`, `propose_alert`, `propose_watchlist` and `suggest_navigation`. Everything numeric (valuation, profit and
 loss, weights, concentration, moving averages, RSI, volatility, drawdown) is computed in code
 (`PortfolioAnalytics`, `PriceStats`), never by the model.
 
@@ -89,6 +90,16 @@ guarantees, price targets and tips. It cannot see news, results or fundamentals,
 **What it can and cannot do.**
 - It is read-only. `suggest_order` places nothing: it records a suggestion that the UI shows as a
   "Review in order form" button, which opens the order page pre-filled. The customer places the order.
+- Alerts and watchlists follow the same rule. It can read them, and it can propose an alert or a watchlist
+  (new, or stocks added to one they have, chosen by name). A proposal is validated in code (a tradable
+  symbol, a live price, a level within 0.2x to 5x of it, the direction worked out from the level, no
+  duplicate of an armed alert, the 25-alert, 10-watchlist and 50-stock limits) and returned as a card. Only
+  the customer's click on it makes the UI call the normal alert or watchlist endpoint as them, so
+  confirmation is enforced by the design and not by the model's good behaviour. The system prompt tells it
+  when to offer one unprompted.
+- `suggest_navigation` gives a "go there" button to one of the app's own pages (an allowlist of eight), with
+  an optional stock, side and quantity (Market & Trade), a stock's alert chart (Watchlists) or a search
+  (Blotter). The UI checks the path against the same allowlist again before following it.
 - The account is never an argument to a tool. It comes from the verified token, so nothing the model
   writes, however it was prompted, can read another customer's data. Ownership is checked before any
   quota or model spend, using the same check as every account route.
