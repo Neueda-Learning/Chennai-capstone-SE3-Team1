@@ -3346,7 +3346,7 @@ button.notification-item {
 .toast-stack {
     position: fixed;
     right: 1.25rem;
-    bottom: 1.25rem;
+    bottom: 5.5rem; /* above the assistant's launcher button */
     z-index: 2000;
     display: flex;
     flex-direction: column;

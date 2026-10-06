@@ -281,6 +281,62 @@ describe('OrderTicketPage', () => {
       expect(textOf(fixture, '[data-testid="selected-symbol"]')).toContain('TCS');
     });
 
+    describe('a link from the assistant (?symbol=&side=&quantity=)', () => {
+      const side = (fixture: TicketFixture) => (fixture.componentInstance as unknown as { side: () => string }).side();
+      const quantityBox = (fixture: TicketFixture) => (root(fixture).querySelector('#quantity') as HTMLInputElement).value;
+
+      it('fills in the side and quantity once the page is open, and places nothing', () => {
+        const params = new BehaviorSubject(convertToParamMap({}));
+        setUp(ACCOUNT_ID, null, params);
+        const fixture = create();
+
+        params.next(convertToParamMap({ symbol: 'TCS', side: 'SELL', quantity: '20' }));
+        fixture.detectChanges();
+        settle(fixture);
+
+        expect(textOf(fixture, '[data-testid="selected-symbol"]')).toContain('TCS');
+        expect(side(fixture)).toBe('SELL');
+        expect(quantityBox(fixture)).toBe('20');
+        http.expectNone(ORDERS_URL);
+      });
+
+      it('fills them in when the page is opened straight from the link', () => {
+        setUp(ACCOUNT_ID, null, new BehaviorSubject(convertToParamMap({ symbol: 'TCS', side: 'SELL', quantity: '3' })));
+        const fixture = create();
+
+        expect(side(fixture)).toBe('SELL');
+        expect(quantityBox(fixture)).toBe('3');
+      });
+
+      it('ignores a side or a quantity that is not valid', () => {
+        const params = new BehaviorSubject(convertToParamMap({}));
+        setUp(ACCOUNT_ID, null, params);
+        const fixture = create();
+
+        params.next(convertToParamMap({ symbol: 'TCS', side: 'HOLD', quantity: '-5' }));
+        fixture.detectChanges();
+        settle(fixture);
+
+        expect(side(fixture)).toBe('BUY');
+        expect(quantityBox(fixture)).toBe('');
+      });
+
+      it('ignores a fractional, zero or absurdly large quantity', () => {
+        for (const quantity of ['2.5', '0', '12345678', 'abc', '']) {
+          const params = new BehaviorSubject(convertToParamMap({}));
+          TestBed.resetTestingModule();
+          setUp(ACCOUNT_ID, null, params);
+          const fixture = create();
+
+          params.next(convertToParamMap({ symbol: 'TCS', quantity }));
+          fixture.detectChanges();
+          settle(fixture);
+
+          expect(quantityBox(fixture), `quantity=${quantity}`).toBe('');
+        }
+      });
+    });
+
     it('shows another ticker and its history when it is clicked', () => {
       setUp();
       const fixture = create();

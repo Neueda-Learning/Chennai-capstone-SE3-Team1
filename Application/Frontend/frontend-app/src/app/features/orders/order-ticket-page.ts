@@ -208,6 +208,7 @@ export class OrderTicketPage implements OnDestroy {
         return;
       }
       this.preferredSymbol = wanted;
+      this.applyPrefill(params.get('side'), params.get('quantity'));
       if (this.quotes().some((quote) => quote.symbol === wanted)) {
         this.select(wanted);
         this.bringTicketIntoView();
@@ -253,6 +254,31 @@ export class OrderTicketPage implements OnDestroy {
   ngOnDestroy(): void {
     this.quotesSubscription?.unsubscribe();
     this.candleRequest?.unsubscribe();
+  }
+
+  /**
+   * A link from the assistant can arrive with ?side=SELL&quantity=20. Both only fill the form in: the
+   * customer still reviews it and presses Buy or Sell. Anything that is not a plain side or a whole
+   * number is ignored, and the two are removed from the address so choosing another stock later does
+   * not put them back.
+   */
+  private applyPrefill(side: string | null, quantity: string | null): void {
+    const validSide = side === 'BUY' || side === 'SELL';
+    const validQuantity = quantity !== null && /^[1-9]\d{0,5}$/.test(quantity);
+    if (validSide) {
+      this.side.set(side);
+    }
+    if (validQuantity) {
+      this.form.controls.quantity.setValue(quantity);
+      this.form.controls.quantity.markAsTouched();
+    }
+    if ((side !== null || quantity !== null) && this.router !== null) {
+      void this.router.navigate([], {
+        queryParams: { side: null, quantity: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true
+      });
+    }
   }
 
   protected select(symbol: string): void {

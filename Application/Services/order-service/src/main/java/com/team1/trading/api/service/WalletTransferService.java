@@ -9,6 +9,7 @@ import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.WalletTransferMapper;
 import com.team1.trading.api.mapper.WalletTransferMapper.TransferRow;
+import com.team1.trading.api.notifications.TransferNotifier;
 import com.team1.trading.domain.entity.Client;
 import com.team1.trading.domain.exception.AccountNotActiveException;
 import com.team1.trading.domain.exception.AccountNotFoundException;
@@ -26,10 +27,13 @@ public class WalletTransferService {
 
     private final AccountMapper accountMapper;
     private final WalletTransferMapper transferMapper;
+    private final TransferNotifier notifier;
 
-    public WalletTransferService(AccountMapper accountMapper, WalletTransferMapper transferMapper) {
+    public WalletTransferService(AccountMapper accountMapper, WalletTransferMapper transferMapper,
+                                 TransferNotifier notifier) {
         this.accountMapper = accountMapper;
         this.transferMapper = transferMapper;
+        this.notifier = notifier;
     }
 
     @Transactional
@@ -73,6 +77,8 @@ public class WalletTransferService {
             }
             transferMapper.creditBank(accountNumber, amount);
         }
+
+        notifier.transferCompleted(transfer.getTransferId(), accountId, direction, amount);
 
         return new TransferResponse(transfer.getTransferId(), accountId, direction, amount,
                 transferMapper.walletBalance(accountId), transferMapper.bankBalance(accountNumber),

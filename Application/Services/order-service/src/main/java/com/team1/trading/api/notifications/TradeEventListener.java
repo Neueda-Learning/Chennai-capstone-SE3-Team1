@@ -25,9 +25,11 @@ public class TradeEventListener {
     private static final Logger log = LoggerFactory.getLogger(TradeEventListener.class);
 
     private final NotificationRecorder recorder;
+    private final NotificationDispatcher dispatcher;
 
-    public TradeEventListener(NotificationRecorder recorder) {
+    public TradeEventListener(NotificationRecorder recorder, NotificationDispatcher dispatcher) {
         this.recorder = recorder;
+        this.dispatcher = dispatcher;
     }
 
     @KafkaListener(topics = TOPIC, groupId = GROUP_ID)
@@ -52,7 +54,11 @@ public class TradeEventListener {
             if (!recorder.accountExists(accountId)) {
                 log.warn("Ignoring event {}: its account is not known", eventId);
             } else {
-                recorder.record(eventId, accountId, kind, MessageComposer.tradePayload(envelope.payload()));
+                NotificationRecorder.Recorded recorded =
+                        recorder.record(eventId, accountId, kind, MessageComposer.tradePayload(envelope.payload()));
+                if (recorded != null && recorded.created() && recorded.status() == NotificationStatus.QUEUED) {
+                    dispatcher.dispatchSoon();
+                }
             }
             ack.acknowledge();
         } catch (DataAccessException | TransactionException e) {

@@ -38,13 +38,15 @@ class TradeEventListenerTest {
     @Mock
     private NotificationRecorder recorder;
     @Mock
+    private NotificationDispatcher dispatcher;
+    @Mock
     private Acknowledgment ack;
 
     private TradeEventListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new TradeEventListener(recorder);
+        listener = new TradeEventListener(recorder, dispatcher);
     }
 
     private ConsumerRecord<String, Envelope> record(String eventId, String eventType, String payloadJson) {
@@ -81,6 +83,33 @@ class TradeEventListenerTest {
         inOrder.verify(ack).acknowledge();
         assertThat(payload.getValue()).contains("\"symbol\":\"TCS\"").contains("\"executedPrice\":\"3501.25\"")
                 .doesNotContain("hunter2").doesNotContain("cashDelta");
+    }
+
+    @Test
+    @DisplayName("A newly queued notification is dispatched at once, not at the next poll")
+    void queuedIsDispatchedPromptly() {
+        given(recorder.accountExists(7L)).willReturn(true);
+        given(recorder.record(eq("ev-q"), eq(7L), eq(NotificationKind.ORDER_FILLED), anyString()))
+                .willReturn(new NotificationRecorder.Recorded(NotificationStatus.QUEUED, true));
+
+        listener.onTradeEvent(record("ev-q", "ORDER_FILLED", PAYLOAD), ack);
+
+        verify(dispatcher).dispatchSoon();
+    }
+
+    @Test
+    @DisplayName("A held (no channel yet) or replayed notification triggers no dispatch")
+    void heldOrReplayedIsNotDispatched() {
+        given(recorder.accountExists(7L)).willReturn(true);
+        given(recorder.record(eq("ev-h"), anyLong(), any(), anyString()))
+                .willReturn(new NotificationRecorder.Recorded(NotificationStatus.PENDING_CHANNEL, true));
+        given(recorder.record(eq("ev-r"), anyLong(), any(), anyString()))
+                .willReturn(new NotificationRecorder.Recorded(NotificationStatus.QUEUED, false));
+
+        listener.onTradeEvent(record("ev-h", "ORDER_FILLED", PAYLOAD), ack);
+        listener.onTradeEvent(record("ev-r", "ORDER_FILLED", PAYLOAD), ack);
+
+        verifyNoInteractions(dispatcher);
     }
 
     @Test

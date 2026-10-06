@@ -5,6 +5,7 @@ import com.team1.trading.api.dto.TransferRequest;
 import com.team1.trading.api.dto.TransferResponse;
 import com.team1.trading.api.exception.TransferException;
 import com.team1.trading.api.exception.TransferException.Reason;
+import com.team1.trading.api.notifications.TransferNotifier;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.WalletTransferMapper;
@@ -34,6 +35,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class WalletTransferServiceTest {
@@ -46,6 +48,9 @@ class WalletTransferServiceTest {
     private AccountMapper accountMapper;
     @Mock
     private WalletTransferMapper transferMapper;
+
+    @Mock
+    private TransferNotifier notifier;
 
     @InjectMocks
     private WalletTransferService service;
@@ -96,6 +101,32 @@ class WalletTransferServiceTest {
         assertThat(response.getAmount()).isEqualByComparingTo("250.00");
         assertThat(response.getWalletBalance()).isEqualByComparingTo("350.00");
         assertThat(response.getBankBalance()).isEqualByComparingTo("750.00");
+        verify(notifier).transferCompleted(response.getTransferId(), ACCOUNT_ID,
+                TransferDirection.BANK_TO_WALLET, new BigDecimal("250.00"));
+    }
+
+    @Test
+    void a_withdrawal_is_announced_as_wallet_to_bank() {
+        activeAccount();
+        given(transferMapper.debitWallet(ACCOUNT_ID, new BigDecimal("40.50"))).willReturn(1);
+
+        TransferResponse response = service.transfer(ACCOUNT_ID, ACCOUNT_ID,
+                request(TransferDirection.WALLET_TO_BANK, "40.5"));
+
+        verify(notifier).transferCompleted(response.getTransferId(), ACCOUNT_ID,
+                TransferDirection.WALLET_TO_BANK, new BigDecimal("40.50"));
+    }
+
+    @Test
+    void a_failed_transfer_announces_nothing() {
+        activeAccount();
+        given(transferMapper.debitBank(ACCOUNT_NUMBER, new BigDecimal("1000000.00"))).willReturn(0);
+
+        assertThatThrownBy(() -> service.transfer(ACCOUNT_ID, ACCOUNT_ID,
+                request(TransferDirection.BANK_TO_WALLET, "1000000")))
+                .isInstanceOf(TransferException.class);
+
+        verifyNoInteractions(notifier);
     }
 
     @Test

@@ -37,12 +37,22 @@ public final class MessageComposer {
         return out.toString();
     }
 
+    public static String transferPayload(boolean intoWallet, java.math.BigDecimal amount, String currency) {
+        ObjectNode out = MAPPER.createObjectNode();
+        out.put("direction", intoWallet ? "BANK_TO_WALLET" : "WALLET_TO_BANK");
+        out.put("amount", amount.toPlainString());
+        out.put("currency", currency);
+        return out.toString();
+    }
+
     public static String subject(NotificationKind kind) {
         return switch (kind) {
             case ORDER_FILLED -> "Your order was filled";
             case ORDER_REJECTED -> "Your order was rejected";
             case ORDER_CANCELLED -> "Your order was cancelled";
             case PRICE_ALERT -> "Price alert";
+            case TRANSFER_IN -> "Money added to your wallet";
+            case TRANSFER_OUT -> "Money withdrawn from your wallet";
         };
     }
 
@@ -50,6 +60,9 @@ public final class MessageComposer {
         JsonNode p = parse(payloadJson);
         if (p == null) {
             return FALLBACK;
+        }
+        if (kind == NotificationKind.TRANSFER_IN || kind == NotificationKind.TRANSFER_OUT) {
+            return transferMessage(kind, p);
         }
         String symbol = text(p, "symbol");
         if (symbol == null) {
@@ -74,7 +87,20 @@ public final class MessageComposer {
                 }
                 yield "Price alert: " + symbol + " is " + direction + " " + threshold + " (now " + observed + ").";
             }
+            case TRANSFER_IN, TRANSFER_OUT -> FALLBACK;
         };
+    }
+
+    private static String transferMessage(NotificationKind kind, JsonNode p) {
+        String amount = text(p, "amount");
+        if (amount == null) {
+            return FALLBACK;
+        }
+        String currency = text(p, "currency");
+        String money = amount + (currency == null ? "" : " " + currency);
+        return kind == NotificationKind.TRANSFER_IN
+                ? money + " was added to your wallet from your bank account."
+                : money + " was withdrawn from your wallet to your bank account.";
     }
 
     private static String order(JsonNode p, String symbol) {

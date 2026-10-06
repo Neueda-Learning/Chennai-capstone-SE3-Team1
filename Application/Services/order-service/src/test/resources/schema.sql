@@ -177,7 +177,7 @@ CREATE TABLE notifications (
     delivered_at TIMESTAMP,
     CONSTRAINT uq_notifications_event_id UNIQUE (event_id),
     CONSTRAINT chk_notifications_kind
-        CHECK (kind IN ('ORDER_FILLED', 'ORDER_REJECTED', 'ORDER_CANCELLED', 'PRICE_ALERT')),
+        CHECK (kind IN ('ORDER_FILLED', 'ORDER_REJECTED', 'ORDER_CANCELLED', 'PRICE_ALERT', 'TRANSFER_IN', 'TRANSFER_OUT')),
     CONSTRAINT chk_notifications_channel
         CHECK (channel IS NULL OR channel IN ('EMAIL', 'PUSH')),
     CONSTRAINT chk_notifications_status

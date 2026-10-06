@@ -6,7 +6,7 @@ import { Configuration } from '../../generated/trade-client';
 import { ChannelKind } from './preferences.service';
 
 export type DeliveryStatus = 'PENDING_CHANNEL' | 'QUEUED' | 'SENT' | 'FAILED';
-export type NotificationKind = 'ORDER_FILLED' | 'ORDER_REJECTED' | 'ORDER_CANCELLED' | 'PRICE_ALERT';
+export type NotificationKind = 'ORDER_FILLED' | 'ORDER_REJECTED' | 'ORDER_CANCELLED' | 'PRICE_ALERT' | 'TRANSFER_IN' | 'TRANSFER_OUT';
 
 export interface NotificationHistoryEntry {
   id: string;

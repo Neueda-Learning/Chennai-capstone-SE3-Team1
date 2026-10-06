@@ -104,6 +104,25 @@ class NotificationLedgerFlowTest {
     }
 
     @Test
+    @DisplayName("A wallet deposit and a withdrawal are recorded under their own kinds and emailed")
+    void transfersAreRecordedAndSent() {
+        prefer(1L, "EMAIL");
+
+        recorder.record("transfer-t-1", 1L, NotificationKind.TRANSFER_IN,
+                MessageComposer.transferPayload(true, new java.math.BigDecimal("2500.00"), "INR"));
+        recorder.record("transfer-t-2", 1L, NotificationKind.TRANSFER_OUT,
+                MessageComposer.transferPayload(false, new java.math.BigDecimal("40.50"), "INR"));
+        dispatcher.dispatchQueued();
+
+        assertThat(row("transfer-t-1").getKind()).isEqualTo("TRANSFER_IN");
+        assertThat(row("transfer-t-2").getKind()).isEqualTo("TRANSFER_OUT");
+        assertThat(sender.sent).extracting(Sent::body).containsExactlyInAnyOrder(
+                "2500.00 INR was added to your wallet from your bank account.",
+                "40.50 INR was withdrawn from your wallet to your bank account.");
+        assertThat(row("transfer-t-1").getStatus()).isEqualTo("SENT");
+    }
+
+    @Test
     @DisplayName("A rejection is recorded exactly as a fill is, and says why")
     void rejectionIsRecorded() {
         prefer(1L, "EMAIL");

@@ -7,6 +7,7 @@ import com.team1.trading.api.preferences.PreferenceResolver;
 import com.team1.trading.api.preferences.ResolvedChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.annotation.PreDestroy;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 @Component
 public class NotificationDispatcher {
@@ -27,6 +31,12 @@ public class NotificationDispatcher {
     private final NotificationLedgerMapper mapper;
     private final PreferenceResolver resolver;
     private final ChannelSender sender;
+    /** One worker, so a prompt dispatch never queues behind the shared scheduler thread. */
+    private final ExecutorService promptWorker = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "notification-dispatch");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public NotificationDispatcher(NotificationLedgerMapper mapper, PreferenceResolver resolver, ChannelSender sender) {
         this.mapper = mapper;
@@ -34,8 +44,30 @@ public class NotificationDispatcher {
         this.sender = sender;
     }
 
-    @Scheduled(fixedDelayString = "${notifications.dispatch.interval-ms:5000}")
-    public void dispatchQueued() {
+    /**
+     * Sends what has just been queued without waiting for the next poll. The poll below stays as the
+     * safety net (a restart, a failed attempt, a row queued by another instance).
+     */
+    public void dispatchSoon() {
+        try {
+            promptWorker.execute(this::dispatchQueued);
+        } catch (RejectedExecutionException shuttingDown) {
+            log.debug("Not dispatching promptly: the dispatcher is shutting down");
+        }
+    }
+
+    @PreDestroy
+    void stop() {
+        promptWorker.shutdown();
+    }
+
+    /**
+     * Synchronized because the prompt worker and the scheduler can both run a pass: each pass reads the
+     * QUEUED rows afresh and marks each one SENT before the next pass reads, so serialising the passes is
+     * what keeps a row from being emailed twice.
+     */
+    @Scheduled(fixedDelayString = "${notifications.dispatch.interval-ms:1000}")
+    public synchronized void dispatchQueued() {
         try {
             for (LedgerRow row : mapper.findByStatus(NotificationStatus.QUEUED.name(), BATCH)) {
                 dispatch(row);
@@ -45,7 +77,7 @@ public class NotificationDispatcher {
         }
     }
 
-    @Scheduled(fixedDelayString = "${notifications.rescan.interval-ms:60000}")
+    @Scheduled(fixedDelayString = "${notifications.rescan.interval-ms:15000}")
     public void rescanPending() {
         try {
             for (LedgerRow row : mapper.findByStatus(NotificationStatus.PENDING_CHANNEL.name(), BATCH)) {

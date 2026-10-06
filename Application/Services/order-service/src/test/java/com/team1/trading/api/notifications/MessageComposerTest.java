@@ -47,6 +47,26 @@ class MessageComposerTest {
     }
 
     @Test
+    @DisplayName("A transfer into the wallet and one out of it each read as a plain sentence with the amount")
+    void transferMessages() {
+        assertThat(MessageComposer.message(NotificationKind.TRANSFER_IN,
+                MessageComposer.transferPayload(true, new BigDecimal("2500.00"), "INR")))
+                .isEqualTo("2500.00 INR was added to your wallet from your bank account.");
+        assertThat(MessageComposer.message(NotificationKind.TRANSFER_OUT,
+                MessageComposer.transferPayload(false, new BigDecimal("40.50"), "INR")))
+                .isEqualTo("40.50 INR was withdrawn from your wallet to your bank account.");
+        assertThat(MessageComposer.subject(NotificationKind.TRANSFER_IN)).isEqualTo("Money added to your wallet");
+        assertThat(MessageComposer.subject(NotificationKind.TRANSFER_OUT)).isEqualTo("Money withdrawn from your wallet");
+    }
+
+    @Test
+    @DisplayName("A transfer payload with no amount falls back rather than printing nonsense")
+    void transferWithoutAmount() {
+        assertThat(MessageComposer.message(NotificationKind.TRANSFER_IN, "{\"currency\":\"INR\"}"))
+                .isEqualTo("A notification was recorded for your account.");
+    }
+
+    @Test
     @DisplayName("A payload that cannot be read still yields a message")
     void unreadablePayload() {
         assertThat(MessageComposer.message(NotificationKind.ORDER_FILLED, "not json"))

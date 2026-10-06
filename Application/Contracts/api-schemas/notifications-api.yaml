@@ -13,7 +13,9 @@ info:
 
     The module consumes `trade-events` in its own consumer group (`notification-service`) and
     records one notification for every `ORDER_FILLED`, `ORDER_REJECTED` and `ORDER_CANCELLED`
-    event. For each one it asks Customer Preferences, at that moment, which channel the customer
+    event, and one for every completed wallet transfer (`TRANSFER_IN` for bank to wallet,
+    `TRANSFER_OUT` for wallet to bank; the transfer service records these directly, no Kafka event).
+    For each one it asks Customer Preferences, at that moment, which channel the customer
     wants, records the channel on the notification, and hands the message to that channel. A
     rejection is recorded exactly as a fill is.
 
@@ -127,7 +129,7 @@ components:
 
     NotificationKind:
       type: string
-      enum: [ORDER_FILLED, ORDER_REJECTED, ORDER_CANCELLED, PRICE_ALERT]
+      enum: [ORDER_FILLED, ORDER_REJECTED, ORDER_CANCELLED, PRICE_ALERT, TRANSFER_IN, TRANSFER_OUT]
 
     NotificationHistoryEntry:
       type: object
