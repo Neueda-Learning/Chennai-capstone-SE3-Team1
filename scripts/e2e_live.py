@@ -41,6 +41,9 @@ from datetime import datetime, timezone
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from auth_post import post as auth_post  # POSTs under /auth are encrypted
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_GROUPS = ("notification-service", "watchlist-service", "portfolio-service")
 TRADE_KINDS = ("ORDER_FILLED", "ORDER_REJECTED", "ORDER_CANCELLED")
@@ -166,7 +169,7 @@ class Run:
     def sign_in(self) -> None:
         args = self.args
         if args.username:
-            status, body = self.call("POST", args.auth + "/auth/login",
+            status, body = auth_post(args.auth, "login",
                                      {"username": args.username, "password": args.password})
             if status != 200 or not isinstance(body, dict) or "accessToken" not in body:
                 raise StepFailed(f"sign-in through the auth service answered {status}")

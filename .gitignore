@@ -42,3 +42,13 @@ executor/mvnw
 executor/mvnw.cmd
 docs/angular-review-prep/.~lock.Angular_From_Zero.pptx#
 .claude/*
+
+# Build output and tool caches (Angular, Nest, test runners). Never source.
+dist/
+.angular/
+coverage/
+*.tsbuildinfo
+
+# API clients are generated from Application/Contracts by `npm install` (postinstall -> openapi-generator).
+# Regenerating rewrites every file, so they are not tracked; `npm install` recreates them.
+Application/Frontend/frontend-app/src/app/generated/

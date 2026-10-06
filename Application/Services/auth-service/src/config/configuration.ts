@@ -34,7 +34,8 @@ export const configuration = registerAs('app', async () => {
     required('PostGres_User'),
     required('PostGres'),
   ]);
-  const [fauxnanceKey, fauxnanceUrl, smtpHost, smtpUser, smtpPass, smtpFrom] = await Promise.all([
+  const [authPrivateKey, fauxnanceKey, fauxnanceUrl, smtpHost, smtpUser, smtpPass, smtpFrom] = await Promise.all([
+    optional('AUTH_PRIVATE_KEY'),
     optional('Fauxnance'),
     optional('Fauxnance_Endpoint'),
     optional('SMTP_HOST'),
@@ -58,6 +59,12 @@ export const configuration = registerAs('app', async () => {
       username: dbUser,
       password: dbPassword,
       name: dbName,
+    },
+
+    credentialCrypto: {
+      // RSA private key (PKCS#8 PEM) that opens encrypted credentials. A vault entry may hold the
+      // PEM with literal "\n" in place of line breaks; restore them.
+      privateKeyPem: authPrivateKey.replace(/\\n/g, '\n').trim(),
     },
 
     kafka: {

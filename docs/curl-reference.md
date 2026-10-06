@@ -47,18 +47,24 @@ publishes `trade-events` / `market-data`, with `.DLT` dead-letter topics for eac
 
 ## Auth service (`:3000` — OpenAPI UI at `/docs`)
 
+> **POST bodies under `/auth` are encrypted.** The auth service refuses a plain JSON body with
+> `422 VAL-422`; the UI encrypts every one of them. From a terminal use `scripts/auth_post.py`, which
+> does the same and prints the decrypted reply (the examples below call it). Postman and Bruno cannot
+> do this without a pre-request script. `GET /auth/me` and everything on the trade API are unchanged.
+> Details: `Application/Services/auth-service/README.md`, "Credentials over plain HTTP".
+
 ### Register
 Public; `roles` in the body is ignored — self-registered users are always `CUSTOMER`.
 Password policy: 12–128 chars, must not contain "password", "123456" or "qwerty".
 
-**curl (Postman / Bruno / bash)**
+**bash**
 ```
-curl -s -X POST http://localhost:3000/auth/register -H "Content-Type: application/json" -d '{"username":"priya.menon","email":"priya.menon@example.com","password":"Correct-Horse-Battery-9"}'
+python scripts/auth_post.py register '{"username":"priya.menon","email":"priya.menon@example.com","password":"Correct-Horse-Battery-9"}'
 ```
 
-**PowerShell (curl.exe)**
+**PowerShell**
 ```
-curl.exe --% -s -X POST http://localhost:3000/auth/register -H "Content-Type: application/json" -d "{\"username\":\"priya.menon\",\"email\":\"priya.menon@example.com\",\"password\":\"Correct-Horse-Battery-9\"}"
+python scriptsuth_post.py --% register "{\"username\":\"priya.menon\",\"email\":\"priya.menon@example.com\",\"password\":\"Correct-Horse-Battery-9\"}"
 ```
 
 Response:
@@ -70,14 +76,14 @@ Response:
 Seeded users (from `seed/`) **cannot** log in — their password hashes are placeholders.
 Always register a fresh user first.
 
-**curl (Postman / Bruno / bash)**
+**bash**
 ```
-curl -s -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d '{"username":"priya.menon","password":"Correct-Horse-Battery-9"}'
+python scripts/auth_post.py login '{"username":"priya.menon","password":"Correct-Horse-Battery-9"}'
 ```
 
-**PowerShell (curl.exe)**
+**PowerShell**
 ```
-curl.exe --% -s -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d "{\"username\":\"priya.menon\",\"password\":\"Correct-Horse-Battery-9\"}"
+python scriptsuth_post.py --% login "{\"username\":\"priya.menon\",\"password\":\"Correct-Horse-Battery-9\"}"
 ```
 
 Response:
@@ -89,14 +95,14 @@ Response:
 Always refresh after linking a bank account — the new token carries the `accountId` claim
 the old one didn't have.
 
-**curl (Postman / Bruno / bash)**
+**bash**
 ```
-curl -s -X POST http://localhost:3000/auth/refresh -H "Content-Type: application/json" -d '{"refreshToken":"<REFRESH_TOKEN>"}'
+python scripts/auth_post.py refresh '{"refreshToken":"<REFRESH_TOKEN>"}'
 ```
 
-**PowerShell (curl.exe)**
+**PowerShell**
 ```
-curl.exe --% -s -X POST http://localhost:3000/auth/refresh -H "Content-Type: application/json" -d "{\"refreshToken\":\"<REFRESH_TOKEN>\"}"
+python scriptsuth_post.py --% refresh "{\"refreshToken\":\"<REFRESH_TOKEN>\"}"
 ```
 
 ### Logout
@@ -104,14 +110,14 @@ Revokes only the presented refresh token; other sessions the user is logged into
 keep working. Needs both the access token (`Authorization`) and that session's refresh token
 (body) — a mismatched pair is `AUTH-401`, same as an unknown token.
 
-**curl (Postman / Bruno / bash)**
+**bash**
 ```
-curl -s -X POST http://localhost:3000/auth/logout -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d '{"refreshToken":"<REFRESH_TOKEN>"}'
+python scripts/auth_post.py logout '{"refreshToken":"<REFRESH_TOKEN>"}' --token <ACCESS_TOKEN>
 ```
 
-**PowerShell (curl.exe)**
+**PowerShell**
 ```
-curl.exe --% -s -X POST http://localhost:3000/auth/logout -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"refreshToken\":\"<REFRESH_TOKEN>\"}"
+python scriptsuth_post.py --% logout "{\"refreshToken\":\"<REFRESH_TOKEN>\"}" --token <ACCESS_TOKEN>
 ```
 
 ### Current user

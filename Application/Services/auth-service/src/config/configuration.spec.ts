@@ -60,6 +60,23 @@ describe('configuration', () => {
     });
   });
 
+  it('takes the credential-encryption key from the vault and restores escaped line breaks', async () => {
+    secrets.AUTH_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\\nABC\\n-----END PRIVATE KEY-----';
+    process.env.AUTH_PRIVATE_KEY = 'ignored';
+
+    const config = await load();
+
+    expect(config.credentialCrypto.privateKeyPem).toBe(
+      '-----BEGIN PRIVATE KEY-----\nABC\n-----END PRIVATE KEY-----',
+    );
+  });
+
+  it('runs without the credential-encryption key, leaving the service to make a temporary one', async () => {
+    const config = await load();
+
+    expect(config.credentialCrypto.privateKeyPem).toBe('');
+  });
+
   it('takes the market-data key and endpoint from the vault, without a trailing slash', async () => {
     const config = await load();
 

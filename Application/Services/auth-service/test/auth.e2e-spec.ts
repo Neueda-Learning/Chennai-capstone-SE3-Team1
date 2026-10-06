@@ -9,6 +9,7 @@ import { UserRepository } from '../src/auth/user.repository';
 import { RefreshTokenRepository } from '../src/auth/refresh-token.repository';
 import { OtpPurpose, OtpRepository } from '../src/auth/otp.repository';
 import { MailerService } from '../src/auth/mailer.service';
+import { CredentialCryptoService } from '../src/auth/crypto/credential-crypto.service';
 import { Role } from '../src/auth/dto/role';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../src/auth/token.constants';
 
@@ -238,6 +239,14 @@ describe('Auth service (e2e)', () => {
       .useValue(fakeOtp)
       .overrideProvider(MailerService)
       .useValue(fakeMailer)
+      // This suite is about auth behaviour, so it sends plain bodies. The real envelope
+      // encryption is covered end to end in credential-crypto.e2e-spec.ts.
+      .overrideProvider(CredentialCryptoService)
+      .useValue({
+        issueParams: () => ({}),
+        unwrapRequest: (body: unknown) => ({ body, key: Buffer.alloc(32), nonce: 'plain' }),
+        wrapResponse: (_session: unknown, body: unknown) => body,
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();

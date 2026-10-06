@@ -8,6 +8,25 @@ info:
     Binding contract for the NestJS auth service built in Sprint 8. The Trade REST API and Angular
     UI must depend on this contract rather than on implementation details.
 
+    ## Encrypted POST bodies
+
+    Every `POST` under `/auth` must be sent as an encrypted envelope, and its response comes back
+    encrypted. The request and response schemas below describe the **decrypted** JSON. This keeps
+    passwords, one-time codes and tokens out of plain sight on a network that does not use TLS. It
+    does not replace TLS: someone able to alter the page in transit can defeat it. Use HTTPS where
+    deployment allows.
+
+    1. `GET /auth/crypto-params` returns an RSA public key and a one-time `nonce` (valid 60 seconds, once).
+    2. Make a random 32-byte AES key and a random 12-byte IV. Encrypt the JSON body with AES-256-GCM,
+       using the nonce (UTF-8) as the additional authenticated data. `ct` is the ciphertext followed by the 16-byte tag.
+    3. Wrap the AES key with RSA-OAEP (SHA-256 for both the hash and MGF1) under the public key.
+    4. POST `{ "v": 1, "nonce": ..., "ek": <wrapped key>, "iv": ..., "ct": ... }`, each field base64.
+    5. A successful response is `{ "v": 1, "iv": ..., "ct": ... }`: the JSON response encrypted with the
+       same AES key, a new IV, and the same nonce as additional data. Error responses are not encrypted.
+
+    A plaintext body, an unknown or reused nonce, or a ciphertext that fails its tag check is
+    refused with `422 VAL-422`, the same answer in every case.
+
     ## JWT claims contract
 
     This section is normative. A token that does not carry exactly these claims breaks the Trade
@@ -95,6 +114,29 @@ tags:
     description: The authenticated user.
 
 paths:
+  /auth/crypto-params:
+    get:
+      tags: [Auth]
+      operationId: getCryptoParams
+      summary: Get the public key and a one-time nonce for encrypting a request
+      description: See "Encrypted POST bodies" above.
+      responses:
+        '200':
+          description: Parameters for exactly one encrypted request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [v, keyId, publicKey, modulus, exponent, nonce, expiresInSeconds]
+                properties:
+                  v: { type: integer, example: 1 }
+                  keyId: { type: string, description: Short fingerprint of the public key. }
+                  publicKey: { type: string, description: RSA public key, SPKI PEM. }
+                  modulus: { type: string, description: The same key, hex modulus. }
+                  exponent: { type: string, description: The same key, hex exponent., example: '010001' }
+                  nonce: { type: string }
+                  expiresInSeconds: { type: integer, example: 60 }
+
   /auth/register:
     post:
       tags: [Auth]

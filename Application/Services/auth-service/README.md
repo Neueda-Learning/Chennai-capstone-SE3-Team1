@@ -52,6 +52,7 @@ Nothing is configured through a `.env` file. Secrets and connection details come
 | `JWT_SECRET` | JWT signing secret (min 32 chars), required |
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | PostgreSQL connection, required |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Mail server for OTP emails. Optional: with any of the four missing, codes are logged instead of emailed |
+| `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
 | `Fauxnance`, `Fauxnance_Endpoint` | Market-data API key and base URL. Optional |
 
 Fixed in code: port `3000`, JWT issuer `auth-service`, SMTP port `587` with required STARTTLS.
@@ -86,6 +87,25 @@ docker ps
 # Check STATUS column for (healthy)
 ```
 
+## Credentials over plain HTTP
+
+Every `POST` under `/auth` takes an encrypted envelope and answers with an encrypted response (the
+protocol is in `Contracts/api-schemas/auth-api.yaml`, "Encrypted POST bodies"; the code is in
+`src/auth/crypto/`). A plaintext body is refused with `422 VAL-422`. The Angular app does this in
+`core/auth/credential-crypto.interceptor.ts`; anything else calling these routes (curl, Postman,
+scripts) has to build the envelope too.
+
+What it does: a passive observer on the network sees ciphertext, not passwords, OTP codes or tokens
+in those requests and replies, and a captured request cannot be replayed (each nonce works once).
+
+What it does not do: protect against anyone who can modify traffic in transit, because over HTTP
+they can alter the page that does the encrypting; protect the `Authorization` header that carries
+the access token on later calls; or protect any other API traffic. Only HTTPS fixes those. If you
+can serve the app over HTTPS, do, and add HSTS.
+
+Nonces are held in memory, so run a single instance or put a sticky route in front of
+`/auth/crypto-params` and the POST that follows it.
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -102,6 +122,7 @@ docker ps
 | `POST` | `/auth/login` | Log in, receive access + refresh tokens |
 | `POST` | `/auth/refresh` | Rotate a refresh token for a new pair |
 | `GET` | `/auth/me` | Current user (protected by bearer token) |
+| `GET` | `/auth/crypto-params` | Public key and one-time nonce for encrypting a POST body |
 | `GET` | `/docs` | Swagger UI |
 | `GET` | `/docs/json` | OpenAPI JSON document |
 

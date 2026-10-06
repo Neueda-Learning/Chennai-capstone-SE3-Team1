@@ -33,7 +33,8 @@
               "src/styles.css"
             ],
             "allowedCommonJsDependencies": [
-              "bootstrap"
+              "bootstrap",
+              "node-forge"
             ]
           },
           "configurations": {
@@ -41,7 +42,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "850kB",
+                  "maximumWarning": "1MB",
                   "maximumError": "1.5MB"
                 },
                 {

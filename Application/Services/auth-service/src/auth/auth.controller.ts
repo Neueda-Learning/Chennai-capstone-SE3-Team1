@@ -15,6 +15,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { CredentialCryptoService } from './crypto/credential-crypto.service';
+import { CryptoParamsResponseDto } from './crypto/crypto-params-response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AccessTokenClaims } from './token.service';
 import { RegisterRequestDto } from './dto/register-request.dto';
@@ -34,7 +36,25 @@ import {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly credentialCrypto: CredentialCryptoService,
+  ) {}
+
+  @Get('crypto-params')
+  @ApiOperation({
+    summary: 'Get the public key and a one-time nonce for encrypting a request',
+    description:
+      'Every POST under /auth must be sent as an encrypted envelope { v, nonce, ek, iv, ct } ' +
+      '(the request schemas below describe the decrypted body). Encrypt the JSON body with ' +
+      'AES-256-GCM using the nonce as additional authenticated data, and wrap the AES key with ' +
+      'RSA-OAEP (SHA-256). The response is encrypted the same way, as { v, iv, ct }. A nonce ' +
+      'works once and for 60 seconds.',
+  })
+  @ApiResponse({ status: 200, type: CryptoParamsResponseDto })
+  cryptoParams(): CryptoParamsResponseDto {
+    return this.credentialCrypto.issueParams();
+  }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)

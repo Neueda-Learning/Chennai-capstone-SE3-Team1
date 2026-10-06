@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { CredentialCryptoService } from './crypto/credential-crypto.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { TokenService, AccessTokenClaims } from './token.service';
 import { Role } from './dto/role';
@@ -44,6 +45,7 @@ describe('AuthController', () => {
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authService },
+        { provide: CredentialCryptoService, useValue: { issueParams: jest.fn() } },
         JwtAuthGuard,
         { provide: TokenService, useValue: { verifyAccessToken: jest.fn() } },
       ],
