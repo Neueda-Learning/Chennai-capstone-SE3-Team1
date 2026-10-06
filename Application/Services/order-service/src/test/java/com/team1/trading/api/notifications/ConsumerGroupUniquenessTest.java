@@ -34,7 +34,7 @@ class ConsumerGroupUniquenessTest {
             }
         }
 
-        assertThat(groups).contains("notification-service", "portfolio-service");
+        assertThat(groups).contains("notification-service", "portfolio-service", "watchlist-service");
         assertThat(groups).doesNotHaveDuplicates();
     }
 }

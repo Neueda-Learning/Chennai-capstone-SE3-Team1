@@ -117,18 +117,18 @@ describe('Shell', () => {
     expect(root(fixture).textContent).not.toContain('Trading UI');
   });
 
-  it('should render the five navigation links', () => {
+  it('should render the six navigation links', () => {
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
     const links = Array.from(root(fixture).querySelectorAll('.sidebar-menu-link')).map((el) => el.textContent?.trim());
-    expect(links).toEqual(['Dashboard', 'Portfolio', 'Market & Trade', 'Blotter', 'Bank Account Details']);
+    expect(links).toEqual(['Dashboard', 'Portfolio', 'Market & Trade', 'Blotter', 'Watchlists', 'Bank Account Details']);
   });
 
   it('links each entry straight to its page under /app', () => {
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
     const hrefs = Array.from(root(fixture).querySelectorAll('.sidebar-menu-link')).map((el) => el.getAttribute('href'));
-    expect(hrefs).toEqual(['/app/dashboard', '/app/portfolio', '/app/orders', '/app/blotter', '/app/bank-accounts']);
+    expect(hrefs).toEqual(['/app/dashboard', '/app/portfolio', '/app/orders', '/app/blotter', '/app/watchlists', '/app/bank-accounts']);
   });
 
   it('highlights the entry for the page being shown, and only that one', async () => {
@@ -145,6 +145,7 @@ describe('Shell', () => {
       ['/app/portfolio', 'Portfolio'],
       ['/app/orders', 'Market & Trade'],
       ['/app/blotter', 'Blotter'],
+      ['/app/watchlists', 'Watchlists'],
       ['/app/bank-accounts', 'Bank Account Details']
     ]) {
       await router.navigateByUrl(url);

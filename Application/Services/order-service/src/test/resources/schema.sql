@@ -1,3 +1,7 @@
+DROP TABLE IF EXISTS price_alerts;
+DROP TABLE IF EXISTS watchlist_instruments;
+DROP TABLE IF EXISTS watchlists;
+DROP TABLE IF EXISTS market_quotes;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS customer_preferences;
 DROP TABLE IF EXISTS wallet_transfers;
@@ -180,3 +184,58 @@ CREATE TABLE notifications (
         CHECK (status IN ('PENDING_CHANNEL', 'QUEUED', 'SENT', 'FAILED'))
 );
 CREATE INDEX idx_notifications_account_created ON notifications (account_id, created_at DESC);
+
+CREATE TABLE market_quotes (
+    quote_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
+    instrument_id  VARCHAR(20)     NOT NULL,
+    price          DECIMAL(18,4)   NOT NULL,
+    bid            DECIMAL(18,4),
+    ask            DECIMAL(18,4),
+    currency       VARCHAR(3),
+    day_change     DECIMAL(18,4),
+    change_percent DECIMAL(10,4),
+    previous_close DECIMAL(18,4),
+    market_state   VARCHAR(20),
+    stale          BOOLEAN         NOT NULL DEFAULT FALSE,
+    quote_as_of    TIMESTAMP,
+    received_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_market_quotes_instrument_received ON market_quotes (instrument_id, received_at DESC);
+
+CREATE TABLE watchlists (
+    watchlist_id UUID         PRIMARY KEY,
+    account_id   BIGINT       NOT NULL,
+    name         VARCHAR_IGNORECASE(60) NOT NULL,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX uq_watchlists_account_name ON watchlists (account_id, name);
+
+CREATE TABLE watchlist_instruments (
+    watchlist_id  UUID         NOT NULL,
+    instrument_id VARCHAR(20)  NOT NULL,
+    added_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (watchlist_id, instrument_id),
+    CONSTRAINT fk_watchlist_instruments_watchlist
+        FOREIGN KEY (watchlist_id) REFERENCES watchlists(watchlist_id) ON DELETE CASCADE
+);
+
+CREATE TABLE price_alerts (
+    alert_id       UUID           PRIMARY KEY,
+    account_id     BIGINT         NOT NULL,
+    instrument_id  VARCHAR(20)    NOT NULL,
+    threshold      DECIMAL(18,4)  NOT NULL,
+    direction      VARCHAR(5)     NOT NULL,
+    state          VARCHAR(10)    NOT NULL DEFAULT 'ARMED',
+    delivery_state VARCHAR(20),
+    fired_at       TIMESTAMP,
+    fired_price    DECIMAL(18,4),
+    created_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_price_alerts_threshold CHECK (threshold > 0),
+    CONSTRAINT chk_price_alerts_direction CHECK (direction IN ('ABOVE', 'BELOW')),
+    CONSTRAINT chk_price_alerts_state CHECK (state IN ('ARMED', 'FIRED', 'DISABLED')),
+    CONSTRAINT chk_price_alerts_delivery_state
+        CHECK (delivery_state IS NULL
+               OR delivery_state IN ('QUEUED', 'PENDING_CHANNEL', 'REJECTED', 'DELIVERY_FAILED'))
+);
+CREATE INDEX idx_price_alerts_symbol_state ON price_alerts (instrument_id, state);

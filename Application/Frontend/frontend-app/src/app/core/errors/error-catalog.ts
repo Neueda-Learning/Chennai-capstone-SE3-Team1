@@ -13,11 +13,11 @@ export interface ErrorCatalogueEntry {
   appliesTo: 'trade' | 'auth' | 'both';
 }
 
-export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'INTERNAL-500'] as const;
+export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
 
 export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422', 'AUTH-410'] as const;
 
-export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'INTERNAL-500'] as const;
+export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
 
 export const AUTH_SIGNIN_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
@@ -33,6 +33,10 @@ export const tradeErrorMessageByCode: Readonly<Record<string, string>> = {
   'TRF-409': 'The idempotency key for this transfer has already been used.',
   'PRF-404': 'No notification preference has been saved for this account yet.',
   'PRF-422': 'That preference cannot be saved. Choose one of your own accounts.',
+  'WLT-404': 'That watchlist or alert could not be found. It may already have been removed.',
+  'WLT-409': 'You already have a watchlist with that name.',
+  'WLT-422': 'That symbol is not one that can be watched.',
+  'WLT-429': 'You have reached the limit: 10 watchlists, 50 instruments in a watchlist, or 25 alerts. Remove one first.',
   'INTERNAL-500': 'An unexpected error occurred. Please try again shortly.'
 };
 

@@ -173,7 +173,7 @@ Watchlists **never** falls back to writing the alert to a log file in place of c
 
 ### Idempotency
 
-`deliveryId` is the primary key on the notifications row for alert-sourced messages (trade-event sourced messages key on the Kafka `event_id` — same column, different source). A replay with the same `deliveryId` returns the row's current state as the outcome without writing again. Watchlists derives `deliveryId` deterministically from `alert_id + fired_at` so that a re-firing after a re-arm is a distinct message, and an accidental double-call inside a single consumer poll is a no-op.
+`deliveryId` is the primary key on the notifications row for alert-sourced messages (trade-event sourced messages key on the Kafka `event_id` — same column, different source). A replay with the same `deliveryId` returns the row's current state as the outcome without writing again. This is what makes Watchlists' recovery safe: `AlertDeliverySweeper` re-hands any `FIRED` alert whose `delivery_state` is still empty after 30 s (a crash between the guarded fire and the hand-over), and the repeat is a no-op here ([`decision-log/0010`](../../decision-log/0010-a-crossing-is-reaching-the-threshold-on-a-live-quote-and-an-undelivered-alert-is-recovered-by-a-sweep.md)). Watchlists derives `deliveryId` deterministically (`UUID.nameUUIDFromBytes(alertId + "|" + firedAt)`) from `alert_id + fired_at` so that a re-firing after a re-arm is a distinct message, and an accidental double-call inside a single consumer poll is a no-op.
 
 ### Thread safety and timeouts
 

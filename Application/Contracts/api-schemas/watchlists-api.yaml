@@ -1,0 +1,442 @@
+openapi: 3.1.0
+
+info:
+  title: Watchlists and Price Alerts API
+  version: 1.0.0
+  summary: A customer's watchlists with live prices, and price alerts that fire once.
+  description: |
+    Binding contract for the Watchlists and Price Alerts module of the Trade REST API
+    (`com.team1.trading.api.watchlists`). It is written before the controllers, and the
+    controllers implement it exactly.
+
+    ## What the module does
+
+    A customer keeps named watchlists of instruments and sees the latest price beside each
+    entry. A watchlist entry is not a position: any active instrument can be watched, traded or
+    not.
+
+    A customer also sets price alerts: a symbol, a threshold and a direction. The module
+    consumes `market-data` in its own consumer group (`watchlist-service`) and compares every
+    quote with the armed alerts for that symbol. The first quote at or past the threshold, in
+    the alert's direction, fires the alert exactly once (`decision-log/0005`, `0010`): the alert
+    moves from `ARMED` to `FIRED`, and the module hands it to Customer Notifications, which
+    resolves the channel the customer chose. The module never sends a message itself and never
+    writes an alert to a log in place of delivering it.
+
+    ## Alert state
+
+    | `state` | Meaning |
+    |---|---|
+    | `ARMED` | Waiting. Every quote for the symbol is compared with it. |
+    | `FIRED` | A quote crossed the threshold. The alert is no longer evaluated until the customer re-arms it. |
+    | `DISABLED` | The customer turned it off. Not evaluated. |
+
+    `FIRED` is only ever set by the module. A caller can set `ARMED` (re-arm) or `DISABLED`.
+
+    | `deliveryState` | Meaning |
+    |---|---|
+    | null | The alert has not fired, or fired a moment ago and has not been handed over yet. |
+    | `QUEUED` | Notifications recorded the message and queued it on the customer's channel. |
+    | `PENDING_CHANNEL` | Notifications recorded the message but the customer has no channel stored yet. It is sent once one exists. |
+    | `REJECTED` | Notifications refused the message (unknown account). |
+    | `DELIVERY_FAILED` | The hand-over raised an infrastructure error. The alert stays `FIRED`; nothing is retried. |
+
+    ## Limits
+
+    | Limit | Value | Error |
+    |---|---|---|
+    | Alerts per account (all states) | 25 | `WLT-429` |
+    | Watchlists per account | 10 | `WLT-429` |
+    | Instruments per watchlist | 50 | `WLT-429` |
+
+    ## Authentication and access
+
+    Every route requires a valid signed JWT. A missing, malformed, expired or wrongly signed
+    token is `AUTH-401`, 401.
+
+    A valid token whose `accountId` claim does not equal the `{accountId}` in the path is
+    `ACC-403`, 403, on every route. There is no administrator exception. The check is made
+    before the database is touched. A watchlist or alert id that belongs to another account is
+    reported as `WLT-404`, exactly as one that does not exist.
+
+    ## Routes that do not exist
+
+    Delivering an alert is a Java interface (`NotificationDelivery`), not a route
+    (`decision-log/0006`). No path accepts a message to deliver, a destination, or a request to
+    set an alert to `FIRED`.
+
+servers:
+  - url: http://localhost:8080
+    description: Local Trade REST API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/accounts/{accountId}/watchlists:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    get:
+      operationId: listWatchlists
+      summary: The account's watchlists, oldest first, each with its instruments and their latest prices.
+      tags: [Watchlists]
+      responses:
+        "200":
+          description: The watchlists, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Watchlist" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createWatchlist
+      summary: Create an empty watchlist.
+      tags: [Watchlists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWatchlistRequest" }
+      responses:
+        "201":
+          description: The new watchlist.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Watchlist" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The account already has a watchlist with that name (`WLT-409`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429":
+          description: The account already has 10 watchlists (`WLT-429`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/accounts/{accountId}/watchlists/{watchlistId}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/WatchlistId"
+    delete:
+      operationId: deleteWatchlist
+      summary: Delete a watchlist and its instruments. Alerts are not affected.
+      tags: [Watchlists]
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/accounts/{accountId}/watchlists/{watchlistId}/instruments:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/WatchlistId"
+    post:
+      operationId: addWatchlistInstrument
+      summary: Add a symbol to a watchlist.
+      description: The symbol is checked against the instrument reference data, which is only read. Adding a symbol already on the list is a no-op that returns the entry.
+      tags: [Watchlists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddInstrumentRequest" }
+      responses:
+        "201":
+          description: The entry, with its latest price if one has been received.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WatchlistEntry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: The body is malformed (`VAL-422`) or the symbol is not an active instrument (`WLT-422`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429":
+          description: The watchlist already holds 50 instruments (`WLT-429`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/accounts/{accountId}/watchlists/{watchlistId}/instruments/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/WatchlistId"
+      - name: symbol
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: removeWatchlistInstrument
+      summary: Remove a symbol from a watchlist.
+      tags: [Watchlists]
+      responses:
+        "204": { description: Removed (also when the symbol was not on the list). }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/accounts/{accountId}/alerts:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    get:
+      operationId: listAlerts
+      summary: The account's alerts, newest first, with state and delivery state.
+      tags: [Alerts]
+      responses:
+        "200":
+          description: The alerts, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createAlert
+      summary: Create an armed alert.
+      tags: [Alerts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAlertRequest" }
+      responses:
+        "201":
+          description: The new alert, `ARMED`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422":
+          description: The body is malformed or the threshold is not a positive number (`VAL-422`), or the symbol is not an active instrument (`WLT-422`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429":
+          description: The account already has 25 alerts (`WLT-429`). Delete one to create another.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/accounts/{accountId}/alerts/{alertId}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/AlertId"
+    patch:
+      operationId: updateAlertState
+      summary: Re-arm an alert or disable it.
+      description: |
+        `ARMED` re-arms the alert and clears its delivery state; the next quote at or past the
+        threshold fires it again. `DISABLED` stops it being evaluated. `FIRED` is refused.
+      tags: [Alerts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAlertRequest" }
+      responses:
+        "200":
+          description: The alert after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      operationId: deleteAlert
+      summary: Delete an alert.
+      tags: [Alerts]
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    WatchlistId:
+      name: watchlistId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AlertId:
+      name: alertId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: No valid token (`AUTH-401`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: The token is for a different account (`ACC-403`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: No such watchlist or alert on this account (`WLT-404`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Invalid:
+      description: The body is not acceptable (`VAL-422`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    Direction:
+      type: string
+      enum: [ABOVE, BELOW]
+      description: "`ABOVE` fires on a quote at or above the threshold; `BELOW` on a quote at or below it."
+
+    AlertState:
+      type: string
+      enum: [ARMED, FIRED, DISABLED]
+
+    DeliveryState:
+      type: string
+      enum: [QUEUED, PENDING_CHANNEL, REJECTED, DELIVERY_FAILED]
+
+    CreateWatchlistRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Trimmed. Unique per account, ignoring case.
+
+    AddInstrumentRequest:
+      type: object
+      additionalProperties: false
+      required: [symbol]
+      properties:
+        symbol:
+          type: string
+          description: Instrument symbol. Trimmed and upper-cased.
+
+    WatchlistEntry:
+      type: object
+      required: [symbol, name]
+      properties:
+        symbol: { type: string }
+        name: { type: string, description: The instrument's name from reference data. }
+        price:
+          description: Latest received price. Null until a quote has been received.
+          oneOf:
+            - { type: number }
+            - { type: "null" }
+        currency:
+          oneOf:
+            - { type: string }
+            - { type: "null" }
+        changePercent:
+          description: Percentage points against the previous close. `0.09` means 0.09 per cent.
+          oneOf:
+            - { type: number }
+            - { type: "null" }
+        stale:
+          type: boolean
+          description: True when the latest quote was flagged stale at source.
+        quoteAsOf:
+          description: Observation time of the latest quote.
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
+
+    Watchlist:
+      type: object
+      required: [id, name, createdAt, instruments]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        instruments:
+          type: array
+          items: { $ref: "#/components/schemas/WatchlistEntry" }
+
+    CreateAlertRequest:
+      type: object
+      additionalProperties: false
+      required: [symbol, threshold, direction]
+      properties:
+        symbol: { type: string }
+        threshold:
+          type: number
+          exclusiveMinimum: 0
+          description: At most four decimal places and 14 integer digits.
+        direction: { $ref: "#/components/schemas/Direction" }
+
+    UpdateAlertRequest:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [ARMED, DISABLED]
+
+    Alert:
+      type: object
+      required: [id, symbol, threshold, direction, state, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        symbol: { type: string }
+        threshold: { type: number }
+        direction: { $ref: "#/components/schemas/Direction" }
+        state: { $ref: "#/components/schemas/AlertState" }
+        deliveryState:
+          oneOf:
+            - { $ref: "#/components/schemas/DeliveryState" }
+            - { type: "null" }
+        firedAt:
+          description: When the alert last fired. Null if it never has.
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
+        firedPrice:
+          description: The price of the quote that fired it.
+          oneOf:
+            - { type: number }
+            - { type: "null" }
+        createdAt: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      required: [errorCode, message]
+      properties:
+        errorCode:
+          type: string
+          enum: [ACC-403, ACC-404, AUTH-401, VAL-422, WLT-404, WLT-409, WLT-422, WLT-429]
+        message: { type: string }

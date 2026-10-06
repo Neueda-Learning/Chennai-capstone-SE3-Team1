@@ -30,7 +30,7 @@ Four packages inside the Trade REST API (`Application/Services/order-service`, b
 
 - Notifications: the pre-existing DB-polling feed (`GET .../notifications`) is kept for the bell. The module adds a `trade-events` consumer (group `notification-service`), the `notifications` ledger with `UNIQUE(event_id)`, preference lookup, channel senders and the `/notification-history` route (built 2026-10-06, SEC3-590).
 - Portfolio is live (`MarketDataListener`, group `portfolio-service`) but is served at `/api/v1/accounts/{id}/portfolio` with a response shape that differs from `contracts/portfolio-api.yaml`. Closing that gap is the Portfolio work.
-- Preferences and Watchlists have no code.
+- Preferences (SEC3-589) and Watchlists (SEC3-591, built 2026-10-06) are built: `api/watchlists` has the nine routes in `watchlists-api.yaml`, the `market-data` consumer in group `watchlist-service`, the fire-once evaluator, the hand-off to `NotificationDelivery`, a crash-recovery sweeper, migration `029` and the Angular Watchlists page. The meaning of "crossed" and the recovery rule are in [`0010`](../../decision-log/0010-a-crossing-is-reaching-the-threshold-on-a-live-quote-and-an-undelivered-alert-is-recovered-by-a-sweep.md).
 
 ## 2. Proposed routes
 
@@ -49,7 +49,7 @@ Every route sits behind the standard bearer-token verifier, takes the account fr
 |---|---|---|---|
 | GET | `/api/v1/accounts/{accountId}/notification-history` | Notification ledger, newest first | `limit` (default 30, 1–100) and `before` cursor; returns status and channel kind, never the stored address. The existing `GET /api/v1/accounts/{accountId}/notifications` (derived activity feed behind the bell, `NotificationMapper`) is left unchanged, so the new ledger is served at its own path ([`0008`](../../decision-log/0008-the-notification-ledger-has-its-own-history-route-and-honest-delivery-states.md)) |
 
-### Watchlists and alerts (no contract supplied — proposed)
+### Watchlists and alerts (no contract supplied — written by the team in `Application/Contracts/api-schemas/watchlists-api.yaml`)
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -62,6 +62,8 @@ Every route sits behind the standard bearer-token verifier, takes the account fr
 | POST | `/api/v1/accounts/{accountId}/alerts` | Create an alert `{symbol, threshold, direction}`; per-account cap enforced (`WLT-429`) |
 | PATCH | `/api/v1/accounts/{accountId}/alerts/{alertId}` | Re-arm (`state = ARMED`) or disable (`state = DISABLED`); `FIRED` cannot be set by a caller |
 | DELETE | `/api/v1/accounts/{accountId}/alerts/{alertId}` | Delete an alert |
+
+Caps: 10 watchlists and 25 alerts per account, 50 instruments per watchlist, each `429 WLT-429`. Other codes: `WLT-404` (not on this account), `WLT-409` (duplicate watchlist name), `WLT-422` (unknown symbol).
 
 ### Portfolio (contract supplied)
 
@@ -118,7 +120,7 @@ Story IDs are local to this document (PRF, NTF, WLT, PFL, INT, SEC, DOC). Each i
 | ID | Story | Acceptance criteria |
 |---|---|---|
 | WLT-1 | OpenAPI for watchlist and alert routes | Spec committed before implementation |
-| WLT-2 | Tables and indexes | `watchlists`, instruments, `price_alerts(state ARMED/FIRED/DISABLED)`; index on `(symbol, state)` so the per-quote lookup does not scan; reference data referenced, not copied |
+| WLT-2 | Tables and indexes | `watchlists`, instruments, `price_alerts(state ARMED/FIRED/DISABLED)`; partial index on `(instrument_id) WHERE state = 'ARMED'` (the symbol is the instrument id) so the per-quote lookup does not scan; reference data referenced, not copied |
 | WLT-3 | Watchlist and instrument routes | `ACC-403` on mismatch on every route; unknown symbol rejected |
 | WLT-4 | Alert routes | Create/list/re-arm/disable/delete; per-account cap; `FIRED` not settable by callers |
 | WLT-5 | `market-data` consumer | Group `watchlist-service`; does not touch `orders` or `trade-events`; evaluates only `ARMED` alerts for the quote's symbol |

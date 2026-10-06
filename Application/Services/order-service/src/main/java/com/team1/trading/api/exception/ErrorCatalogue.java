@@ -19,6 +19,10 @@ public final class ErrorCatalogue {
     public static final String AUTH_401 = "AUTH-401";
     public static final String PRF_404 = "PRF-404";
     public static final String PRF_422 = "PRF-422";
+    public static final String WLT_404 = "WLT-404";
+    public static final String WLT_409 = "WLT-409";
+    public static final String WLT_422 = "WLT-422";
+    public static final String WLT_429 = "WLT-429";
 
     public static final String INTERNAL_500 = "INTERNAL-500";
 
@@ -35,6 +39,10 @@ public final class ErrorCatalogue {
             Map.entry(AUTH_401, HttpStatus.UNAUTHORIZED),
             Map.entry(PRF_404, HttpStatus.NOT_FOUND),
             Map.entry(PRF_422, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(WLT_404, HttpStatus.NOT_FOUND),
+            Map.entry(WLT_409, HttpStatus.CONFLICT),
+            Map.entry(WLT_422, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(WLT_429, HttpStatus.TOO_MANY_REQUESTS),
             Map.entry(INTERNAL_500, HttpStatus.INTERNAL_SERVER_ERROR)
     );
 

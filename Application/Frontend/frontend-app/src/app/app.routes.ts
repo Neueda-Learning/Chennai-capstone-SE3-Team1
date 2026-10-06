@@ -58,6 +58,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/blotter/blotter-page').then((m) => m.BlotterPage)
       },
       {
+        path: 'watchlists',
+        loadComponent: () =>
+          import('./features/watchlists/watchlists-page').then((m) => m.WatchlistsPage)
+      },
+      {
         path: 'account',
         loadComponent: () => import('./features/account/account-page').then((m) => m.AccountPage)
       },
@@ -87,6 +92,10 @@ export const routes: Routes = [
   {
     path: 'blotter',
     redirectTo: 'app/blotter'
+  },
+  {
+    path: 'watchlists',
+    redirectTo: 'app/watchlists'
   },
   {
     path: 'account',

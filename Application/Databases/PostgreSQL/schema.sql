@@ -440,6 +440,25 @@ CREATE SEQUENCE public.portfolio_positions_position_id_seq
 ALTER SEQUENCE public.portfolio_positions_position_id_seq OWNED BY public.portfolio_positions.position_id;
 
 
+CREATE TABLE public.price_alerts (
+    alert_id uuid NOT NULL,
+    account_id bigint NOT NULL,
+    instrument_id character varying(20) NOT NULL,
+    threshold numeric(18,4) NOT NULL,
+    direction character varying(5) NOT NULL,
+    state character varying(10) DEFAULT 'ARMED'::character varying NOT NULL,
+    delivery_state character varying(20),
+    fired_at timestamp without time zone,
+    fired_price numeric(18,4),
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_price_alerts_delivery_state CHECK (((delivery_state IS NULL) OR ((delivery_state)::text = ANY ((ARRAY['QUEUED'::character varying, 'PENDING_CHANNEL'::character varying, 'REJECTED'::character varying, 'DELIVERY_FAILED'::character varying])::text[])))),
+    CONSTRAINT chk_price_alerts_direction CHECK (((direction)::text = ANY ((ARRAY['ABOVE'::character varying, 'BELOW'::character varying])::text[]))),
+    CONSTRAINT chk_price_alerts_state CHECK (((state)::text = ANY ((ARRAY['ARMED'::character varying, 'FIRED'::character varying, 'DISABLED'::character varying])::text[]))),
+    CONSTRAINT chk_price_alerts_threshold CHECK ((threshold > (0)::numeric))
+);
+
+
 CREATE TABLE public.schema_migrations (
     filename character varying(255) NOT NULL,
     checksum character(64) NOT NULL,
@@ -457,6 +476,22 @@ CREATE TABLE public.wallet_transfers (
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_wallet_transfers_amount_positive CHECK ((amount > (0)::numeric)),
     CONSTRAINT chk_wallet_transfers_direction CHECK (((direction)::text = ANY ((ARRAY['BANK_TO_WALLET'::character varying, 'WALLET_TO_BANK'::character varying])::text[])))
+);
+
+
+CREATE TABLE public.watchlist_instruments (
+    watchlist_id uuid NOT NULL,
+    instrument_id character varying(20) NOT NULL,
+    added_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+CREATE TABLE public.watchlists (
+    watchlist_id uuid NOT NULL,
+    account_id bigint NOT NULL,
+    name character varying(60) NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_watchlists_name_not_blank CHECK ((length(btrim((name)::text)) > 0))
 );
 
 
@@ -555,6 +590,10 @@ ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_pkey PRIMARY KEY (position_id);
 
 
+ALTER TABLE ONLY public.price_alerts
+    ADD CONSTRAINT price_alerts_pkey PRIMARY KEY (alert_id);
+
+
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 
@@ -585,6 +624,14 @@ ALTER TABLE ONLY public.wallet_transfers
 
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_pkey PRIMARY KEY (transfer_id);
+
+
+ALTER TABLE ONLY public.watchlist_instruments
+    ADD CONSTRAINT watchlist_instruments_pkey PRIMARY KEY (watchlist_id, instrument_id);
+
+
+ALTER TABLE ONLY public.watchlists
+    ADD CONSTRAINT watchlists_pkey PRIMARY KEY (watchlist_id);
 
 
 CREATE INDEX idx_otp_codes_email_purpose ON auth_db.otp_codes USING btree (email, purpose);
@@ -653,10 +700,22 @@ CREATE INDEX idx_portfolio_positions_client_id ON public.portfolio_positions USI
 CREATE INDEX idx_portfolio_positions_instrument_id ON public.portfolio_positions USING btree (instrument_id);
 
 
+CREATE INDEX idx_price_alerts_account_created ON public.price_alerts USING btree (account_id, created_at DESC);
+
+
+CREATE INDEX idx_price_alerts_symbol_armed ON public.price_alerts USING btree (instrument_id) WHERE ((state)::text = 'ARMED'::text);
+
+
+CREATE INDEX idx_price_alerts_undelivered ON public.price_alerts USING btree (fired_at) WHERE (((state)::text = 'FIRED'::text) AND (delivery_state IS NULL));
+
+
 CREATE INDEX idx_wallet_transfers_client_id ON public.wallet_transfers USING btree (client_id);
 
 
 CREATE UNIQUE INDEX uq_order_history_idempotency_key ON public.order_history USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+
+CREATE UNIQUE INDEX uq_watchlists_account_name ON public.watchlists USING btree (account_id, lower((name)::text));
 
 
 CREATE TRIGGER trg_clients_no_delete BEFORE DELETE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.fn_clients_state_transition();
@@ -728,12 +787,32 @@ ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
 
 
+ALTER TABLE ONLY public.price_alerts
+    ADD CONSTRAINT price_alerts_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
+
+
+ALTER TABLE ONLY public.price_alerts
+    ADD CONSTRAINT price_alerts_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
+
+
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_account_number_fkey FOREIGN KEY (account_number) REFERENCES public.bank_account(account_number);
 
 
 ALTER TABLE ONLY public.wallet_transfers
     ADD CONSTRAINT wallet_transfers_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id);
+
+
+ALTER TABLE ONLY public.watchlist_instruments
+    ADD CONSTRAINT watchlist_instruments_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instruments(instrument_id);
+
+
+ALTER TABLE ONLY public.watchlist_instruments
+    ADD CONSTRAINT watchlist_instruments_watchlist_id_fkey FOREIGN KEY (watchlist_id) REFERENCES public.watchlists(watchlist_id) ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY public.watchlists
+    ADD CONSTRAINT watchlists_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
 
 
 \unrestrict HF69wgU9BTU5mZDDFzytA8LWFn9YiUjnuWQa3koDw0cSsO1nTwgFZRfDNJsF7dQ
