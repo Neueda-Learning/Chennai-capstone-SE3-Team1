@@ -1,5 +1,5 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import ApexCharts from 'apexcharts';
 import type { ApexOptions } from 'apexcharts';
 import { Subscription, forkJoin, of, timer } from 'rxjs';
@@ -9,30 +9,29 @@ import { SessionStore } from '../../core/auth/session.store';
 import { NotificationStore } from '../../core/notifications/notification.store';
 import { chartPalette } from '../../core/charts/chart-theme';
 import { formatMoney, formatMoneyWhole, formatSignedMoney, formatSignedPercent } from '../../core/format/money';
-import {
-  OrderFlow,
-  PricedEntry,
-  bucketOrders,
-  countOrders,
-  orderValue,
-  priceEntries,
-  summarise
-} from '../../core/portfolio/portfolio-metrics';
+import { PricedEntry, orderValue, priceEntries, summarise } from '../../core/portfolio/portfolio-metrics';
 import { MarketQuote, MarketService } from '../../core/services/market.service';
 import { Portfolio, PortfolioService } from '../../core/services/portfolio.service';
 import { ThemeService } from '../../core/theme/theme.service';
+import { WatchlistStore } from '../../core/watchlists/watchlist.store';
+import { AlertList } from '../../shared/alert-list/alert-list';
+import { SymbolPicker } from '../../shared/symbol-picker/symbol-picker';
+import { WatchlistCard } from '../../shared/watchlist-card/watchlist-card';
+import { InstrumentCatalog } from '../../core/services/instrument-catalog.service';
+import { Watchlist } from '../../core/services/watchlist.service';
 import { AccountsService, BalanceResponse, OrderHistoryEntry } from '../../generated/trade-client';
 
 const FONT = 'Plus Jakarta Sans, sans-serif';
 const REFRESH_MS = 60_000;
 const RECENT_ORDERS = 5;
+/** Alerts shown on the dashboard; the rest are one click away on the Watchlists page. */
+const DASHBOARD_ALERTS = 4;
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
-type RangeDays = 7 | 30 | 90;
 
 @Component({
   selector: 'tui-dashboard-page',
-  imports: [RouterLink],
+  imports: [RouterLink, WatchlistCard, AlertList, SymbolPicker],
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.css'
 })
@@ -43,8 +42,10 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   private readonly marketApi = inject(MarketService);
   private readonly theme = inject(ThemeService);
   private readonly notifications = inject(NotificationStore);
+  private readonly router = inject(Router);
+  protected readonly store = inject(WatchlistStore);
+  protected readonly catalog = inject(InstrumentCatalog);
 
-  private readonly orderFlowChartEl = viewChild.required<ElementRef<HTMLElement>>('orderFlowChart');
   private readonly allocationChartEl = viewChild.required<ElementRef<HTMLElement>>('allocationChart');
 
   protected readonly formatMoney = formatMoney;
@@ -56,13 +57,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   protected readonly accountId = this.session.accountId;
   protected readonly state = signal<LoadState>('idle');
   protected readonly refreshFailed = signal(false);
-
-  protected readonly rangeOptions: readonly { label: string; days: RangeDays }[] = [
-    { label: 'Last 7 days', days: 7 },
-    { label: 'Last 30 days', days: 30 },
-    { label: 'Last 90 days', days: 90 }
-  ];
-  protected readonly rangeDays = signal<RangeDays>(30);
 
   private readonly balance = signal<BalanceResponse | null>(null);
   private readonly portfolio = signal<Portfolio | null>(null);
@@ -81,15 +75,19 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   });
 
   protected readonly summary = computed(() => summarise(this.balance()?.cashBalance ?? 0, this.entries()));
-  protected readonly counts = computed(() => countOrders(this.orders()));
   protected readonly recentOrders = computed(() => this.orders().slice(0, RECENT_ORDERS));
 
-  protected readonly orderFlow = computed<OrderFlow>(() =>
-    bucketOrders(this.orders(), this.rangeDays(), new Date())
-  );
-  protected readonly orderFlowTotal = computed(
-    () => this.orderFlow().buys.reduce((a, b) => a + b, 0) + this.orderFlow().sells.reduce((a, b) => a + b, 0)
-  );
+  protected readonly dashboardAlerts = DASHBOARD_ALERTS;
+  /** Which watchlist the dashboard is showing, when there are several. Defaults to the first. */
+  protected readonly activeListId = signal<string | null>(null);
+  protected readonly activeList = computed<Watchlist | null>(() => {
+    const lists = this.store.watchlists();
+    return lists.find((list) => list.id === this.activeListId()) ?? lists[0] ?? null;
+  });
+  protected readonly newWatchlistName = signal('');
+  protected readonly alertPick = signal<string[]>([]);
+  /** Latest price per symbol, for how far each alert is from its level. */
+  protected readonly prices = computed(() => Object.fromEntries(this.quotes().map((quote) => [quote.symbol, quote.price])));
 
   protected readonly allocation = computed(() => {
     const palette = chartPalette(this.theme.isDark());
@@ -120,14 +118,19 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     return `Your holdings are ${direction} ${Math.abs(summary.unrealisedPercent).toFixed(2)}% on what you paid.`;
   });
 
-  private orderFlowChart: ApexCharts | null = null;
   private allocationChart: ApexCharts | null = null;
   private refreshSubscription: Subscription | null = null;
 
   constructor() {
+    this.store.start();
     effect(() => {
       const accountId = this.accountId();
-      untracked(() => this.startLoading(accountId));
+      untracked(() => {
+        this.startLoading(accountId);
+        if (accountId !== null) {
+          this.catalog.ensureLoaded();
+        }
+      });
     });
 
     effect(() => {
@@ -140,7 +143,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     });
 
     effect(() => {
-      this.orderFlow();
       this.allocation();
       this.summary();
       this.theme.isDark();
@@ -149,20 +151,38 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    this.orderFlowChart = new ApexCharts(this.orderFlowChartEl().nativeElement, this.orderFlowOptions());
     this.allocationChart = new ApexCharts(this.allocationChartEl().nativeElement, this.allocationOptions());
-    void this.orderFlowChart.render();
     void this.allocationChart.render();
   }
 
   ngOnDestroy(): void {
     this.refreshSubscription?.unsubscribe();
-    this.orderFlowChart?.destroy();
     this.allocationChart?.destroy();
+    this.store.stop();
   }
 
-  protected setRange(days: string): void {
-    this.rangeDays.set(Number(days) as RangeDays);
+  protected selectList(id: string): void {
+    this.activeListId.set(id);
+  }
+
+  protected setWatchlistName(event: Event): void {
+    this.newWatchlistName.set((event.target as HTMLInputElement).value);
+  }
+
+  protected createWatchlist(): void {
+    this.store.createWatchlist(this.newWatchlistName()).subscribe((ok) => {
+      if (ok) {
+        this.newWatchlistName.set('');
+      }
+    });
+  }
+
+  /** Picking a stock to alert on opens its chart on the Watchlists page, where the alert is placed. */
+  protected chooseAlertStock(symbols: string[]): void {
+    this.alertPick.set([]);
+    if (symbols[0]) {
+      void this.router.navigate(['/app/watchlists'], { queryParams: { alert: symbols[0] } });
+    }
   }
 
   protected retry(): void {
@@ -183,11 +203,6 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       ' • ' +
       date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
     );
-  }
-
-  protected share(count: number): number {
-    const total = this.counts().total;
-    return total === 0 ? 0 : Math.round((count / total) * 100);
   }
 
   protected trendClass(value: number | null): string {
@@ -243,52 +258,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   }
 
   private syncCharts(): void {
-    this.orderFlowChart?.updateOptions(this.orderFlowOptions(), false, false);
     this.allocationChart?.updateOptions(this.allocationOptions(), false, false);
-  }
-
-  private orderFlowOptions(): ApexOptions {
-    const palette = chartPalette(this.theme.isDark());
-    const flow = this.orderFlow();
-    return {
-      series: [
-        { name: 'Buys', data: flow.buys },
-        { name: 'Sells', data: flow.sells }
-      ],
-      chart: {
-        type: 'bar',
-        height: 220,
-        stacked: false,
-        toolbar: { show: false },
-        zoom: { enabled: false },
-        fontFamily: FONT,
-        foreColor: palette.fore,
-        background: 'transparent'
-      },
-      colors: [palette.primary, palette.secondary],
-      states: { hover: { filter: { type: 'none' } } },
-      plotOptions: { bar: { horizontal: false, columnWidth: '48%', borderRadius: 0 } },
-      dataLabels: { enabled: false },
-      stroke: { show: true, width: 2, colors: ['transparent'] },
-      legend: { show: false },
-      grid: {
-        borderColor: palette.grid,
-        strokeDashArray: 4,
-        yaxis: { lines: { show: true } },
-        xaxis: { lines: { show: false } },
-        padding: { top: 0, right: 0, bottom: 0, left: 0 }
-      },
-      xaxis: {
-        categories: flow.categories,
-        labels: { style: { colors: palette.fore, fontSize: '11px', fontWeight: 500 } },
-        axisBorder: { show: false },
-        axisTicks: { show: false }
-      },
-      yaxis: { labels: { show: false }, min: 0 },
-      fill: { opacity: 1 },
-      noData: { text: 'No orders in this range', style: { color: palette.fore } },
-      tooltip: { y: { formatter: (value: number) => `${value} order${value === 1 ? '' : 's'}` }, theme: palette.tooltip }
-    };
   }
 
   private allocationOptions(): ApexOptions {

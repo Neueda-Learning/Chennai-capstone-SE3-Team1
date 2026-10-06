@@ -23,6 +23,8 @@ import {
 } from '../../core/charts/chart-options';
 import { formatMoney, formatSignedPercent, roundToPaise } from '../../core/format/money';
 import { NotificationStore } from '../../core/notifications/notification.store';
+import { WatchlistStore } from '../../core/watchlists/watchlist.store';
+import { AlertComposer } from '../../shared/alert-composer/alert-composer';
 import { Candle, MarketQuote, MarketService } from '../../core/services/market.service';
 import { Portfolio, PortfolioService } from '../../core/services/portfolio.service';
 import {
@@ -70,7 +72,7 @@ const FIELD_MESSAGES: Record<string, string> = {
 
 @Component({
   selector: 'tui-order-ticket-page',
-  imports: [ReactiveFormsModule, PriceChart],
+  imports: [ReactiveFormsModule, PriceChart, AlertComposer],
   templateUrl: './order-ticket-page.html',
   styleUrl: './order-ticket-page.css'
 })
@@ -83,6 +85,7 @@ export class OrderTicketPage implements OnDestroy {
   private readonly session = inject(SessionStore);
   private readonly errorMessages = inject(OrderErrorMessages);
   private readonly notifications = inject(NotificationStore);
+  protected readonly alertStore = inject(WatchlistStore);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router, { optional: true });
 
@@ -98,6 +101,13 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly quotesState = signal<Load>('idle');
   protected readonly selectedSymbol = signal<string | null>(null);
   protected readonly chartOpen = signal(false);
+  /** While on, a click on the chart places a price-alert marker. */
+  protected readonly markerMode = signal(false);
+  /** The marker being placed, drawn on the chart until it is confirmed or cancelled. */
+  protected readonly pendingAlert = signal<number | null>(null);
+  /** Alerts on the stock on show: drawn on the chart and counted on the Set alert button. */
+  protected readonly selectedAlerts = computed(() => this.alertStore.alertsFor(this.selectedSymbol()));
+  protected readonly armedAlertCount = computed(() => this.selectedAlerts().filter((a) => a.state === 'ARMED').length);
 
   protected readonly ranges = RANGES;
   protected readonly indicatorOptions = INDICATORS;
@@ -202,6 +212,7 @@ export class OrderTicketPage implements OnDestroy {
   private candleRequest: Subscription | null = null;
 
   constructor() {
+    this.alertStore.start();
     this.route?.queryParamMap?.pipe(takeUntilDestroyed()).subscribe((params) => {
       const wanted = params.get('symbol');
       if (wanted === null) {
@@ -252,6 +263,7 @@ export class OrderTicketPage implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.alertStore.stop();
     this.quotesSubscription?.unsubscribe();
     this.candleRequest?.unsubscribe();
   }
@@ -282,6 +294,9 @@ export class OrderTicketPage implements OnDestroy {
   }
 
   protected select(symbol: string): void {
+    if (symbol !== this.selectedSymbol()) {
+      this.pendingAlert.set(null);
+    }
     this.selectedSymbol.set(symbol);
     this.outcome.set(null);
     this.syncUrl(symbol);
@@ -314,6 +329,20 @@ export class OrderTicketPage implements OnDestroy {
 
   protected closeChart(): void {
     this.chartOpen.set(false);
+    this.markerMode.set(false);
+    this.pendingAlert.set(null);
+  }
+
+  /** The bell beside Trend: the chart, ready to have an alert placed on it. */
+  protected openAlertChart(): void {
+    if (this.selected() !== null) {
+      this.chartOpen.set(true);
+      this.markerMode.set(true);
+    }
+  }
+
+  protected placeMarker(price: number): void {
+    this.pendingAlert.set(price);
   }
 
   protected selectAndChart(symbol: string): void {

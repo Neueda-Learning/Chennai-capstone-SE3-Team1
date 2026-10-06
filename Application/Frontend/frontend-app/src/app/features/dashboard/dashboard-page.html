@@ -3,21 +3,6 @@
     <h1 class="page-title">Dashboard</h1>
     <p class="page-subtitle">Your portfolio at a glance.</p>
   </div>
-  <label class="btn-date-picker" for="dashboard-range">
-    <i class="bi bi-calendar4-event"></i>
-    <select
-      id="dashboard-range"
-      class="range-select"
-      data-testid="range-select"
-      aria-label="Order flow range"
-      [value]="rangeDays()"
-      (change)="setRange($any($event.target).value)"
-    >
-      @for (option of rangeOptions; track option.days) {
-        <option [value]="option.days" [selected]="option.days === rangeDays()">{{ option.label }}</option>
-      }
-    </select>
-  </label>
 </div>
 
 @if (accountId() === null) {
@@ -130,23 +115,57 @@
   <div class="col-xl-9 col-lg-8">
     <div class="row g-4">
       <div class="col-12">
-        <div class="card mb-0">
+        <div class="card mb-0" data-testid="dashboard-watchlists">
           <div class="card-header mb-2">
-            <h2 class="card-title">Order Flow</h2>
-            <div class="d-flex gap-3 align-items-center">
-              <div class="chart-legend-item">
-                <span class="legend-dot legend-dot-buys"></span>
-                <span class="chart-legend-label">Buys</span>
-              </div>
-              <div class="chart-legend-item">
-                <span class="legend-dot legend-dot-sells"></span>
-                <span class="chart-legend-label">Sells</span>
-              </div>
-            </div>
+            <h2 class="card-title">Watchlist</h2>
+            <a routerLink="/app/watchlists" class="card-link-small" data-testid="manage-watchlists">Manage</a>
           </div>
-          <div #orderFlowChart></div>
-          @if (state() === 'ready' && orderFlowTotal() === 0) {
-            <p class="empty-note" data-testid="order-flow-empty">No orders placed in this range.</p>
+
+          @if (store.watchlists().length > 1) {
+            <div class="range-switch dash-tabs" role="tablist" aria-label="Your watchlists">
+              @for (list of store.watchlists(); track list.id) {
+                <button
+                  type="button"
+                  role="tab"
+                  class="range-btn"
+                  [attr.data-testid]="'watchlist-tab-' + list.id"
+                  [class.active]="activeList()?.id === list.id"
+                  [attr.aria-selected]="activeList()?.id === list.id"
+                  (click)="selectList(list.id)"
+                >
+                  {{ list.name }}
+                </button>
+              }
+            </div>
+          }
+
+          @if (activeList(); as list) {
+            <tui-watchlist-card [watchlist]="list" [showHeader]="false" [compact]="true" />
+          } @else if (store.loaded()) {
+            <div class="dash-empty" data-testid="dashboard-watchlist-empty">
+              <p class="mb-2">You are not following anything yet. Create a watchlist, then search for the instruments you want to track.</p>
+              <div class="d-flex gap-2">
+                <input
+                  type="text"
+                  class="form-control-custom"
+                  aria-label="Watchlist name"
+                  placeholder="e.g. My picks"
+                  maxlength="60"
+                  data-testid="dashboard-watchlist-name"
+                  [value]="newWatchlistName()"
+                  (input)="setWatchlistName($event)"
+                  (keydown.enter)="createWatchlist()"
+                />
+                <button type="button" class="btn-custom btn-custom-primary" data-testid="dashboard-watchlist-create" (click)="createWatchlist()">
+                  Create
+                </button>
+              </div>
+              @if (store.error(); as message) {
+                <p class="small text-danger mt-2 mb-0" role="alert" data-testid="dashboard-watchlist-error">{{ message }}</p>
+              }
+            </div>
+          } @else {
+            <p class="empty-note" data-testid="dashboard-watchlist-loading">Loading your watchlist...</p>
           }
         </div>
       </div>
@@ -189,54 +208,30 @@
       </div>
 
       <div class="col-md-5 d-flex flex-column">
-        <div class="card h-100 flex-grow-1">
+        <div class="card h-100 flex-grow-1" data-testid="dashboard-alerts">
           <div class="card-header">
-            <h2 class="card-title">Order Summary</h2>
+            <h2 class="card-title">Price Alerts</h2>
+            <a routerLink="/app/watchlists" class="card-link-small" data-testid="manage-alerts">Manage</a>
           </div>
 
-          <div class="progress-container">
-            <div class="progress-label-row">
-              <span class="progress-label">Filled</span>
-              <span class="progress-value" data-testid="count-filled">{{ counts().filled }}</span>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Filled orders" [attr.aria-valuenow]="share(counts().filled)" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar bg-lime-accent" [style.width.%]="share(counts().filled)"></div>
-            </div>
-          </div>
+          <tui-symbol-picker
+            testId="dashboard-alert-picker"
+            label="Choose a stock to set a price alert on"
+            placeholder="Search a stock to set an alert"
+            [options]="catalog.instruments()"
+            [loading]="catalog.state() === 'loading' && catalog.instruments().length === 0"
+            [selected]="alertPick()"
+            (selectedChange)="chooseAlertStock($event)"
+          />
+          <p class="small text-muted-green mt-2">Pick a stock to open its chart and click where you want to be alerted.</p>
 
-          <div class="progress-container">
-            <div class="progress-label-row">
-              <span class="progress-label">Working</span>
-              <span class="progress-value" data-testid="count-working">{{ counts().working }}</span>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Working orders" [attr.aria-valuenow]="share(counts().working)" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar bg-lime-accent opacity-50" [style.width.%]="share(counts().working)"></div>
-            </div>
-          </div>
-
-          <div class="progress-container">
-            <div class="progress-label-row">
-              <span class="progress-label">Rejected</span>
-              <span class="progress-value" data-testid="count-rejected">{{ counts().rejected }}</span>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Rejected orders" [attr.aria-valuenow]="share(counts().rejected)" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar bg-brand-orange" [style.width.%]="share(counts().rejected)"></div>
-            </div>
-          </div>
-
-          <div class="progress-container">
-            <div class="progress-label-row">
-              <span class="progress-label">Cancelled</span>
-              <span class="progress-value" data-testid="count-cancelled">{{ counts().cancelled }}</span>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Cancelled orders" [attr.aria-valuenow]="share(counts().cancelled)" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar bg-lime-accent opacity-50" [style.width.%]="share(counts().cancelled)"></div>
-            </div>
-          </div>
-
-          <div class="stat-footnote mt-auto">
-            <span>Total orders <strong data-testid="count-total">{{ counts().total }}</strong></span>
-          </div>
+          <tui-alert-list
+            [alerts]="store.alerts()"
+            [prices]="prices()"
+            [limit]="dashboardAlerts"
+            [compact]="true"
+            (selectSymbol)="chooseAlertStock([$event])"
+          />
         </div>
       </div>
     </div>

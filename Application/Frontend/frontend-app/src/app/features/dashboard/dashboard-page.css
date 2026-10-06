@@ -1,0 +1,11 @@
+.dash-tabs {
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.dash-empty {
+  padding: 0.5rem 0;
+  color: var(--text-muted-green);
+  font-size: 0.88rem;
+}

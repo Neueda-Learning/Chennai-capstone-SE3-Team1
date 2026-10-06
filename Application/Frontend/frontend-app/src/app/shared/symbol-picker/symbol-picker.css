@@ -1,0 +1,226 @@
+:host {
+  display: block;
+}
+
+.picker {
+  position: relative;
+}
+
+.picker-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.75rem;
+  cursor: text;
+}
+
+.picker-nowrap {
+  flex-wrap: nowrap;
+}
+
+.picker-nowrap .picker-input {
+  flex: 1 1 3rem;
+  min-width: 3rem;
+}
+
+.picker-nowrap .picker-single {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.picker-field.picker-open {
+  border-color: var(--brand-lime);
+  box-shadow: 0 0 0 3px var(--brand-lime-translucent);
+}
+
+.picker-disabled .picker-field {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.picker-input {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  padding: 0.25rem 0;
+}
+
+.picker-input::placeholder {
+  color: var(--text-muted-green);
+}
+
+.picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.6rem;
+  border-radius: 50rem;
+  background-color: var(--brand-forest-medium);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.picker-chip-remove,
+.picker-clear,
+.picker-toggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.picker-chip-remove {
+  width: 1.2rem;
+  height: 1.2rem;
+  font-size: 0.95rem;
+}
+
+.picker-chip-remove:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.picker-clear,
+.picker-toggle {
+  width: 1.7rem;
+  height: 1.7rem;
+  color: var(--text-muted-green);
+  font-size: 0.8rem;
+}
+
+.picker-clear:hover,
+.picker-toggle:hover {
+  color: var(--text-main);
+}
+
+.picker-single {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.picker-single-hidden {
+  display: none;
+}
+
+.picker-muted {
+  color: var(--text-muted-green);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-list {
+  /* Fixed, not absolute: a card around the box has overflow hidden and would cut an absolute list off. The
+     component sets left, width, top or bottom and max-height from the box's position. */
+  position: fixed;
+  z-index: 2100;
+  visibility: hidden;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background-color: var(--card-background);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.picker-ready {
+  visibility: visible;
+}
+
+.picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.picker-active {
+  background-color: var(--brand-lime-translucent);
+}
+
+.picker-chosen .picker-symbol {
+  color: var(--brand-forest-medium);
+}
+
+.picker-unavailable {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.picker-check {
+  color: var(--brand-forest-medium);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.picker-symbol {
+  font-weight: 700;
+  min-width: 5.5rem;
+}
+
+.picker-name {
+  flex: 1;
+  color: var(--text-muted-green);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-note {
+  font-size: 0.72rem;
+  color: var(--text-muted-green);
+}
+
+.picker-change {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted-green);
+}
+
+.picker-up {
+  color: #1f9d55;
+}
+
+.picker-down {
+  color: #d64545;
+}
+
+.picker-empty {
+  padding: 0.75rem;
+  color: var(--text-muted-green);
+  font-size: 0.85rem;
+}
+
+:host-context(html[data-bs-theme='dark']) .picker-chip {
+  background-color: var(--brand-lime);
+  color: var(--brand-forest-dark);
+}
+
+:host-context(html[data-bs-theme='dark']) .picker-chip-remove:hover {
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
+:host-context(html[data-bs-theme='dark']) .picker-chosen .picker-symbol,
+:host-context(html[data-bs-theme='dark']) .picker-check {
+  color: var(--brand-lime);
+}

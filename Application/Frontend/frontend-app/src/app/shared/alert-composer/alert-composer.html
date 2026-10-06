@@ -1,0 +1,107 @@
+<div class="composer" data-testid="alert-composer">
+  <div class="composer-head">
+    <button
+      type="button"
+      class="range-btn composer-mode"
+      data-testid="marker-toggle"
+      [class.active]="markerMode()"
+      [attr.aria-pressed]="markerMode()"
+      (click)="toggleMarkerMode()"
+    >
+      <i class="bi bi-bell" aria-hidden="true"></i>
+      {{ markerMode() ? 'Placing alerts: click the chart' : 'Set alerts on the chart' }}
+    </button>
+    @if (pendingPrice() === null) {
+      <button type="button" class="btn-link-inline" data-testid="by-price" (click)="startByPrice()">or enter a price</button>
+    }
+  </div>
+
+  @if (markerMode() && pendingPrice() === null) {
+    <p class="composer-hint" data-testid="marker-hint">
+      Click the chart at the price you want to be alerted at. A level above the current price waits for a rise; a level below waits for a fall.
+    </p>
+  }
+
+  @if (pendingPrice() !== null || (markerMode() && currentPrice() === null)) {
+    <div class="composer-form" data-testid="composer-form">
+      <div class="composer-sentence">
+        Alert me when <strong>{{ symbol() }}</strong>
+        <span class="composer-direction" data-testid="composer-direction" [attr.data-direction]="direction()">
+          {{ direction() === 'ABOVE' ? 'rises to or above' : 'falls to or below' }}
+        </span>
+      </div>
+      <div class="composer-row">
+        <span class="composer-rupee" aria-hidden="true">&#8377;</span>
+        <input
+          type="number"
+          class="form-control-custom composer-price"
+          aria-label="Alert price"
+          min="0"
+          step="0.05"
+          inputmode="decimal"
+          data-testid="composer-price"
+          [value]="text()"
+          (input)="onType($event)"
+          (keydown.enter)="confirm()"
+        />
+        @if (distance(); as d) {
+          <span class="composer-distance" data-testid="composer-distance" [class.composer-up]="d > 0" [class.composer-down]="d < 0">
+            {{ formatPercent(d) }} from now
+          </span>
+        }
+      </div>
+      @if (currentPrice() !== null) {
+        <div class="composer-quick" role="group" aria-label="Quick levels">
+          @for (percent of percents; track percent) {
+            <button type="button" class="composer-chip" [attr.data-testid]="'quick-' + percent" (click)="quick(percent)">
+              {{ percent > 0 ? '+' : '' }}{{ percent }}%
+            </button>
+          }
+        </div>
+      }
+      <div class="composer-actions">
+        <button type="button" class="btn-custom btn-custom-primary" data-testid="composer-confirm" [disabled]="saving()" (click)="confirm()">
+          {{ saving() ? 'Setting...' : 'Set alert' }}
+        </button>
+        <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="composer-cancel" (click)="cancel()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  @if (localError() ?? store.alertError(); as message) {
+    <p class="composer-error" role="alert" data-testid="composer-error">{{ message }}</p>
+  }
+  @if (justSet(); as done) {
+    <p class="composer-done" role="status" data-testid="composer-done"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> {{ done }}</p>
+  }
+
+  <div class="composer-list" data-testid="composer-alerts">
+    @if (alerts().length === 0) {
+      <p class="composer-none" data-testid="composer-none">No alerts on {{ symbol() }} yet.</p>
+    }
+    @for (alert of alerts(); track alert.id) {
+      <div class="composer-alert" [attr.data-testid]="'composer-alert-' + alert.id" [attr.data-state]="alert.state">
+        <span class="composer-alert-level">
+          <span class="composer-arrow" [class.composer-up]="alert.direction === 'ABOVE'" [class.composer-down]="alert.direction === 'BELOW'">{{ arrow(alert) }}</span>
+          {{ formatMoney(alert.threshold) }}
+        </span>
+        <span class="composer-alert-state" data-testid="composer-alert-state">{{ stateText(alert) }}</span>
+        <span class="composer-alert-actions">
+          <button
+            type="button"
+            class="composer-icon"
+            data-testid="composer-alert-toggle"
+            [attr.aria-label]="alert.state === 'ARMED' ? 'Turn off this alert' : 'Turn this alert on again'"
+            [attr.title]="alert.state === 'ARMED' ? 'Turn off' : 'Re-arm'"
+            (click)="toggleAlert(alert)"
+          >
+            <i class="bi" [class.bi-bell-slash]="alert.state === 'ARMED'" [class.bi-bell]="alert.state !== 'ARMED'" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="composer-icon" data-testid="composer-alert-delete" aria-label="Delete this alert" title="Delete" (click)="removeAlert(alert)">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+          </button>
+        </span>
+      </div>
+    }
+  </div>
+</div>

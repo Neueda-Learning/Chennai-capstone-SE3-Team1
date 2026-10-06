@@ -39,12 +39,14 @@ test.describe('Dashboard', () => {
     await expect(page.getByTestId('navbar-name')).toHaveText(username);
   });
 
-  test('it summarises the account orders instead of failing to load', async ({ page }) => {
+  test('it shows the recent orders, the watchlist and the price alerts instead of failing to load', async ({ page }) => {
     await page.goto('/app/dashboard');
 
     await expect(page.getByTestId('load-failed')).toBeHidden();
     await expect(page.getByTestId('no-account')).toBeHidden();
-    await expect(page.getByTestId('count-total')).not.toHaveText('0');
+    await expect(page.getByTestId('recent-order').first()).toBeVisible();
+    await expect(page.getByTestId('dashboard-watchlists')).toBeVisible();
+    await expect(page.getByTestId('dashboard-alerts')).toBeVisible();
   });
 });
 

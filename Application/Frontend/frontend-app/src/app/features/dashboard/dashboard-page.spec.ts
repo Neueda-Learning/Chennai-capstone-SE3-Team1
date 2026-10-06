@@ -1,7 +1,7 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 
 import { SessionStore } from '../../core/auth/session.store';
 import { NotificationStore } from '../../core/notifications/notification.store';
@@ -56,6 +56,30 @@ const PORTFOLIO = {
   positions: []
 };
 
+function alertOn(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    symbol: 'TCS',
+    threshold: 3465,
+    direction: 'ABOVE',
+    state: 'ARMED',
+    deliveryState: null,
+    firedAt: null,
+    firedPrice: null,
+    createdAt: '2026-10-06T09:00:00Z',
+    ...overrides
+  };
+}
+
+function watchlistOf(id: string, name: string, symbols: string[]) {
+  return {
+    id,
+    name,
+    createdAt: '2026-10-06T09:15:00Z',
+    instruments: symbols.map((symbol) => ({ symbol, name: symbol + ' Ltd', price: 100, currency: 'INR', changePercent: 0.5, stale: false, quoteAsOf: null }))
+  };
+}
+
 describe('DashboardPage', () => {
   let http: HttpTestingController;
   let api: FakeApi;
@@ -79,6 +103,8 @@ describe('DashboardPage', () => {
       .get(`/accounts/${ACCOUNT_ID}/balance`, { accountId: ACCOUNT_ID, cashBalance: 50000, currency: 'INR', asOf: '2026-02-14T10:15:30Z' })
       .get(`/accounts/${ACCOUNT_ID}/portfolio`, PORTFOLIO)
       .get(`/accounts/${ACCOUNT_ID}/orders`, ORDERS)
+      .get(`/accounts/${ACCOUNT_ID}/watchlists`, [])
+      .get(`/accounts/${ACCOUNT_ID}/alerts`, [])
       .get('/market/quotes', QUOTES);
   }
 
@@ -125,7 +151,7 @@ describe('DashboardPage', () => {
     const fixture = create();
 
     const titles = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.card-title')).map((el) => el.textContent?.trim());
-    expect(titles).toEqual(expect.arrayContaining(['Order Flow', 'Recent Orders', 'Order Summary', 'Portfolio Allocation']));
+    expect(titles).toEqual(expect.arrayContaining(['Watchlist', 'Recent Orders', 'Price Alerts', 'Portfolio Allocation']));
   });
 
   describe('real numbers', () => {
@@ -174,17 +200,6 @@ describe('DashboardPage', () => {
       const fixture = create();
 
       expect(text(fixture, 'invested')).toContain('29,500.00');
-    });
-
-    it('counts orders by status', () => {
-      setUp();
-      const fixture = create();
-
-      expect(text(fixture, 'count-filled')).toBe('2');
-      expect(text(fixture, 'count-working')).toBe('1');
-      expect(text(fixture, 'count-rejected')).toBe('1');
-      expect(text(fixture, 'count-cancelled')).toBe('1');
-      expect(text(fixture, 'count-total')).toBe('5');
     });
 
     it('lists the most recent orders, newest first, with what they moved', () => {
@@ -239,21 +254,7 @@ describe('DashboardPage', () => {
 
     expect(text(fixture, 'headline')).toContain('No holdings yet');
     expect(text(fixture, 'recent-orders-empty')).toContain('not placed any orders');
-    expect(text(fixture, 'count-total')).toBe('0');
     expect(text(fixture, 'portfolio-value')).toContain('50,000.00');
-  });
-
-  it('limits the order flow to the chosen range', () => {
-    setUp();
-    const fixture = create();
-    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('[data-testid="range-select"]')!;
-
-    select.value = '7';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance['rangeDays']()).toBe(7);
-    expect(fixture.componentInstance['orderFlow']().categories).toHaveLength(7);
   });
 
   it('reloads straight away when a notification says something happened, without waiting a minute', () => {
@@ -279,6 +280,135 @@ describe('DashboardPage', () => {
     settle(fixture);
 
     expect(api.count('/balance')).toBe(before + 1);
+  });
+
+  describe('watchlist and price alerts (in place of the order flow and order summary)', () => {
+    const q = (fixture: ComponentFixture<DashboardPage>, testId: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    const all = (fixture: ComponentFixture<DashboardPage>, testId: string) =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`));
+
+    it('no longer shows the order flow chart, its range picker, or the order summary', () => {
+      setUp();
+      const fixture = create();
+      const page = fixture.nativeElement as HTMLElement;
+
+      expect(page.textContent).not.toContain('Order Flow');
+      expect(page.textContent).not.toContain('Order Summary');
+      expect(q(fixture, 'range-select')).toBeNull();
+      expect(q(fixture, 'order-flow-empty')).toBeNull();
+    });
+
+    it('shows the watchlist section where the order flow was, and the alerts card where the summary was', () => {
+      setUp();
+      const fixture = create();
+
+      expect(q(fixture, 'dashboard-watchlists')).not.toBeNull();
+      expect(q(fixture, 'dashboard-alerts')).not.toBeNull();
+      expect(q(fixture, 'manage-watchlists')?.getAttribute('href')).toBe('/app/watchlists');
+      expect(q(fixture, 'manage-alerts')?.getAttribute('href')).toBe('/app/watchlists');
+    });
+
+    it('shows the first watchlist, with a live price against each entry', () => {
+      setUp();
+      api.set(`/accounts/${ACCOUNT_ID}/watchlists`, [watchlistOf('w1', 'Banks', ['HDFCBANK', 'ICICIBANK'])]);
+      const fixture = create();
+
+      expect(all(fixture, 'entry-symbol').map((e) => e.textContent?.replace(/\s+/g, ' ').trim())).toEqual(
+        expect.arrayContaining([expect.stringContaining('HDFCBANK'), expect.stringContaining('ICICIBANK')])
+      );
+      expect(q(fixture, 'watchlist-tab-w1')).toBeNull(); // one list needs no tabs
+    });
+
+    it('offers tabs when there are several watchlists, and switches between them', () => {
+      setUp();
+      api.set(`/accounts/${ACCOUNT_ID}/watchlists`, [watchlistOf('w1', 'Banks', ['HDFCBANK']), watchlistOf('w2', 'Tech', ['TCS', 'INFY'])]);
+      const fixture = create();
+
+      expect(all(fixture, 'entry-symbol')).toHaveLength(1);
+      expect(q(fixture, 'watchlist-tab-w1')?.classList.contains('active')).toBe(true);
+
+      q(fixture, 'watchlist-tab-w2')?.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, 'watchlist-tab-w2')?.classList.contains('active')).toBe(true);
+      expect(all(fixture, 'entry-symbol')).toHaveLength(2);
+    });
+
+    it('lets a customer with no watchlist create one right on the dashboard', () => {
+      setUp();
+      const fixture = create();
+      expect(q(fixture, 'dashboard-watchlist-empty')).not.toBeNull();
+
+      const box = q(fixture, 'dashboard-watchlist-name') as HTMLInputElement;
+      box.value = 'My picks';
+      box.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      q(fixture, 'dashboard-watchlist-create')?.click();
+      const request = http.expectOne(`${BASE}/api/v1/accounts/${ACCOUNT_ID}/watchlists`);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ name: 'My picks' });
+      request.flush(watchlistOf('new', 'My picks', []));
+      fixture.detectChanges();
+
+      expect(q(fixture, 'dashboard-watchlist-empty')).toBeNull();
+      expect(q(fixture, 'watchlist-no-instruments')).not.toBeNull();
+    });
+
+    it('shows the alerts, with how far each stock is from its level using the latest quote', () => {
+      setUp();
+      api.set(`/accounts/${ACCOUNT_ID}/alerts`, [alertOn('a1', { symbol: 'TCS', threshold: 3465 })]);
+      const fixture = create();
+
+      expect(text(fixture, 'alert-threshold')).toContain('3,465.00');
+      expect(text(fixture, 'alert-distance')).toBe('5.0% to go'); // TCS is at 3,300
+    });
+
+    it('shows only the first few alerts, and counts the rest', () => {
+      setUp();
+      api.set(`/accounts/${ACCOUNT_ID}/alerts`, Array.from({ length: 7 }, (_, i) => alertOn('a' + i, { threshold: 3400 + i })));
+      const fixture = create();
+
+      expect(all(fixture, 'alert-threshold')).toHaveLength(4);
+      expect(text(fixture, 'alert-more')).toBe('+ 3 more');
+    });
+
+    it('opens the chart for a stock on the Watchlists page when one is picked from the search box', async () => {
+      setUp();
+      const fixture = create();
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      (q(fixture, 'dashboard-alert-picker-input') as HTMLInputElement).dispatchEvent(new Event('focus'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (q(fixture, 'picker-option-TCS') as HTMLElement).click();
+
+      expect(navigate).toHaveBeenCalledWith(['/app/watchlists'], { queryParams: { alert: 'TCS' } });
+    });
+
+    it('opens a stock\'s chart when its symbol is clicked in the alert list', () => {
+      setUp();
+      api.set(`/accounts/${ACCOUNT_ID}/alerts`, [alertOn('a1')]);
+      const fixture = create();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      q(fixture, 'alert-symbol')?.click();
+
+      expect(navigate).toHaveBeenCalledWith(['/app/watchlists'], { queryParams: { alert: 'TCS' } });
+    });
+
+    it('stops polling the watchlists when the dashboard is left', () => {
+      setUp();
+      const fixture = create();
+      const before = api.count('/watchlists');
+
+      fixture.destroy();
+      vi.advanceTimersByTime(120_000);
+
+      expect(api.count('/watchlists')).toBe(before);
+    });
   });
 
   describe('when it cannot get the data', () => {

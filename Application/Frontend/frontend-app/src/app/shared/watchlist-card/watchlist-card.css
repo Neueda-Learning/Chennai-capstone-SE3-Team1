@@ -1,0 +1,87 @@
+:host {
+  display: block;
+}
+
+.wl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.wl-empty {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted-green);
+  font-size: 0.86rem;
+}
+
+.wl-table {
+  margin-bottom: 0.75rem;
+}
+
+.wl-name {
+  color: var(--text-muted-green);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.wl-up {
+  color: #1f9d55;
+}
+
+.wl-down {
+  color: #d64545;
+}
+
+.wl-actions {
+  white-space: nowrap;
+}
+
+.wl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted-green);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.wl-icon:hover {
+  background-color: var(--brand-lime-translucent);
+  color: var(--text-main);
+}
+
+.wl-add {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.wl-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.wl-add-button {
+  height: 2.75rem;
+  white-space: nowrap;
+}
+
+.wl-note {
+  margin: 0.5rem 0 0;
+  color: #1f9d55;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.wl-error {
+  margin: 0.5rem 0 0;
+  color: #d64545;
+  font-size: 0.82rem;
+}

@@ -86,14 +86,28 @@
           }
         </div>
         @if (selected() !== null) {
-          <button
-            type="button"
-            class="range-btn"
-            data-testid="open-chart"
-            (click)="openChart()"
-          >
-            <i class="bi bi-graph-up"></i> Trend
-          </button>
+          <div class="ticket-head-actions">
+            <button
+              type="button"
+              class="range-btn"
+              data-testid="open-alert"
+              [attr.aria-label]="'Set a price alert on ' + selectedSymbol()"
+              (click)="openAlertChart()"
+            >
+              <i class="bi bi-bell"></i> Alert
+              @if (armedAlertCount() > 0) {
+                <span class="notification-count" data-testid="alert-count">{{ armedAlertCount() }}</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="range-btn"
+              data-testid="open-chart"
+              (click)="openChart()"
+            >
+              <i class="bi bi-graph-up"></i> Trend
+            </button>
+          </div>
         }
       </div>
 
@@ -409,23 +423,47 @@
           </div>
         </div>
 
-        <tui-price-chart [candles]="candles()" [style]="chartStyle()" [indicators]="indicators()" [hasVolume]="hasVolume()" />
-        @switch (candlesState()) {
-          @case ('failed') {
-            <p class="empty-note" data-testid="history-failed">Could not load the chart data.</p>
-          }
-          @case ('ready') {
-            @if (candles().length === 0) {
-              <p class="empty-note" data-testid="history-empty">
-                @if (interval().kind === 'daily') {
-                  No daily history is available for this ticker yet.
-                } @else {
-                  No prices have been recorded for this ticker in this range yet. Short candles fill in as the minute-by-minute quotes arrive.
+        <div class="chart-split-host">
+          <div class="chart-split">
+            <div class="chart-split-chart">
+              <tui-price-chart
+                [candles]="candles()"
+                [style]="chartStyle()"
+                [indicators]="indicators()"
+                [hasVolume]="hasVolume()"
+                [alerts]="selectedAlerts()"
+                [markerMode]="markerMode()"
+                [pendingPrice]="pendingAlert()"
+                (markerPlaced)="placeMarker($event)"
+              />
+
+              @switch (candlesState()) {
+                @case ('failed') {
+                  <p class="empty-note" data-testid="history-failed">Could not load the chart data.</p>
                 }
-              </p>
-            }
-          }
-        }
+                @case ('ready') {
+                  @if (candles().length === 0) {
+                    <p class="empty-note" data-testid="history-empty">
+                      @if (interval().kind === 'daily') {
+                        No daily history is available for this ticker yet.
+                      } @else {
+                        No prices have been recorded for this ticker in this range yet. Short candles fill in as the minute-by-minute quotes arrive.
+                      }
+                    </p>
+                  }
+                }
+              }
+            </div>
+            <tui-alert-composer
+              class="chart-split-panel"
+              data-testid="alert-panel"
+              [symbol]="quote.symbol"
+              [currentPrice]="quote.price"
+              [(markerMode)]="markerMode"
+              [(pendingPrice)]="pendingAlert"
+            />
+          </div>
+        </div>
       </div>
     </div>
   }

@@ -1,0 +1,117 @@
+<div class="picker" [class.picker-disabled]="disabled()" [attr.data-testid]="testId()">
+  <div #box class="picker-field form-control-custom" [class.picker-open]="open()" [class.picker-nowrap]="!multiple()" (click)="focusInput()">
+    @if (multiple()) {
+      @for (chip of chips(); track chip.symbol) {
+        <span class="picker-chip" data-testid="picker-chip">
+          {{ chip.symbol }}
+          <button
+            type="button"
+            class="picker-chip-remove"
+            [attr.aria-label]="'Remove ' + chip.symbol"
+            data-testid="picker-chip-remove"
+            [disabled]="disabled()"
+            (click)="remove(chip.symbol); $event.stopPropagation()"
+          >
+            <i class="bi bi-x" aria-hidden="true"></i>
+          </button>
+        </span>
+      }
+    }
+    @if (single(); as chosen) {
+      <span class="picker-single" data-testid="picker-single" [class.picker-single-hidden]="query() !== ''">
+        <strong>{{ chosen.symbol }}</strong>
+        @if (chosen.name) {
+          <span class="picker-muted">{{ chosen.name }}</span>
+        }
+      </span>
+    }
+    <input
+      #field
+      type="text"
+      class="picker-input"
+      role="combobox"
+      autocomplete="off"
+      spellcheck="false"
+      aria-autocomplete="list"
+      [attr.aria-label]="label()"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listId"
+      [attr.aria-activedescendant]="activeId()"
+      [attr.placeholder]="selected().length > 0 && !multiple() ? '' : placeholder()"
+      [attr.data-testid]="testId() + '-input'"
+      [disabled]="disabled()"
+      [value]="query()"
+      (input)="onInput($event)"
+      (focus)="openList()"
+      (click)="openList()"
+      (keydown)="onKey($event)"
+    />
+    @if (!multiple() && single() !== null) {
+      <button type="button" class="picker-clear" aria-label="Clear selection" data-testid="picker-clear" [disabled]="disabled()" (click)="clear(); $event.stopPropagation()">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    }
+    <button type="button" class="picker-toggle" tabindex="-1" aria-label="Show instruments" data-testid="picker-toggle" [disabled]="disabled()" (click)="toggleList(); $event.stopPropagation()">
+      <i class="bi" [class.bi-chevron-down]="!open()" [class.bi-chevron-up]="open()" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  @if (open()) {
+    <ul
+      #list
+      class="picker-list"
+      role="listbox"
+      [id]="listId"
+      [style.left.px]="placement()?.left"
+      [style.width.px]="placement()?.width"
+      [style.top.px]="placement()?.top"
+      [style.bottom.px]="placement()?.bottom"
+      [style.max-height.px]="placement()?.maxHeight"
+      [class.picker-ready]="placement() !== null"
+      [attr.aria-multiselectable]="multiple()"
+      [attr.aria-label]="label()"
+      data-testid="picker-list"
+    >
+      @if (loading()) {
+        <li class="picker-empty" role="presentation" data-testid="picker-loading">Loading instruments...</li>
+      } @else if (results().length === 0) {
+        <li class="picker-empty" role="presentation" data-testid="picker-none">
+          @if (options().length === 0) {
+            No instruments are available right now.
+          } @else {
+            No instruments match &ldquo;{{ query() }}&rdquo;.
+          }
+        </li>
+      }
+      @for (option of results(); track option.symbol; let i = $index) {
+        <li
+          role="option"
+          class="picker-option"
+          [id]="optionId(option.symbol)"
+          [class.picker-active]="i === active()"
+          [class.picker-chosen]="isSelected(option.symbol)"
+          [class.picker-unavailable]="isUnavailable(option.symbol)"
+          [attr.aria-selected]="isSelected(option.symbol)"
+          [attr.aria-disabled]="isUnavailable(option.symbol)"
+          [attr.data-testid]="'picker-option-' + option.symbol"
+          (pointerdown)="$event.preventDefault()"
+          (click)="choose(option)"
+          (pointermove)="active.set(i)"
+        >
+          @if (multiple()) {
+            <span class="picker-check" aria-hidden="true">
+              <i class="bi" [class.bi-check-square-fill]="isSelected(option.symbol) || isUnavailable(option.symbol)" [class.bi-square]="!isSelected(option.symbol) && !isUnavailable(option.symbol)"></i>
+            </span>
+          }
+          <span class="picker-symbol">{{ option.symbol }}</span>
+          <span class="picker-name">{{ option.name }}</span>
+          @if (isUnavailable(option.symbol)) {
+            <span class="picker-note">{{ unavailableNote() }}</span>
+          } @else if (option.changePercent !== null) {
+            <span class="picker-change" [class.picker-up]="option.changePercent > 0" [class.picker-down]="option.changePercent < 0">{{ formatPercent(option.changePercent) }}</span>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>

@@ -1,0 +1,52 @@
+@if (alerts().length === 0) {
+  <p class="al-empty" data-testid="alert-empty">You have no price alerts.</p>
+}
+<ul class="al-list" data-testid="alert-list">
+  @for (alert of shown(); track alert.id) {
+    <li class="al-item" [attr.data-testid]="'alert-' + alert.id" [attr.data-state]="alert.state">
+      <div class="al-main">
+        <div class="al-level">
+          <button type="button" class="al-symbol" data-testid="alert-symbol" (click)="selectSymbol.emit(alert.symbol)">
+            {{ alert.symbol }}
+          </button>
+          <span class="al-arrow" [class.al-up]="alert.direction === 'ABOVE'" [class.al-down]="alert.direction === 'BELOW'" aria-hidden="true">{{ arrow(alert) }}</span>
+          <span class="al-threshold" data-testid="alert-threshold">{{ formatMoney(alert.threshold) }}</span>
+        </div>
+        <div class="al-meta">
+          <span class="badge-table" data-testid="alert-state" [attr.data-state]="alert.state" [class.success]="alert.state === 'FIRED'" [class.pending]="alert.state !== 'FIRED'">
+            {{ stateText(alert) }}
+          </span>
+          @if (distance(alert); as away) {
+            <span class="al-away" data-testid="alert-distance">{{ away }}</span>
+          }
+          @if (alert.state === 'FIRED') {
+            <span data-testid="alert-fired">at {{ formatMoney(alert.firedPrice) }} &middot; {{ alert.firedAt | date: 'medium' }}</span>
+          }
+        </div>
+        @if (!compact()) {
+          <div class="al-sentence">When {{ alert.symbol }} {{ directionText(alert) }} {{ formatMoney(alert.threshold) }}</div>
+        }
+        @if (deliveryText(alert); as delivery) {
+          <div class="al-delivery" data-testid="alert-delivery" [attr.data-delivery]="alert.deliveryState">{{ delivery }}</div>
+        }
+      </div>
+      <div class="al-actions">
+        @if (alert.state === 'ARMED') {
+          <button type="button" class="al-icon" data-testid="alert-disable" aria-label="Turn this alert off" title="Turn off" (click)="toggle(alert)">
+            <i class="bi bi-bell-slash" aria-hidden="true"></i>
+          </button>
+        } @else {
+          <button type="button" class="al-icon" data-testid="alert-rearm" aria-label="Turn this alert on again" title="Re-arm" (click)="toggle(alert)">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+          </button>
+        }
+        <button type="button" class="al-icon" data-testid="alert-delete" aria-label="Delete this alert" title="Delete" (click)="remove(alert)">
+          <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+      </div>
+    </li>
+  }
+</ul>
+@if (hidden() > 0) {
+  <p class="al-more" data-testid="alert-more">+ {{ hidden() }} more</p>
+}

@@ -73,3 +73,27 @@
   overflow-y: auto;
   margin: 0;
 }
+
+.ticket-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The trend chart with the alert panel on its right; under it when the dialog is narrow. */
+.chart-split-host {
+  container-type: inline-size;
+}
+
+.chart-split {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 720px) {
+  .chart-split {
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    align-items: start;
+  }
+}

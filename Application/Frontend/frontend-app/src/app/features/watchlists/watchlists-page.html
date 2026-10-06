@@ -2,13 +2,13 @@
   <div>
     <h1 class="page-title">Watchlists</h1>
     <p class="page-subtitle">
-      Follow instruments and get an alert when a price crosses your threshold. Watching an instrument is not owning it.
+      Follow instruments and get an alert when a price reaches a level you choose. Watching an instrument is not owning it.
     </p>
   </div>
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-7">
+  <div class="col-12 col-xl-4">
     <div class="card mb-4" data-testid="watchlist-create-card">
       <div class="card-header">
         <h2 class="card-title">New watchlist</h2>
@@ -29,191 +29,66 @@
           Create
         </button>
       </div>
-      @if (error() !== null) {
-        <p class="small text-danger mt-2 mb-0" role="alert" data-testid="watchlist-error">{{ error() }}</p>
+      @if (store.error(); as message) {
+        @if (store.watchlists().length === 0) {
+          <p class="small text-danger mt-2 mb-0" role="alert" data-testid="watchlist-error">{{ message }}</p>
+        }
       }
     </div>
 
-    @if (loading()) {
+    @if (store.loading() && !store.loaded()) {
       <p class="small text-muted-green" data-testid="watchlist-loading">Loading your watchlists...</p>
-    } @else if (watchlists().length === 0) {
+    } @else if (store.loaded() && store.watchlists().length === 0) {
       <p class="small text-muted-green" data-testid="watchlist-empty">
-        You have no watchlists yet. Create one above, then add the instruments you want to follow.
+        You have no watchlists yet. Create one above, then search for the instruments you want to follow.
       </p>
     }
 
-    @for (watchlist of watchlists(); track watchlist.id) {
-      <div class="card mb-4" [attr.data-testid]="'watchlist-' + watchlist.id">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h2 class="card-title mb-0" data-testid="watchlist-title">{{ watchlist.name }}</h2>
-          <button
-            type="button"
-            class="btn-custom btn-custom-outline-primary"
-            data-testid="watchlist-delete"
-            (click)="deleteWatchlist(watchlist)"
-          >
-            Delete
-          </button>
-        </div>
-
-        @if (watchlist.instruments.length === 0) {
-          <p class="small text-muted-green" data-testid="watchlist-no-instruments">Nothing in this watchlist yet.</p>
-        } @else {
-          <table class="table-custom">
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Name</th>
-                <th class="text-end">Price</th>
-                <th class="text-end">Change</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (entry of watchlist.instruments; track entry.symbol) {
-                <tr [attr.data-testid]="'entry-' + entry.symbol">
-                  <td data-testid="entry-symbol">{{ entry.symbol }}</td>
-                  <td>{{ entry.name }}</td>
-                  <td class="text-end" data-testid="entry-price">
-                    @if (entry.price !== null) {
-                      {{ formatMoney(entry.price) }}
-                      @if (entry.stale) {
-                        <span class="badge-table pending" data-testid="entry-stale">Delayed</span>
-                      }
-                    } @else {
-                      <span class="text-muted-green" data-testid="entry-no-price">No price yet</span>
-                    }
-                  </td>
-                  <td class="text-end" data-testid="entry-change">{{ formatPercent(entry.changePercent) }}</td>
-                  <td class="text-end">
-                    <button
-                      type="button"
-                      class="btn-custom btn-custom-outline-primary"
-                      data-testid="entry-remove"
-                      [attr.aria-label]="'Remove ' + entry.symbol"
-                      (click)="removeInstrument(watchlist, entry.symbol)"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        }
-
-        <div class="d-flex gap-2 mt-2">
-          <input
-            type="text"
-            class="form-control-custom"
-            aria-label="Add a symbol"
-            placeholder="Add a symbol, e.g. TCS"
-            maxlength="20"
-            data-testid="instrument-symbol"
-            [value]="symbolDraft(watchlist.id)"
-            (input)="setSymbolDraft(watchlist.id, $event)"
-            (keydown.enter)="addInstrument(watchlist)"
-          />
-          <button type="button" class="btn-custom btn-custom-primary" data-testid="instrument-add" (click)="addInstrument(watchlist)">
-            Add
-          </button>
-        </div>
+    @for (watchlist of store.watchlists(); track watchlist.id) {
+      <div class="card mb-4">
+        <tui-watchlist-card [watchlist]="watchlist" [compact]="true" />
       </div>
     }
   </div>
 
-  <div class="col-lg-5">
+  <div class="col-12 col-xl-8">
     <div class="card" data-testid="alerts-card">
       <div class="card-header">
         <h2 class="card-title">Price alerts</h2>
       </div>
 
-      <div class="d-flex flex-column gap-2 mb-3">
-        <input
-          type="text"
-          class="form-control-custom"
-          aria-label="Alert symbol"
-          placeholder="Symbol, e.g. TCS"
-          maxlength="20"
-          data-testid="alert-symbol"
-          [value]="alertSymbol()"
-          (input)="setAlertSymbol($event)"
-        />
-        <div class="d-flex gap-2">
-          <select
-            class="form-control-custom"
-            aria-label="Direction"
-            data-testid="alert-direction"
-            [value]="alertDirection()"
-            (change)="setAlertDirection($event)"
-          >
-            <option value="ABOVE">Rises to or above</option>
-            <option value="BELOW">Falls to or below</option>
-          </select>
-          <input
-            type="number"
-            class="form-control-custom"
-            aria-label="Threshold"
-            placeholder="Threshold"
-            min="0"
-            step="0.01"
-            data-testid="alert-threshold"
-            [value]="alertThreshold()"
-            (input)="setAlertThreshold($event)"
-          />
-        </div>
-        <button type="button" class="btn-custom btn-custom-primary" data-testid="alert-create" (click)="createAlert()">
-          Create alert
-        </button>
-        @if (alertError() !== null) {
-          <p class="small text-danger mb-0" role="alert" data-testid="alert-error">{{ alertError() }}</p>
-        }
-        <p class="small text-muted-green mb-0">
-          An alert fires once, when a live price reaches your threshold. If the price is already past it, the alert fires on the next quote. Re-arm it to be told again.
-        </p>
-      </div>
+      <p class="small text-muted-green">
+        Pick a stock, then click its chart where you want to be alerted, or enter a price. An alert fires once, when a live price
+        reaches your level; re-arm it to be told again.
+      </p>
 
-      @if (alerts().length === 0 && !loading()) {
-        <p class="small text-muted-green mb-0" data-testid="alert-empty">You have no price alerts.</p>
+      <tui-symbol-picker
+        testId="alert-picker"
+        label="Choose a stock for a price alert"
+        placeholder="Search a stock to set an alert on"
+        [options]="catalog.instruments()"
+        [loading]="catalog.state() === 'loading' && catalog.instruments().length === 0"
+        [selected]="alertPick()"
+        (selectedChange)="chooseAlertStock($event)"
+      />
+
+      @if (alertSymbol(); as symbol) {
+        <div class="mt-3">
+          <tui-alert-chart [symbol]="symbol" [name]="alertInstrument()?.name ?? ''" [currentPrice]="alertInstrument()?.price ?? null" />
+        </div>
+      } @else {
+        <p class="small text-muted-green mt-3 mb-0" data-testid="alert-chart-prompt">
+          Choose a stock above to see its chart and place an alert on it.
+        </p>
       }
-      <ul class="list-unstyled mb-0">
-        @for (alert of alerts(); track alert.id) {
-          <li class="py-2 border-bottom" [attr.data-testid]="'alert-' + alert.id">
-            <div>
-              <strong>{{ alert.symbol }}</strong>
-              {{ directionText(alert.direction) }}
-              {{ formatMoney(alert.threshold) }}
-            </div>
-            <div class="small">
-              <span class="badge-table" data-testid="alert-state" [attr.data-state]="alert.state"
-                [class.success]="alert.state === 'FIRED'" [class.pending]="alert.state !== 'FIRED'">
-                {{ stateText(alert) }}
-              </span>
-              @if (alert.state === 'FIRED') {
-                <span data-testid="alert-fired">
-                  at {{ formatMoney(alert.firedPrice) }} &middot; {{ alert.firedAt | date: 'medium' }}
-                </span>
-              }
-            </div>
-            @if (deliveryText(alert); as delivery) {
-              <div class="small text-muted-green" data-testid="alert-delivery" [attr.data-delivery]="alert.deliveryState">
-                {{ delivery }}
-              </div>
-            }
-            <div class="d-flex gap-2 mt-1">
-              @if (alert.state === 'ARMED') {
-                <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="alert-disable"
-                  (click)="setAlertState(alert, 'DISABLED')">Turn off</button>
-              } @else {
-                <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="alert-rearm"
-                  (click)="setAlertState(alert, 'ARMED')">Re-arm</button>
-              }
-              <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="alert-delete"
-                (click)="deleteAlert(alert)">Delete</button>
-            </div>
-          </li>
+
+      <h3 class="h6 fw-semibold mt-4">All your alerts</h3>
+      @if (store.alertError(); as message) {
+        @if (store.alerts().length === 0) {
+          <p class="small text-danger" role="alert" data-testid="alert-error">{{ message }}</p>
         }
-      </ul>
+      }
+      <tui-alert-list [alerts]="store.alerts()" [prices]="prices()" (selectSymbol)="chooseAlertStock([$event])" />
     </div>
   </div>
 </div>

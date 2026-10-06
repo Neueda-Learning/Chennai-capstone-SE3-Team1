@@ -1,0 +1,186 @@
+:host {
+  display: block;
+}
+
+.composer {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background-color: var(--bs-body-bg);
+}
+
+.composer-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.composer-mode i {
+  margin-right: 0.25rem;
+}
+
+.composer-hint {
+  margin: 0.6rem 0 0;
+  color: var(--text-muted-green);
+  font-size: 0.82rem;
+}
+
+.composer-form {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background-color: var(--card-background);
+  border: 1px solid var(--brand-lime);
+}
+
+.composer-sentence {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.composer-direction {
+  font-weight: 700;
+}
+
+.composer-direction[data-direction='ABOVE'] {
+  color: #1f9d55;
+}
+
+.composer-direction[data-direction='BELOW'] {
+  color: #d64545;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.composer-rupee {
+  font-weight: 700;
+}
+
+.composer-price {
+  max-width: 11rem;
+}
+
+.composer-distance {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted-green);
+}
+
+.composer-up {
+  color: #1f9d55;
+}
+
+.composer-down {
+  color: #d64545;
+}
+
+.composer-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.composer-chip {
+  border: 1px solid var(--border-light);
+  background-color: var(--bs-body-bg);
+  color: var(--text-main);
+  border-radius: 50rem;
+  padding: 0.15rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composer-chip:hover {
+  border-color: var(--brand-lime);
+}
+
+.composer-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.composer-error {
+  margin: 0.6rem 0 0;
+  color: #d64545;
+  font-size: 0.84rem;
+}
+
+.composer-done {
+  margin: 0.6rem 0 0;
+  color: #1f9d55;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.composer-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.composer-none {
+  margin: 0;
+  color: var(--text-muted-green);
+  font-size: 0.82rem;
+}
+
+.composer-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-light);
+  font-size: 0.85rem;
+}
+
+.composer-alert[data-state='DISABLED'] .composer-alert-level,
+.composer-alert[data-state='FIRED'] .composer-alert-level {
+  opacity: 0.6;
+}
+
+.composer-alert-level {
+  font-weight: 700;
+  flex: 1;
+}
+
+.composer-arrow {
+  margin-right: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.composer-alert-state {
+  color: var(--text-muted-green);
+  font-size: 0.76rem;
+}
+
+.composer-alert-actions {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.composer-icon {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted-green);
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.composer-icon:hover {
+  background-color: var(--brand-lime-translucent);
+  color: var(--text-main);
+}

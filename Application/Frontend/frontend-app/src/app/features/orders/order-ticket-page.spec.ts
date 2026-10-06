@@ -10,6 +10,8 @@ import { OrderTicketPage, PRICE_PROTECTION } from './order-ticket-page';
 import { SessionStore } from '../../core/auth/session.store';
 import { NotificationStore } from '../../core/notifications/notification.store';
 import { THEME_STORAGE } from '../../core/theme/theme.service';
+import { PlotGeometry } from '../../core/charts/price-axis';
+import { PriceChart } from './price-chart';
 
 const ACCOUNT_ID = 42;
 const BASE = 'http://trade.test';
@@ -17,6 +19,8 @@ const ORDERS_URL = `${BASE}/api/v1/orders`;
 const ACCOUNT_URL = `${BASE}/api/v1/accounts/${ACCOUNT_ID}`;
 const BALANCE_URL = `${ACCOUNT_URL}/balance`;
 const PORTFOLIO_URL = `${ACCOUNT_URL}/portfolio`;
+const WATCHLISTS_URL = `${ACCOUNT_URL}/watchlists`;
+const ALERTS_URL = `${ACCOUNT_URL}/alerts`;
 const QUOTES_URL = `${BASE}/api/v1/market/quotes`;
 
 type TicketFixture = ComponentFixture<OrderTicketPage>;
@@ -90,7 +94,9 @@ describe('OrderTicketPage', () => {
   let account: object;
   let portfolio: object;
   let failing: Set<string>;
+  let alerts: object[];
   let candleRequests: string[];
+  let alertsCreated: object[];
 
   function setUp(accountId: number | null = ACCOUNT_ID, symbolInUrl: string | null = null, params?: BehaviorSubject<ParamMap>): void {
     quotes = QUOTES;
@@ -102,7 +108,9 @@ describe('OrderTicketPage', () => {
       positions: []
     };
     failing = new Set();
+    alerts = [];
     candleRequests = [];
+    alertsCreated = [];
 
     TestBed.configureTestingModule({
       imports: [OrderTicketPage],
@@ -141,6 +149,16 @@ describe('OrderTicketPage', () => {
       fail('account') ? refuse() : request.flush(account);
     } else if (url === PORTFOLIO_URL) {
       fail('portfolio') ? refuse() : request.flush(portfolio);
+    } else if (url === WATCHLISTS_URL) {
+      request.flush([]);
+    } else if (url === ALERTS_URL && request.request.method === 'GET') {
+      fail('alerts') ? refuse() : request.flush(alerts);
+    } else if (url === ALERTS_URL && request.request.method === 'POST') {
+      const body = request.request.body as { symbol: string; threshold: number; direction: string };
+      const created = { id: 'new-alert', state: 'ARMED', deliveryState: null, firedAt: null, firedPrice: null, createdAt: '2026-10-06T09:00:00Z', ...body };
+      alertsCreated.push(body);
+      alerts = [created, ...alerts];
+      request.flush(created);
     } else {
       throw new Error(`unexpected request ${request.request.method} ${url}`);
     }
@@ -1050,6 +1068,138 @@ describe('OrderTicketPage', () => {
 
       expect(root(fixture).querySelector('input[name="accountId"]')).toBeNull();
       expect(root(fixture).querySelector('select[name="accountId"]')).toBeNull();
+    });
+  });
+
+  describe('price alerts', () => {
+    const GEOMETRY: PlotGeometry = { translateX: 60, translateY: 10, gridWidth: 500, gridHeight: 300, min: 100, max: 200 };
+
+    function alertOn(symbol: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id: `a-${symbol}-${Math.round(Math.random() * 1e6)}`,
+        symbol,
+        threshold: 1400,
+        direction: 'ABOVE',
+        state: 'ARMED',
+        deliveryState: null,
+        firedAt: null,
+        firedPrice: null,
+        createdAt: '2026-10-06T09:00:00Z',
+        ...overrides
+      };
+    }
+
+    const composer = (fixture: TicketFixture) => root(fixture).querySelector<HTMLElement>('[data-testid="alert-composer"]');
+    const markerOn = (fixture: TicketFixture) =>
+      root(fixture).querySelector('[data-testid="marker-toggle"]')?.getAttribute('aria-pressed') === 'true';
+
+    beforeEach(() => {
+      vi.spyOn(PriceChart.prototype as unknown as { geometry: () => PlotGeometry | null }, 'geometry').mockReturnValue(GEOMETRY);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('offers an Alert button for the selected ticker, counting only its armed alerts', () => {
+      setUp();
+      alerts = [alertOn('RELIANCE'), alertOn('RELIANCE', { state: 'FIRED' }), alertOn('TCS')];
+      const fixture = create();
+
+      expect(textOf(fixture, '[data-testid="open-alert"]')).toContain('Alert');
+      expect(textOf(fixture, '[data-testid="alert-count"]')).toBe('1');
+
+      pick(fixture, 'TCS');
+      expect(textOf(fixture, '[data-testid="alert-count"]')).toBe('1');
+    });
+
+    it('shows no count when the ticker has no armed alerts', () => {
+      setUp();
+      alerts = [alertOn('TCS')];
+      const fixture = create();
+
+      expect(root(fixture).querySelector('[data-testid="alert-count"]')).toBeNull();
+    });
+
+    it('opens the chart already in marker mode when Alert is pressed, with the panel to confirm in', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'open-alert');
+
+      expect(root(fixture).querySelector('[data-testid="chart-dialog"]')).not.toBeNull();
+      expect(composer(fixture)).not.toBeNull();
+      expect(markerOn(fixture)).toBe(true);
+      expect(textOf(fixture, '[data-testid="marker-hint"]')).toContain('Click the chart');
+    });
+
+    it('puts the alert panel to the right of the chart in the dialog, not underneath', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'open-alert');
+
+      const split = root(fixture).querySelector('.chart-split') as HTMLElement;
+      const panel = root(fixture).querySelector('[data-testid="alert-panel"]') as HTMLElement;
+      expect(panel.parentElement).toBe(split);
+      expect(split.children[0].querySelector('tui-price-chart')).not.toBeNull();
+      expect(split.children[1]).toBe(panel);
+    });
+
+    it('opens the plain trend chart, with markers off, when Trend is pressed', () => {
+      setUp();
+      const fixture = create();
+
+      openChart(fixture);
+
+      expect(composer(fixture)).not.toBeNull();
+      expect(markerOn(fixture)).toBe(false);
+    });
+
+    it('turns a click on the chart into a marker the panel offers to confirm, then sets the alert', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'open-alert');
+
+      root(fixture).querySelector<HTMLElement>('[data-testid="chart-surface"]')!.dispatchEvent(
+        new MouseEvent('click', { clientX: 200, clientY: 85, bubbles: true }) // a quarter down: 175
+      );
+      fixture.detectChanges();
+      expect((root(fixture).querySelector('[data-testid="composer-price"]') as HTMLInputElement).value).toBe('175.00');
+
+      click(fixture, 'composer-confirm');
+
+      // 175 is far below RELIANCE's price (about 1,300), so this alert waits for a fall.
+      expect(alertsCreated).toEqual([{ symbol: 'RELIANCE', threshold: 175, direction: 'BELOW' }]);
+      expect(textOf(fixture, '[data-testid="composer-done"]')).toContain('RELIANCE');
+      expect(root(fixture).querySelector('[data-testid="composer-form"]')).toBeNull();
+      expect(textOf(fixture, '[data-testid="alert-count"]')).toBe('1');
+    });
+
+    it('drops a marker that was being placed when another ticker is picked, and when the chart is closed', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'open-alert');
+      root(fixture).querySelector<HTMLElement>('[data-testid="chart-surface"]')!.dispatchEvent(
+        new MouseEvent('click', { clientX: 200, clientY: 85, bubbles: true })
+      );
+      fixture.detectChanges();
+      expect(root(fixture).querySelector('[data-testid="composer-form"]')).not.toBeNull();
+
+      click(fixture, 'close-chart');
+      openChart(fixture);
+
+      expect(root(fixture).querySelector('[data-testid="composer-form"]')).toBeNull();
+      expect(markerOn(fixture)).toBe(false);
+    });
+
+    it('lists the ticker\'s existing alerts in the chart panel, and no other ticker\'s', () => {
+      setUp();
+      alerts = [alertOn('RELIANCE', { id: 'mine' }), alertOn('TCS', { id: 'theirs' })];
+      const fixture = create();
+
+      openChart(fixture);
+
+      expect(root(fixture).querySelector('[data-testid="composer-alert-mine"]')).not.toBeNull();
+      expect(root(fixture).querySelector('[data-testid="composer-alert-theirs"]')).toBeNull();
     });
   });
 });

@@ -1,0 +1,42 @@
+:host {
+  display: block;
+}
+
+.price-chart-main {
+  position: relative;
+}
+
+.price-chart-main.marker-mode {
+  cursor: crosshair;
+}
+
+/* The line that follows the pointer while an alert marker is being placed. */
+.marker-guide {
+  position: absolute;
+  height: 0;
+  border-top: 1px dashed var(--brand-forest-medium);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.marker-guide-tag {
+  position: absolute;
+  left: 0.25rem;
+  top: -1.45rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  background-color: var(--brand-forest-dark);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+:host-context(html[data-bs-theme='dark']) .marker-guide {
+  border-top-color: var(--brand-lime);
+}
+
+:host-context(html[data-bs-theme='dark']) .marker-guide-tag {
+  background-color: var(--brand-lime);
+  color: var(--brand-forest-dark);
+}

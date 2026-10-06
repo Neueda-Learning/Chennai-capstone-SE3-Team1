@@ -1,4 +1,18 @@
-<div #main data-testid="pane-main"></div>
+<div
+  class="price-chart-main"
+  [class.marker-mode]="markerMode()"
+  data-testid="chart-surface"
+  (mousemove)="onMove($event)"
+  (mouseleave)="guide.set(null)"
+  (click)="onClick($event)"
+>
+  <div #main data-testid="pane-main"></div>
+  @if (markerMode() && guide(); as g) {
+    <div class="marker-guide" data-testid="marker-guide" [style.top.px]="g.top" [style.left.px]="g.left" [style.width.px]="g.width">
+      <span class="marker-guide-tag" data-testid="marker-guide-price">{{ formatMoney(g.price) }}</span>
+    </div>
+  }
+</div>
 <div #volume data-testid="pane-volume" [hidden]="!show().volume"></div>
 <div #rsi data-testid="pane-rsi" [hidden]="!show().rsi"></div>
 <div #macd data-testid="pane-macd" [hidden]="!show().macd"></div>

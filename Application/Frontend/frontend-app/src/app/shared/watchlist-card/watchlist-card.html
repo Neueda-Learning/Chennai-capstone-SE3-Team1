@@ -1,0 +1,112 @@
+<div class="wl-card" [attr.data-testid]="'watchlist-' + watchlist().id">
+  @if (showHeader()) {
+    <div class="wl-header">
+      <h2 class="card-title mb-0" data-testid="watchlist-title">{{ watchlist().name }}</h2>
+      <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="watchlist-delete" (click)="delete()">Delete</button>
+    </div>
+  }
+
+  @if (watchlist().instruments.length === 0) {
+    <p class="wl-empty" data-testid="watchlist-no-instruments">Nothing in this watchlist yet. Search below to add instruments.</p>
+  } @else {
+    <table class="table-custom wl-table" [class.wl-compact]="compact()">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          @if (!compact()) {
+            <th>Name</th>
+          }
+          <th class="text-end">Price</th>
+          <th class="text-end">Change</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of watchlist().instruments; track entry.symbol) {
+          <tr [attr.data-testid]="'entry-' + entry.symbol">
+            <td data-testid="entry-symbol">
+              <strong>{{ entry.symbol }}</strong>
+              @if (compact()) {
+                <div class="wl-name">{{ entry.name }}</div>
+              }
+            </td>
+            @if (!compact()) {
+              <td>{{ entry.name }}</td>
+            }
+            <td class="text-end" data-testid="entry-price">
+              @if (entry.price !== null) {
+                {{ formatMoney(entry.price) }}
+                @if (entry.stale) {
+                  <span class="badge-table pending" data-testid="entry-stale">Delayed</span>
+                }
+              } @else {
+                <span class="text-muted-green" data-testid="entry-no-price">No price yet</span>
+              }
+            </td>
+            <td
+              class="text-end"
+              data-testid="entry-change"
+              [class.wl-up]="(entry.changePercent ?? 0) > 0"
+              [class.wl-down]="(entry.changePercent ?? 0) < 0"
+            >
+              {{ formatPercent(entry.changePercent) }}
+            </td>
+            <td class="text-end wl-actions">
+              <a
+                class="wl-icon"
+                data-testid="entry-alert"
+                routerLink="/app/watchlists"
+                [queryParams]="{ alert: entry.symbol }"
+                [attr.aria-label]="'Set a price alert on ' + entry.symbol"
+                title="Set a price alert"
+              >
+                <i class="bi bi-bell" aria-hidden="true"></i>
+              </a>
+              <button
+                type="button"
+                class="wl-icon"
+                data-testid="entry-remove"
+                [attr.aria-label]="'Remove ' + entry.symbol"
+                title="Remove"
+                (click)="remove(entry.symbol)"
+              >
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <div class="wl-add">
+    <tui-symbol-picker
+      class="wl-picker"
+      testId="instrument-picker"
+      label="Add instruments to this watchlist"
+      placeholder="Search instruments to add"
+      [multiple]="true"
+      [options]="catalog.instruments()"
+      [loading]="catalog.state() === 'loading' && catalog.instruments().length === 0"
+      [selected]="picked()"
+      [unavailable]="present()"
+      unavailableNote="In this watchlist"
+      (selectedChange)="pick($event)"
+    />
+    <button
+      type="button"
+      class="btn-custom btn-custom-primary wl-add-button"
+      data-testid="instrument-add"
+      [disabled]="picked().length === 0 || adding()"
+      (click)="add()"
+    >
+      {{ adding() ? 'Adding...' : picked().length > 1 ? 'Add ' + picked().length : 'Add' }}
+    </button>
+  </div>
+  @if (note(); as message) {
+    <p class="wl-note" role="status" data-testid="instrument-added">{{ message }}</p>
+  }
+  @if (store.error(); as message) {
+    <p class="wl-error" role="alert" data-testid="watchlist-error">{{ message }}</p>
+  }
+</div>

@@ -1,0 +1,51 @@
+:host {
+  display: block;
+  /* Lets the layout below depend on this component's own width, not the screen's. */
+  container-type: inline-size;
+}
+
+/* The chart, with the alert panel beside it when there is room, and under it when there is not. */
+.alert-split {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 600px) {
+  .alert-split {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    align-items: start;
+  }
+}
+
+.alert-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.alert-chart-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.alert-chart-name {
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted-green);
+}
+
+.alert-chart-note {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted-green);
+  font-size: 0.84rem;
+}
+
+.alert-chart-failed {
+  color: #d64545;
+}

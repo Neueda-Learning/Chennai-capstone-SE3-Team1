@@ -69,6 +69,45 @@ where `landing-page`, `login-page`, `dashboard-page`, `order-ticket-page` and
 - **Form Optimization**: Login form fits screen height properly with improved input styling and button design
 - **Responsive Design**: All pages responsive and mobile-friendly
 
+### Watchlists, price alerts and chart markers
+
+Nobody has to know or type a symbol. Every place that picks instruments uses `shared/symbol-picker`, a
+search box with a drop-down that matches forgivingly (`core/search/fuzzy.ts`: prefixes, words inside a company
+name, skipped letters and typos, so "infsys" finds Infosys and "rlnc" finds Reliance). It is a multi-select with
+chips for watchlists and a single select for price alerts.
+
+| Where | What |
+|---|---|
+| Dashboard | The **Watchlist** section (tabs when there are several lists, a multi-select to add, an inline "create your first watchlist") and the **Price Alerts** card (search a stock to open its chart, plus the alerts that are still watching and how far each is from its level). They replace the old Order Flow chart and Order Summary. |
+| Watchlists page | Every watchlist, each with a multi-select that adds several instruments at once; the alerts panel (search a stock, chart with markers, all alerts). `?alert=TCS` opens that stock's chart; the bell beside any watchlist entry links there. |
+| Market & Trade | An **Alert** button beside Trend (with the count of armed alerts) opens the chart in marker mode; the Trend chart carries the same panel. |
+
+**Placing an alert on a chart.** Turn on "Set alerts on the chart", move the pointer (a guide line and a price tag
+follow it), click where the alert should go, and confirm. A level above the current price waits for a rise to it,
+a level below waits for a fall, so direction is never asked for. The price can also be typed, or set with the
+quick -5% / -2% / +2% / +5% buttons, for anyone not using the pointer. Existing alerts are drawn as labelled lines
+(watching in green or red, triggered and off in grey) and listed under the chart to turn off, re-arm or delete.
+
+How it fits together:
+
+```
+core/search/fuzzy.ts                 forgiving search
+core/services/instrument-catalog     every tradable instrument, for the search boxes
+core/watchlists/watchlist.store      watchlists + alerts, held once; polled while any page that shows them is open
+core/charts/price-axis.ts            pixel <-> price conversion for the chart
+features/orders/price-chart          draws alert lines and the marker guide; emits the clicked price
+shared/symbol-picker                 the search box
+shared/watchlist-card                one watchlist: table + multi-select add
+shared/alert-composer                confirm a marker, type a price, manage a stock's alerts
+shared/alert-chart                   chart + composer for one stock (Watchlists page)
+shared/alert-list                    all alerts, with distance to level
+```
+
+Two gotchas worth knowing: in a component's stylesheet use `:host-context(html[data-bs-theme='dark'])` for dark
+overrides (a plain `html[data-bs-theme='dark'] ...` selector never matches, because Angular adds the component's
+scope attribute to `html` as well), and jsdom has no layout, so specs stub the chart geometry
+(`PriceChart.prototype.geometry`) when they click on it.
+
 ## E2E Testing with Playwright
 
 `e2e/` drives the real screens against the real services — no mocked network, no stubbed

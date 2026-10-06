@@ -1,12 +1,16 @@
-import { Component, ElementRef, OnDestroy, afterRenderEffect, computed, inject, input, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, afterRenderEffect, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import ApexCharts from 'apexcharts';
 import type { ApexAxisChartSeries, ApexOptions } from 'apexcharts';
+
+type YAxisAnnotations = NonNullable<NonNullable<ApexOptions['annotations']>['yaxis']>[number];
 
 import { chartPalette } from '../../core/charts/chart-theme';
 import { IndicatorId } from '../../core/charts/chart-options';
 import { bollinger, ema, macd, rsi, sma } from '../../core/charts/indicators';
+import { PlotGeometry, insidePlot, isFiniteGeometry, priceAtOffset } from '../../core/charts/price-axis';
 import { formatMoney } from '../../core/format/money';
 import { Candle } from '../../core/services/market.service';
+import { PriceAlert } from '../../core/services/watchlist.service';
 import { ThemeService } from '../../core/theme/theme.service';
 
 const FONT = 'Plus Jakarta Sans, sans-serif';
@@ -23,15 +27,36 @@ const COLORS = {
 
 type Pane = 'main' | 'volume' | 'rsi' | 'macd';
 
+const ALERT_COLORS = { quiet: '#94A3B8', pending: '#3B82F6' };
+
+/** The marker the customer is placing, drawn on the chart before it becomes an alert. */
+export interface GuideLine {
+  top: number;
+  left: number;
+  width: number;
+  price: number;
+}
+
 @Component({
   selector: 'tui-price-chart',
-  templateUrl: './price-chart.html'
+  templateUrl: './price-chart.html',
+  styleUrl: './price-chart.css'
 })
 export class PriceChart implements OnDestroy {
   readonly candles = input.required<readonly Candle[]>();
   readonly style = input<'candles' | 'line'>('candles');
   readonly indicators = input<readonly IndicatorId[]>([]);
   readonly hasVolume = input(false);
+  /** The alerts for the stock on show: each is drawn as a labelled line at its threshold. */
+  readonly alerts = input<readonly PriceAlert[]>([]);
+  /** When on, a guide line follows the pointer and a click places an alert marker at that price. */
+  readonly markerMode = input(false);
+  /** The marker being placed, drawn until it is confirmed or cancelled. */
+  readonly pendingPrice = input<number | null>(null);
+  readonly markerPlaced = output<number>();
+
+  protected readonly guide = signal<GuideLine | null>(null);
+  protected readonly formatMoney = formatMoney;
 
   private readonly theme = inject(ThemeService);
 
@@ -58,12 +83,71 @@ export class PriceChart implements OnDestroy {
       const show = this.show();
       const indicators = new Set(this.indicators());
       this.style();
+      this.alerts();
+      this.pendingPrice();
+      this.markerMode();
 
       this.sync('main', this.mainEl().nativeElement, true, () => this.mainOptions(candles, indicators, palette));
       this.sync('volume', this.volumeEl().nativeElement, show.volume, () => this.volumeOptions(candles, palette));
       this.sync('rsi', this.rsiEl().nativeElement, show.rsi, () => this.rsiOptions(candles, palette));
       this.sync('macd', this.macdEl().nativeElement, show.macd, () => this.macdOptions(candles, palette));
     });
+  }
+
+  protected onMove(event: MouseEvent): void {
+    if (!this.markerMode()) {
+      this.guide.set(null);
+      return;
+    }
+    const at = this.pointer(event);
+    const geometry = this.geometry();
+    if (at === null || geometry === null || !insidePlot(geometry, at.x, at.y)) {
+      this.guide.set(null);
+      return;
+    }
+    const price = priceAtOffset(geometry, at.y);
+    this.guide.set(price === null ? null : { top: at.y, left: geometry.translateX, width: geometry.gridWidth, price });
+  }
+
+  protected onClick(event: MouseEvent): void {
+    if (!this.markerMode()) {
+      return;
+    }
+    const at = this.pointer(event);
+    const geometry = this.geometry();
+    if (at === null || geometry === null || !insidePlot(geometry, at.x, at.y)) {
+      return;
+    }
+    const price = priceAtOffset(geometry, at.y);
+    if (price !== null && price > 0) {
+      this.markerPlaced.emit(price);
+    }
+  }
+
+  /** Pixels from the chart's top-left corner. */
+  private pointer(event: MouseEvent): { x: number; y: number } | null {
+    const rect = this.mainEl().nativeElement.getBoundingClientRect();
+    return Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+      ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
+      : null;
+  }
+
+  /** The plotting area and price range of the main pane, as ApexCharts has laid them out. */
+  protected geometry(): PlotGeometry | null {
+    const globals = (this.charts.get('main') as unknown as { w?: { globals?: Record<string, unknown> } } | undefined)?.w?.globals;
+    if (!globals) {
+      return null;
+    }
+    const range = (key: string): number => (globals[key] as number[] | undefined)?.[0] ?? Number.NaN;
+    const geometry: PlotGeometry = {
+      translateX: globals['translateX'] as number,
+      translateY: globals['translateY'] as number,
+      gridWidth: globals['gridWidth'] as number,
+      gridHeight: globals['gridHeight'] as number,
+      min: range('minYArr'),
+      max: range('maxYArr')
+    };
+    return isFiniteGeometry(geometry) ? geometry : null;
   }
 
   ngOnDestroy(): void {
@@ -79,6 +163,9 @@ export class PriceChart implements OnDestroy {
       return;
     }
     if (existing) {
+      if (pane === 'main') {
+        existing.clearAnnotations(); // otherwise a removed alert's line would linger
+      }
       existing.updateOptions(options(), false, false).catch((error: unknown) => console.error(`[chart] could not update the ${pane} pane`, error));
       return;
     }
@@ -153,6 +240,12 @@ export class PriceChart implements OnDestroy {
     }
 
     const drawn: number[] = candles.flatMap((c) => [c.low, c.high]);
+    const levels = this.alerts().filter((a) => a.state !== 'DISABLED').map((a) => a.threshold);
+    const pending = this.pendingPrice();
+    if (pending !== null) {
+      levels.push(pending);
+    }
+    drawn.push(...levels);
     series.slice(1).forEach((s) => (s.data as unknown[]).forEach((d) => {
       const v = (d as { y?: unknown }).y;
       if (typeof v === 'number') {
@@ -171,6 +264,7 @@ export class PriceChart implements OnDestroy {
       stroke: { curve: 'straight', width: widths },
       fill: { type: 'solid', opacity: [0.18, ...widths.slice(1).map(() => 1)] },
       plotOptions: { candlestick: { colors: { upward: palette.up, downward: palette.down }, wick: { useFillColor: true } } },
+      annotations: { yaxis: this.alertLines(palette) },
       yaxis: {
         min: lo === undefined ? undefined : lo - pad,
         max: hi === undefined ? undefined : hi + pad,
@@ -178,8 +272,50 @@ export class PriceChart implements OnDestroy {
         decimalsInFloat: 2,
         labels: { minWidth: 64, formatter: (v: number) => formatMoney(v), style: { colors: palette.fore, fontSize: '11px' } }
       },
-      tooltip: { ...options.tooltip, y: { formatter: (v: number) => (v === undefined || v === null ? '' : formatMoney(v)) } }
+      // While a marker is being placed the guide line is the readout; the hover tooltip would only sit on top of it.
+      tooltip: { ...options.tooltip, enabled: !this.markerMode(), y: { formatter: (v: number) => (v === undefined || v === null ? '' : formatMoney(v)) } }
     };
+  }
+
+  private alertLines(palette: ReturnType<typeof chartPalette>): YAxisAnnotations[] {
+    const lines: YAxisAnnotations[] = this.alerts().map((alert) => {
+      const armed = alert.state === 'ARMED';
+      const color = armed ? (alert.direction === 'ABOVE' ? palette.up : palette.down) : ALERT_COLORS.quiet;
+      const arrow = alert.direction === 'ABOVE' ? '\u25B2 \u2265' : '\u25BC \u2264';
+      const word = alert.state === 'FIRED' ? 'Triggered' : alert.state === 'DISABLED' ? 'Off' : 'Alert';
+      return {
+        y: alert.threshold,
+        borderColor: color,
+        strokeDashArray: armed ? 5 : 2,
+        opacity: alert.state === 'DISABLED' ? 0.5 : 1,
+        label: {
+          text: `${word} ${arrow} ${formatMoney(alert.threshold)}`,
+          borderColor: color,
+          position: 'left',
+          textAnchor: 'start',
+          offsetX: 6,
+          style: { color: '#ffffff', background: color, fontSize: '11px', fontWeight: 600, padding: { left: 5, right: 5, top: 2, bottom: 2 } }
+        }
+      };
+    });
+    const pending = this.pendingPrice();
+    if (pending !== null) {
+      lines.push({
+        y: pending,
+        borderColor: ALERT_COLORS.pending,
+        strokeDashArray: 0,
+        borderWidth: 2,
+        label: {
+          text: `New alert ${formatMoney(pending)}`,
+          borderColor: ALERT_COLORS.pending,
+          position: 'right',
+          textAnchor: 'end',
+          offsetX: -6,
+          style: { color: '#ffffff', background: ALERT_COLORS.pending, fontSize: '11px', fontWeight: 700, padding: { left: 5, right: 5, top: 2, bottom: 2 } }
+        }
+      });
+    }
+    return lines;
   }
 
   private volumeOptions(candles: readonly Candle[], palette: ReturnType<typeof chartPalette>): ApexOptions {

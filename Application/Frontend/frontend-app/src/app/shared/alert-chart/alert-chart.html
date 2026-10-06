@@ -1,0 +1,60 @@
+<div class="alert-chart" data-testid="alert-chart">
+  <div class="alert-split">
+    <div class="alert-split-chart">
+      <div class="alert-chart-head">
+        <h3 class="alert-chart-title" data-testid="alert-chart-title">
+          {{ symbol() }} <span class="alert-chart-name">{{ name() }}</span>
+        </h3>
+        <div class="range-switch" role="group" aria-label="Chart span">
+          @for (option of presets; track option.label) {
+            <button
+              type="button"
+              class="range-btn"
+              [attr.data-testid]="'alert-chart-range-' + option.label"
+              [class.active]="preset().label === option.label"
+              (click)="select(option)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <tui-price-chart
+        [candles]="candles()"
+        [style]="'line'"
+        [alerts]="alerts()"
+        [markerMode]="markerMode()"
+        [pendingPrice]="pending()"
+        (markerPlaced)="place($event)"
+      />
+
+      @switch (state()) {
+        @case ('loading') {
+          <p class="alert-chart-note" data-testid="alert-chart-loading">Loading the chart...</p>
+        }
+        @case ('failed') {
+          <p class="alert-chart-note alert-chart-failed" role="alert" data-testid="alert-chart-failed">
+            Could not load the chart. You can still set an alert by entering a price.
+          </p>
+        }
+        @case ('ready') {
+          @if (candles().length === 0) {
+            <p class="alert-chart-note" data-testid="alert-chart-empty">
+              No prices have been recorded for this span yet. Try a longer one, or enter a price in the panel.
+            </p>
+          }
+        }
+      }
+    </div>
+
+    <tui-alert-composer
+      class="alert-split-panel"
+      data-testid="alert-panel"
+      [symbol]="symbol()"
+      [currentPrice]="currentPrice()"
+      [(markerMode)]="markerMode"
+      [(pendingPrice)]="pending"
+    />
+  </div>
+</div>

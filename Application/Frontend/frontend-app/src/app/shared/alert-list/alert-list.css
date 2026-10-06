@@ -1,0 +1,120 @@
+:host {
+  display: block;
+}
+
+.al-empty {
+  margin: 0;
+  color: var(--text-muted-green);
+  font-size: 0.86rem;
+}
+
+.al-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.al-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.al-item:last-child {
+  border-bottom: 0;
+}
+
+.al-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.al-level {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.al-symbol {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.al-symbol:hover {
+  text-decoration: underline;
+}
+
+.al-arrow {
+  font-size: 0.74rem;
+}
+
+.al-up {
+  color: #1f9d55;
+}
+
+.al-down {
+  color: #d64545;
+}
+
+.al-threshold {
+  font-weight: 600;
+}
+
+.al-item[data-state='DISABLED'] .al-level,
+.al-item[data-state='FIRED'] .al-level {
+  opacity: 0.65;
+}
+
+.al-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.al-away {
+  color: var(--text-muted-green);
+  font-weight: 600;
+}
+
+.al-sentence,
+.al-delivery {
+  margin-top: 0.15rem;
+  color: var(--text-muted-green);
+  font-size: 0.78rem;
+}
+
+.al-actions {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.al-icon {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted-green);
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.al-icon:hover {
+  background-color: var(--brand-lime-translucent);
+  color: var(--text-main);
+}
+
+.al-more {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted-green);
+  font-size: 0.8rem;
+}
