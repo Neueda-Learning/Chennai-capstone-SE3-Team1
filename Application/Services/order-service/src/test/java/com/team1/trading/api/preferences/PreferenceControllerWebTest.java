@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class PreferenceControllerWebTest {
 
-    private static final String BODY = "{\"defaultAccountId\":1,\"channel\":\"EMAIL\"}";
+    private static final String BODY = "{\"defaultAccountId\":1,\"channel\":\"PUSH\"}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,7 +61,7 @@ class PreferenceControllerWebTest {
     }
 
     private static PreferencesResponse stored() {
-        return new PreferencesResponse(1L, 1L, ChannelKind.EMAIL, LocalDateTime.of(2026, 10, 6, 10, 15, 30));
+        return new PreferencesResponse(1L, 1L, ChannelKind.PUSH, LocalDateTime.of(2026, 10, 6, 10, 15, 30));
     }
 
     @Test
@@ -74,7 +74,7 @@ class PreferenceControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountId", is(1)))
                 .andExpect(jsonPath("$.defaultAccountId", is(1)))
-                .andExpect(jsonPath("$.channel", is("EMAIL")));
+                .andExpect(jsonPath("$.channel", is("PUSH")));
     }
 
     @Test
@@ -157,9 +157,9 @@ class PreferenceControllerWebTest {
         mockMvc.perform(put("/api/v1/accounts/1/preferences")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.channel", is("EMAIL")));
+                .andExpect(jsonPath("$.channel", is("PUSH")));
 
-        verify(service).put(1L, new PreferencesRequest(1L, ChannelKind.EMAIL));
+        verify(service).put(1L, new PreferencesRequest(1L, ChannelKind.PUSH));
     }
 
     @Test
@@ -170,7 +170,7 @@ class PreferenceControllerWebTest {
 
         mockMvc.perform(put("/api/v1/accounts/1/preferences")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"defaultAccountId\":2,\"channel\":\"EMAIL\"}"))
+                        .content("{\"defaultAccountId\":2,\"channel\":\"PUSH\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode", is("PRF-422")));
     }
@@ -182,7 +182,7 @@ class PreferenceControllerWebTest {
 
         mockMvc.perform(put("/api/v1/accounts/1/preferences")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"defaultAccountId\":1,\"channel\":\"EMAIL\",\"email\":\"x@example.com\"}"))
+                        .content("{\"defaultAccountId\":1,\"channel\":\"PUSH\",\"email\":\"x@example.com\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode", is("VAL-422")));
 
@@ -206,7 +206,7 @@ class PreferenceControllerWebTest {
                 .andExpect(jsonPath("$.errorCode", is("VAL-422")));
         mockMvc.perform(put("/api/v1/accounts/1/preferences")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"channel\":\"EMAIL\"}"))
+                        .content("{\"channel\":\"PUSH\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode", is("VAL-422")));
 

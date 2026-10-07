@@ -4,9 +4,6 @@ import trustme from 'trustme-secrets';
 
 const SERVICE_PORT = 3000;
 const JWT_ISSUER = 'auth-service';
-const SMTP_PORT = 587;
-const SMTP_IMPLICIT_TLS = false;
-const SMTP_REQUIRE_STARTTLS = true;
 
 async function required(name: string): Promise<string> {
   const value = await trustme.get(name);
@@ -34,14 +31,10 @@ export const configuration = registerAs('app', async () => {
     required('PostGres_User'),
     required('PostGres'),
   ]);
-  const [authPrivateKey, fauxnanceKey, fauxnanceUrl, smtpHost, smtpUser, smtpPass, smtpFrom] = await Promise.all([
+  const [authPrivateKey, fauxnanceKey, fauxnanceUrl] = await Promise.all([
     optional('AUTH_PRIVATE_KEY'),
     optional('Fauxnance'),
     optional('Fauxnance_Endpoint'),
-    optional('SMTP_HOST'),
-    optional('SMTP_USER'),
-    optional('SMTP_PASS'),
-    optional('SMTP_FROM'),
   ]);
 
   return {
@@ -74,17 +67,6 @@ export const configuration = registerAs('app', async () => {
     fauxnance: {
       baseUrl: fauxnanceUrl.replace(/\/+$/, ''),
       apiKey: fauxnanceKey,
-    },
-
-    smtp: {
-      enabled: [smtpHost, smtpUser, smtpPass, smtpFrom].every((v) => v !== ''),
-      host: smtpHost,
-      port: SMTP_PORT,
-      secure: SMTP_IMPLICIT_TLS,
-      requireTls: SMTP_REQUIRE_STARTTLS,
-      user: smtpUser,
-      pass: smtpPass,
-      from: smtpFrom,
     },
   };
 });

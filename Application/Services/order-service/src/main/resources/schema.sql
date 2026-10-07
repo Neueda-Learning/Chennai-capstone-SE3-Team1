@@ -155,5 +155,5 @@ CREATE TABLE customer_preferences (
     created_at               TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_customer_preferences_channel
-        CHECK (channel IS NULL OR channel IN ('EMAIL', 'SMS', 'PUSH'))
+        CHECK (channel IS NULL OR channel IN ('PUSH'))
 );

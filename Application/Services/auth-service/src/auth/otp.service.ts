@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, randomInt, timingSafeEqual } from 'crypto';
 import { AuthServiceException } from './auth-errors';
-import { MailerService } from './mailer.service';
+import { OtpOutboxService } from './otp-outbox.service';
 import { OtpPurpose, OtpRepository } from './otp.repository';
 
 export const OTP_TTL_SECONDS = 600;
@@ -12,7 +12,7 @@ export const OTP_MAX_ATTEMPTS = 5;
 export class OtpService {
   constructor(
     private readonly repository: OtpRepository,
-    private readonly mailer: MailerService,
+    private readonly outbox: OtpOutboxService,
   ) {}
 
   async issue(email: string, purpose: OtpPurpose): Promise<string> {
@@ -25,11 +25,7 @@ export class OtpService {
       expiresAt: new Date(Date.now() + OTP_TTL_SECONDS * 1000),
     });
 
-    if (purpose === 'REGISTER') {
-      await this.mailer.sendVerificationEmail(email, code);
-    } else {
-      await this.mailer.sendPasswordResetEmail(email, code);
-    }
+    await this.outbox.deliver(email, purpose, code);
     return code;
   }
 

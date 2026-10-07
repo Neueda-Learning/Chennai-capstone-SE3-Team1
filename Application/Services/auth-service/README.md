@@ -51,11 +51,10 @@ Nothing is configured through a `.env` file. Secrets and connection details come
 |---|---|
 | `JWT_SECRET` | JWT signing secret (min 32 chars), required |
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | PostgreSQL connection, required |
-| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Mail server for OTP emails. Optional: with any of the four missing, codes are logged instead of emailed |
 | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
 | `Fauxnance`, `Fauxnance_Endpoint` | Market-data API key and base URL. Optional |
 
-Fixed in code: port `3000`, JWT issuer `auth-service`, SMTP port `587` with required STARTTLS.
+Fixed in code: port `3000`, JWT issuer `auth-service`. OTP codes are not emailed: they are written to the service log as `[otp.outbox] <purpose> email=<address> code=<code>`.
 Read from the environment: `NODE_ENV` (default `development`) and `KAFKA_BROKER` (default
 `localhost:29092`, used only by the health check).
 
@@ -115,10 +114,10 @@ Nonces are held in memory, so run a single instance or put a sticky route in fro
 | `GET` | `/health/ready` | Readiness probe |
 | `GET` | `/health/startup` | Startup probe |
 | `POST` | `/auth/register` | Register a user (no tokens issued) |
-| `POST` | `/auth/verify-otp` | Verify registration email code |
-| `POST` | `/auth/forgot-password` | Request a password-reset OTP by email |
+| `POST` | `/auth/verify-otp` | Verify the registration OTP (read from the service log) |
+| `POST` | `/auth/forgot-password` | Request a password-reset OTP (written to the service log) |
 | `POST` | `/auth/resend-otp` | Re-send registration OTP (for pending account) |
-| `POST` | `/auth/reset-password` | Reset password with emailed OTP |
+| `POST` | `/auth/reset-password` | Reset password with the OTP |
 | `POST` | `/auth/login` | Log in, receive access + refresh tokens |
 | `POST` | `/auth/refresh` | Rotate a refresh token for a new pair |
 | `GET` | `/auth/me` | Current user (protected by bearer token) |

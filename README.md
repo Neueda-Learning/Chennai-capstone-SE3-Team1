@@ -39,9 +39,7 @@ place it can be wrong.
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | the database connection | Trade API, executor, auth service, `scripts/*.py` |
 | `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service |
 | `Fauxnance`, `Fauxnance_Endpoint` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `ETL_Analysis/` |
-| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | the mail server that sends OTP codes; mail is on only when all four exist | auth service |
 | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM, `\n` for line breaks) that opens encrypted login and registration bodies; a temporary key is generated if absent | auth service |
-| `LLM_API_KEY` | the Gemini API key for the in-app assistant; the assistant is off (503) if absent | Trade API |
 
 Everything else is a plain value in code or in `application.properties` / `application.yml`
 (ports, the JWT issuer, the currency, the SMTP port and TLS mode, the `.NS` symbol suffix, the

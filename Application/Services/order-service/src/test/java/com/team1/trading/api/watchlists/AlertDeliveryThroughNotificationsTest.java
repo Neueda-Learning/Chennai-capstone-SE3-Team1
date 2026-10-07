@@ -53,7 +53,7 @@ class AlertDeliveryThroughNotificationsTest {
     @Test
     @DisplayName("A crossed alert becomes a PRICE_ALERT row in the customer's notification ledger on their channel")
     void firedAlertIsInTheLedger() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
         AlertResponse alert = alerts.create(1L, new CreateAlertRequest("TCS", new BigDecimal("3500"), Direction.ABOVE));
 
         evaluator.evaluate("TCS", new BigDecimal("3501.25"));
@@ -61,7 +61,7 @@ class AlertDeliveryThroughNotificationsTest {
         LedgerRow row = ledger.findByEventId(eventId(alert.id())).orElseThrow();
         assertThat(row.getAccountId()).isEqualTo(1L);
         assertThat(row.getKind()).isEqualTo("PRICE_ALERT");
-        assertThat(row.getChannel()).isEqualTo("EMAIL");
+        assertThat(row.getChannel()).isEqualTo("PUSH");
         assertThat(row.getStatus()).isEqualTo("QUEUED");
         assertThat(row.getPayload()).contains("TCS").contains("3501.25");
         assertThat(alerts.list(1L).get(0).deliveryState()).isEqualTo(AlertDeliveryState.QUEUED);

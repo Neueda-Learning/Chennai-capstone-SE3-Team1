@@ -10,7 +10,6 @@ import {
   notificationStyle,
   timeAgo
 } from '../notifications/notification.store';
-import { ChatWidget } from '../chat/chat-widget';
 import { ToastContainer } from '../notifications/toast-container';
 import { ThemeToggle } from '../theme/theme-toggle';
 import { NavbarSearch } from '../search/navbar-search';
@@ -19,7 +18,7 @@ import { UserProfileStore } from '../user/user-profile.store';
 
 @Component({
   selector: 'tui-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, Avatar, NavbarSearch, ThemeToggle, ToastContainer, ChatWidget],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, Avatar, NavbarSearch, ThemeToggle, ToastContainer],
   templateUrl: './shell.html',
   styleUrl: './shell.css'
 })

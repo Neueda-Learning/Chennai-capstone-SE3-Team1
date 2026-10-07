@@ -9,7 +9,7 @@ Records one message per trade-event outcome or price alert, sends it through the
 | Consumes | `trade-events` in consumer group `notification-service` (`ORDER_FILLED`, `ORDER_REJECTED`, `ORDER_CANCELLED`) |
 | Published seam | `NotificationDelivery.deliver(AlertNotification) -> DeliveryOutcome` ([`integration-seams.md`](../../../../../../../../../../../docs/sprint-10/integration-seams.md)) |
 | Uses | `PreferenceResolver` (Preferences) |
-| Decisions | [`0004`](../../../../../../../../../../../decision-log/0004-notifications-holds-messages-as-pending-channel-when-no-preference-is-stored.md), [`0006`](../../../../../../../../../../../decision-log/0006-watchlists-delivers-via-a-java-interface-not-an-http-route.md), [`0008`](../../../../../../../../../../../decision-log/0008-the-notification-ledger-has-its-own-history-route-and-honest-delivery-states.md), [`0009`](../../../../../../../../../../../decision-log/0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md) |
+| Decisions | [`0004`](../../../../../../../../../../../decision-log/0004-notifications-holds-messages-as-pending-channel-when-no-preference-is-stored.md), [`0006`](../../../../../../../../../../../decision-log/0006-watchlists-delivers-via-a-java-interface-not-an-http-route.md), [`0008`](../../../../../../../../../../../decision-log/0008-the-notification-ledger-has-its-own-history-route-and-honest-delivery-states.md), [`0009`](../../../../../../../../../../../decision-log/0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md), [`0011`](../../../../../../../../../../../decision-log/0011-email-is-not-a-channel-and-nothing-sends-mail.md) |
 
 ## How a message moves
 
@@ -32,13 +32,10 @@ Records one message per trade-event outcome or price alert, sends it through the
 
 | Channel | Behaviour | Row ends as |
 |---|---|---|
-| `EMAIL` | Sent with `JavaMailSender` through the same SMTP account the auth service uses for OTPs: vault keys `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (`SmtpSettings`; port 587, STARTTLS required, 10 s timeouts) | `SENT`; `FAILED` / `EMAIL_REFUSED` if the server refuses |
-| `EMAIL`, any of the four vault keys missing | Nothing is sent | `FAILED` / `EMAIL_NOT_CONFIGURED` |
-| `EMAIL`, unsafe address | Nothing is sent | `FAILED` / `INVALID_ADDRESS` |
 | `PUSH` | The in-app inbox; recording the row is the delivery | `SENT` |
-| Any other error | | `FAILED` / `CHANNEL_ERROR` (the rest of the batch continues) |
+| Any error | | `FAILED` / `CHANNEL_ERROR` (the rest of the batch continues) |
 
-`FAILED` rows are not retried.
+`FAILED` rows are not retried. There is no email or SMS channel ([`0009`](../../../../../../../../../../../decision-log/0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md), [`0011`](../../../../../../../../../../../decision-log/0011-email-is-not-a-channel-and-nothing-sends-mail.md)).
 
 ## Properties
 
@@ -48,12 +45,10 @@ Records one message per trade-event outcome or price alert, sends it through the
 | `notifications.dispatch.interval-ms` | `5000` | Delay between dispatch runs |
 | `notifications.rescan.interval-ms` | `60000` | Delay between `PENDING_CHANNEL` scans |
 
-SMTP settings are not properties: they are read from the vault (`trustme.secret.SMTP_*`), so no mail password appears in a file or the environment. SMS is not a channel ([`0009`](../../../../../../../../../../../decision-log/0009-sms-is-not-a-channel-and-email-uses-the-auth-services-smtp-account.md)).
-
 ## Known limitation
 
 State changes are guarded (`WHERE status = 'QUEUED'`) but a row is not claimed before sending, so two order-service instances running the dispatcher at once could send the same row twice. The deployment is a single instance; add a `SENDING` claim state or `FOR UPDATE SKIP LOCKED` before scaling out ([`0008`](../../../../../../../../../../../decision-log/0008-the-notification-ledger-has-its-own-history-route-and-honest-delivery-states.md)).
 
 ## Tests
 
-`NotificationLedgerFlowTest` (real resolver, H2 ledger: record, replay, hold, promote, cap, paging), `TradeEventListenerTest`, `NotificationDeliveryServiceTest`, `NotificationHistoryControllerWebTest`, `OutboundChannelsTest` (includes the vault SMTP keys), `MessageComposerTest`, `NotificationRecorderRaceTest`, `ConsumerGroupUniquenessTest`, plus `NoResolverRouteTest`. The Postgres migration is covered by `tests/test_migrations.py`. The Angular card is covered by `notification-history-card.spec.ts` and `notification-history.service.spec.ts`.
+`NotificationLedgerFlowTest` (real resolver, H2 ledger: record, replay, hold, promote, cap, paging), `TradeEventListenerTest`, `NotificationDeliveryServiceTest`, `NotificationHistoryControllerWebTest`, `MessageComposerTest`, `NotificationRecorderRaceTest`, `ConsumerGroupUniquenessTest`, plus `NoResolverRouteTest`. The Postgres migration is covered by `tests/test_migrations.py`. The Angular card is covered by `notification-history-card.spec.ts` and `notification-history.service.spec.ts`.

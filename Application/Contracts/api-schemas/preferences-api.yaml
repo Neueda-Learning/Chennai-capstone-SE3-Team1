@@ -16,7 +16,7 @@ info:
     | Field | Meaning |
     |---|---|
     | `defaultAccountId` | The account the app selects for the customer after sign-in. |
-    | `channel` | How the customer wants to be notified: `EMAIL` or `PUSH`. |
+    | `channel` | How the customer wants to be notified: `PUSH` (the in-app inbox) is the only channel. |
 
     **No email address is stored, accepted or returned by this module.** It lives on
     `auth_db.users` and is read from there at the moment a notification is sent
@@ -43,9 +43,8 @@ info:
 
     ## Channel and the contact detail
 
-    `EMAIL` is sent to the address on the customer's profile, through the same mail account the
-    auth service uses for one-time codes. `PUSH` is the in-app inbox and needs nothing further.
-    There is no SMS channel (`decision-log/0009`).
+    `PUSH` is the in-app inbox and needs nothing further. There is no SMS channel
+    (`decision-log/0009`) and no email channel (`decision-log/0011`).
 
     ## Not part of this contract
 
@@ -121,7 +120,7 @@ paths:
               email:
                 value:
                   defaultAccountId: 1
-                  channel: EMAIL
+                  channel: PUSH
       responses:
         '200':
           description: The preference as stored.
@@ -199,10 +198,9 @@ components:
   schemas:
     ChannelKind:
       type: string
-      enum: [EMAIL, PUSH]
+      enum: [PUSH]
       description: |
-        `EMAIL` is delivered to the address on the customer's profile. `PUSH` is
-        delivered in the app, to the signed-in customer, and needs no address.
+        `PUSH` is delivered in the app, to the signed-in customer, and needs no address.
 
     PreferencesRequest:
       type: object

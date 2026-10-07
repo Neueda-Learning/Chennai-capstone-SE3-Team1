@@ -64,7 +64,7 @@ public class NotificationDispatcher {
     /**
      * Synchronized because the prompt worker and the scheduler can both run a pass: each pass reads the
      * QUEUED rows afresh and marks each one SENT before the next pass reads, so serialising the passes is
-     * what keeps a row from being emailed twice.
+     * what keeps a row from being sent twice.
      */
     @Scheduled(fixedDelayString = "${notifications.dispatch.interval-ms:1000}")
     public synchronized void dispatchQueued() {

@@ -15,7 +15,7 @@ function entry(n: number, overrides: Partial<NotificationHistoryEntry> = {}): No
     id: `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`,
     kind: 'ORDER_FILLED',
     message: `Your BUY order for ${n} TCS was filled at 3501.25.`,
-    channel: 'EMAIL',
+    channel: 'PUSH',
     status: 'SENT',
     createdAt: `2026-10-06T10:00:${String(60 - n).padStart(2, '0')}Z`,
     deliveredAt: '2026-10-06T10:01:00Z',
@@ -63,16 +63,16 @@ describe('NotificationHistoryCard', () => {
       entry(1),
       entry(2, { channel: null, status: 'PENDING_CHANNEL', deliveredAt: null }),
       entry(3, { status: 'FAILED', deliveredAt: null }),
-      entry(4, { channel: 'EMAIL', status: 'QUEUED', deliveredAt: null })
+      entry(4, { channel: 'PUSH', status: 'QUEUED', deliveredAt: null })
     ]);
     fixture.detectChanges();
 
     const statuses = all(fixture, 'history-status').map((node) => node.textContent?.trim());
     expect(statuses).toEqual([
-      'Sent by email',
+      'Sent by in-app',
       'Waiting for a channel preference',
       'Could not be delivered',
-      'Sending by email'
+      'Sending by in-app'
     ]);
     expect(all(fixture, 'history-message')[0].textContent).toContain('BUY order for 1 TCS');
     expect(all(fixture, 'history-more')).toHaveLength(0);

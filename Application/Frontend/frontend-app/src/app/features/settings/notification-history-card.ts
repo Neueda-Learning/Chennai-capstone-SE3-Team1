@@ -12,7 +12,7 @@ import { ChannelKind } from '../../core/services/preferences.service';
 
 const PAGE_SIZE = 20;
 
-const CHANNEL_LABEL: Record<ChannelKind, string> = { EMAIL: 'email', PUSH: 'in-app' };
+const CHANNEL_LABEL: Record<ChannelKind, string> = { PUSH: 'in-app' };
 
 @Component({
   selector: 'tui-notification-history-card',

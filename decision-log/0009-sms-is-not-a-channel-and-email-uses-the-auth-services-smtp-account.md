@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | proposed |
+| Status | proposed; point 3 superseded by [`0011`](0011-email-is-not-a-channel-and-nothing-sends-mail.md) |
 | Date | 2026-10-06 |
 | Decided by | requested by the team while reviewing Notifications (SEC3-590); to be confirmed with the instructor at the scope review |
 

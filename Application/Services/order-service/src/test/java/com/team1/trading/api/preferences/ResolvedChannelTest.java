@@ -11,24 +11,24 @@ class ResolvedChannelTest {
     @Test
     @DisplayName("toString never prints the address")
     void toStringMasksAddress() {
-        ResolvedChannel channel = new ResolvedChannel(ChannelKind.EMAIL, "someone@example.com");
+        ResolvedChannel channel = new ResolvedChannel(ChannelKind.PUSH, "someone@example.com");
 
         assertThat(channel.toString()).doesNotContain("someone").doesNotContain("example.com");
-        assertThat(channel.toString()).contains("EMAIL");
+        assertThat(channel.toString()).contains("PUSH");
     }
 
     @Test
     @DisplayName("A blank or null address is refused at construction")
     void blankAddressRefused() {
-        assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.EMAIL, " ")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.PUSH, " ")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ResolvedChannel(ChannelKind.PUSH, null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("Equality still works on the real address")
     void equalityUsesAddress() {
-        assertThat(new ResolvedChannel(ChannelKind.EMAIL, "a@example.com"))
-                .isEqualTo(new ResolvedChannel(ChannelKind.EMAIL, "a@example.com"))
-                .isNotEqualTo(new ResolvedChannel(ChannelKind.EMAIL, "b@example.com"));
+        assertThat(new ResolvedChannel(ChannelKind.PUSH, "a@example.com"))
+                .isEqualTo(new ResolvedChannel(ChannelKind.PUSH, "a@example.com"))
+                .isNotEqualTo(new ResolvedChannel(ChannelKind.PUSH, "b@example.com"));
     }
 }

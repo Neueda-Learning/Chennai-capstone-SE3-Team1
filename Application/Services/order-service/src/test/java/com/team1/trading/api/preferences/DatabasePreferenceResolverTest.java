@@ -10,7 +10,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,27 +47,6 @@ class DatabasePreferenceResolverTest {
     }
 
     @Test
-    @DisplayName("EMAIL resolves to the address on auth_db.users")
-    void emailFromUsers() {
-        store(1L, "EMAIL");
-
-        Optional<ResolvedChannel> resolved = resolver.resolve(1L);
-
-        assertThat(resolved).contains(new ResolvedChannel(ChannelKind.EMAIL, "aarav.mehta@example.com"));
-    }
-
-    @Test
-    @DisplayName("A changed email is used on the very next call, because nothing is cached")
-    void changedEmailIsPickedUpImmediately() {
-        store(1L, "EMAIL");
-        assertThat(resolver.resolve(1L).orElseThrow().address()).isEqualTo("aarav.mehta@example.com");
-
-        jdbc.update("UPDATE users SET email = 'aarav.new@example.com' WHERE account_id = 1");
-
-        assertThat(resolver.resolve(1L).orElseThrow().address()).isEqualTo("aarav.new@example.com");
-    }
-
-    @Test
     @DisplayName("PUSH resolves to an in-app address and needs no contact detail")
     void pushNeedsNoContactDetail() {
         store(1L, "PUSH");
@@ -77,18 +55,9 @@ class DatabasePreferenceResolverTest {
     }
 
     @Test
-    @DisplayName("channel_contact_override wins over the profile address when set")
-    void overrideWins() {
-        store(1L, "EMAIL");
-        jdbc.update("UPDATE customer_preferences SET channel_contact_override = 'alerts@example.com' WHERE account_id = 1");
-
-        assertThat(resolver.resolve(1L).orElseThrow().address()).isEqualTo("alerts@example.com");
-    }
-
-    @Test
     @DisplayName("A stored preference with no users row behind it is a resolution failure")
     void preferenceWithoutUsersRow() {
-        store(99L, "EMAIL");
+        store(99L, "PUSH");
 
         assertThatThrownBy(() -> resolver.resolve(99L)).isInstanceOf(PreferenceResolutionException.class);
     }

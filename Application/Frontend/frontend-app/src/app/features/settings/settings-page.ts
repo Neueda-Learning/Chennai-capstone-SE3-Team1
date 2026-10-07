@@ -26,14 +26,13 @@ export class SettingsPage {
   ];
 
   protected readonly channels: readonly { value: ChannelKind; label: string; icon: string }[] = [
-    { value: 'EMAIL', label: 'Email', icon: 'bi-envelope' },
     { value: 'PUSH', label: 'In-app', icon: 'bi-bell' }
   ];
 
   protected readonly accountId = this.session.accountId;
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
-  protected readonly channel = signal<ChannelKind>('EMAIL');
+  protected readonly channel = signal<ChannelKind>('PUSH');
   protected readonly notSetYet = signal(false);
   protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);

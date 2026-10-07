@@ -68,7 +68,7 @@ class ModuleRouteAuthorisationTest {
     private static final String ALERT_ID = "0b9c7a2e-5f0e-4a54-9d51-3b1f5b7a9c01";
 
     private static final Map<String, String> BODIES = Map.of(
-            "PUT /api/v1/accounts/{accountId}/preferences", "{\"defaultAccountId\":1,\"channel\":\"EMAIL\"}",
+            "PUT /api/v1/accounts/{accountId}/preferences", "{\"defaultAccountId\":1,\"channel\":\"PUSH\"}",
             "POST /api/v1/accounts/{accountId}/watchlists", "{\"name\":\"Banks\"}",
             "POST /api/v1/accounts/{accountId}/watchlists/{watchlistId}/instruments", "{\"symbol\":\"TCS\"}",
             "POST /api/v1/accounts/{accountId}/alerts",

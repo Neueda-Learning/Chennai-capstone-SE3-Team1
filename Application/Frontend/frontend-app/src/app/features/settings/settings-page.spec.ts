@@ -52,7 +52,7 @@ describe('SettingsPage alert delivery', () => {
     fixture.detectChanges();
 
     expect(el(fixture, 'channel-PUSH')?.getAttribute('aria-checked')).toBe('true');
-    expect(el(fixture, 'channel-EMAIL')?.getAttribute('aria-checked')).toBe('false');
+    expect(el(fixture, 'channel-EMAIL')).toBeNull();
     expect(el(fixture, 'preferences-default-account')?.textContent).toContain('#42');
     expect(el(fixture, 'preferences-not-set')).toBeNull();
   });
@@ -87,7 +87,7 @@ describe('SettingsPage alert delivery', () => {
 
   it('explains a refused save in plain words', () => {
     const fixture = setUp();
-    http.expectOne(URL).flush({ accountId: 42, defaultAccountId: 42, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
+    http.expectOne(URL).flush({ accountId: 42, defaultAccountId: 42, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
     fixture.detectChanges();
 
     el(fixture, 'channel-PUSH')?.click();

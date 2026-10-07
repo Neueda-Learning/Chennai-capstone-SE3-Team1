@@ -46,12 +46,12 @@ describe('PreferencesService', () => {
   });
 
   it('writes the default account and channel, and nothing else', () => {
-    service.put(42, { defaultAccountId: 42, channel: 'EMAIL' }).subscribe();
+    service.put(42, { defaultAccountId: 42, channel: 'PUSH' }).subscribe();
 
     const request = http.expectOne(URL);
     expect(request.request.method).toBe('PUT');
-    expect(request.request.body).toEqual({ defaultAccountId: 42, channel: 'EMAIL' });
-    request.flush({ ...STORED, channel: 'EMAIL' });
+    expect(request.request.body).toEqual({ defaultAccountId: 42, channel: 'PUSH' });
+    request.flush({ ...STORED, channel: 'PUSH' });
   });
 
   it('applyDefaultAccount reports true when the stored default is the signed-in account', () => {

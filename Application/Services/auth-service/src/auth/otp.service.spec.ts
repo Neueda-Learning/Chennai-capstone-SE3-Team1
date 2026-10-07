@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { createHash } from 'crypto';
 import { AuthServiceException } from './auth-errors';
-import { MailerService } from './mailer.service';
+import { OtpOutboxService } from './otp-outbox.service';
 import { OtpRepository, OtpCodeRecord } from './otp.repository';
 import { OTP_MAX_ATTEMPTS, OTP_TTL_SECONDS, OtpService } from './otp.service';
 
@@ -14,10 +14,7 @@ describe('OtpService', () => {
     setAttempts: jest.Mock;
     consumeAllActive: jest.Mock;
   };
-  let mailer: {
-    sendVerificationEmail: jest.Mock;
-    sendPasswordResetEmail: jest.Mock;
-  };
+  let outbox: { deliver: jest.Mock };
 
   const record = (overrides: Partial<OtpCodeRecord> = {}): OtpCodeRecord => ({
     id: 'otp-1',
@@ -42,16 +39,13 @@ describe('OtpService', () => {
       setAttempts: jest.fn(),
       consumeAllActive: jest.fn(),
     };
-    mailer = {
-      sendVerificationEmail: jest.fn(),
-      sendPasswordResetEmail: jest.fn(),
-    };
+    outbox = { deliver: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         OtpService,
         { provide: OtpRepository, useValue: repository },
-        { provide: MailerService, useValue: mailer },
+        { provide: OtpOutboxService, useValue: outbox },
       ],
     }).compile();
 
@@ -59,7 +53,7 @@ describe('OtpService', () => {
   });
 
   describe('issue', () => {
-    it('stores only the digest, mails the plaintext and burns earlier codes', async () => {
+    it('stores only the digest, hands the plaintext to the outbox and burns earlier codes', async () => {
       const code = await service.issue('priya.menon@example.com', 'REGISTER');
 
       expect(code).toMatch(/^\d{6}$/);
@@ -76,21 +70,21 @@ describe('OtpService', () => {
         Date.now() + OTP_TTL_SECONDS * 1000,
       );
 
-      expect(mailer.sendVerificationEmail).toHaveBeenCalledWith(
+      expect(outbox.deliver).toHaveBeenCalledWith(
         'priya.menon@example.com',
+        'REGISTER',
         code,
       );
-      expect(mailer.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
-    it('sends the reset wording for a RESET code', async () => {
+    it('passes the RESET purpose through for a reset code', async () => {
       await service.issue('priya.menon@example.com', 'RESET');
 
-      expect(mailer.sendPasswordResetEmail).toHaveBeenCalledWith(
+      expect(outbox.deliver).toHaveBeenCalledWith(
         'priya.menon@example.com',
+        'RESET',
         expect.stringMatching(/^\d{6}$/),
       );
-      expect(mailer.sendVerificationEmail).not.toHaveBeenCalled();
     });
   });
 

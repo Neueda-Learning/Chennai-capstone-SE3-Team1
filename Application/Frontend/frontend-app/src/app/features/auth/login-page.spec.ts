@@ -160,7 +160,7 @@ describe('LoginPage', () => {
     const lookup = http.expectOne(PREFERENCES_URL);
     expect(lookup.request.method).toBe('GET');
     expect(navigate).not.toHaveBeenCalled();
-    lookup.flush({ accountId: 42, defaultAccountId: 42, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
+    lookup.flush({ accountId: 42, defaultAccountId: 42, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
 
     expect(select).toHaveBeenCalledWith(42);
     expect(session.accountId()).toBe(42);
@@ -174,7 +174,7 @@ describe('LoginPage', () => {
 
     submit(fixture);
     http.expectOne(AUTH_URL).flush(tokenResponse());
-    http.expectOne(PREFERENCES_URL).flush({ accountId: 42, defaultAccountId: 7, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
+    http.expectOne(PREFERENCES_URL).flush({ accountId: 42, defaultAccountId: 7, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
 
     expect(session.accountId()).toBe(42);
     expect(navigate).toHaveBeenCalledWith('/dashboard');

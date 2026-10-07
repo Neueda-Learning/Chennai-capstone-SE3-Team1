@@ -5,7 +5,7 @@ import { Observable, catchError, map, of, timeout } from 'rxjs';
 import { SessionStore } from '../auth/session.store';
 import { Configuration } from '../../generated/trade-client';
 
-export type ChannelKind = 'EMAIL' | 'PUSH';
+export type ChannelKind = 'PUSH';
 
 export interface Preferences {
   accountId: number;

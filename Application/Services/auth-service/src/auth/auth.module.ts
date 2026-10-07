@@ -9,7 +9,7 @@ import { LoginRateLimiter } from './rate-limiter';
 import { UserRepository } from './user.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService } from './token.service';
-import { MailerService } from './mailer.service';
+import { OtpOutboxService } from './otp-outbox.service';
 import { OtpRepository } from './otp.repository';
 import { OtpService } from './otp.service';
 import { AuthService } from './auth.service';
@@ -26,7 +26,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
     UserRepository,
     RefreshTokenRepository,
     TokenService,
-    MailerService,
+    OtpOutboxService,
     OtpRepository,
     OtpService,
     AuthService,
@@ -41,7 +41,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
     UserRepository,
     RefreshTokenRepository,
     TokenService,
-    MailerService,
+    OtpOutboxService,
     OtpRepository,
     OtpService,
     AuthService,

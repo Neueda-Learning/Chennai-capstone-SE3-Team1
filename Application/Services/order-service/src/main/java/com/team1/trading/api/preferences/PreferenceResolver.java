@@ -8,8 +8,8 @@ public interface PreferenceResolver {
      * Resolve the channel and contact address for an account, reading auth_db.users at call time.
      * Nothing is cached.
      *
-     * Returns Optional.empty() when no preference row exists, when the stored channel is NULL,
-     * or when the stored email address is blank.
+     * Returns Optional.empty() when no preference row exists or the stored channel is NULL.
+     * Otherwise the address is the in-app inbox, "account:<id>".
      * Throws PreferenceResolutionException when the read itself fails, or when a stored preference
      * has no auth_db.users row behind it. A missing preference is never an exception.
      */

@@ -33,7 +33,7 @@ class NotificationDispatcherTest {
         row.setId("row-1");
         row.setAccountId(1L);
         row.setKind(NotificationKind.TRANSFER_IN.name());
-        row.setChannel("EMAIL");
+        row.setChannel("PUSH");
         row.setAddress("priya@example.com");
         row.setPayload(MessageComposer.transferPayload(true, new java.math.BigDecimal("100.00"), "INR"));
         row.setStatus("QUEUED");

@@ -230,7 +230,7 @@ CREATE TABLE public.customer_preferences (
     channel_contact_override character varying(150),
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     updated_at timestamp without time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_customer_preferences_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'PUSH'::character varying])::text[]))))
+    CONSTRAINT chk_customer_preferences_channel CHECK (((channel IS NULL) OR ((channel)::text = 'PUSH'::text)))
 );
 
 
@@ -308,7 +308,7 @@ CREATE TABLE public.notifications (
     payload text NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     delivered_at timestamp without time zone,
-    CONSTRAINT chk_notifications_channel CHECK (((channel IS NULL) OR ((channel)::text = ANY ((ARRAY['EMAIL'::character varying, 'PUSH'::character varying])::text[])))),
+    CONSTRAINT chk_notifications_channel CHECK (((channel IS NULL) OR ((channel)::text = 'PUSH'::text))),
     CONSTRAINT chk_notifications_kind CHECK (((kind)::text = ANY ((ARRAY['ORDER_FILLED'::character varying, 'ORDER_REJECTED'::character varying, 'ORDER_CANCELLED'::character varying, 'PRICE_ALERT'::character varying, 'TRANSFER_IN'::character varying, 'TRANSFER_OUT'::character varying])::text[]))),
     CONSTRAINT chk_notifications_status CHECK (((status)::text = ANY ((ARRAY['PENDING_CHANNEL'::character varying, 'QUEUED'::character varying, 'SENT'::character varying, 'FAILED'::character varying])::text[])))
 );

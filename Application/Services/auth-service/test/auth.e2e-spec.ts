@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { UserRepository } from '../src/auth/user.repository';
 import { RefreshTokenRepository } from '../src/auth/refresh-token.repository';
 import { OtpPurpose, OtpRepository } from '../src/auth/otp.repository';
-import { MailerService } from '../src/auth/mailer.service';
+import { OtpOutboxService } from '../src/auth/otp-outbox.service';
 import { CredentialCryptoService } from '../src/auth/crypto/credential-crypto.service';
 import { Role } from '../src/auth/dto/role';
 import { ACCESS_TOKEN_TTL_SECONDS } from '../src/auth/token.constants';
@@ -198,16 +198,16 @@ class FakeOtpRepo {
   }
 }
 
-class FakeMailer {
+class FakeOtpOutbox {
   sent: Array<{ to: string; code: string; purpose: 'verification' | 'reset' }> =
     [];
 
-  async sendVerificationEmail(email: string, code: string): Promise<void> {
-    this.sent.push({ to: email, code, purpose: 'verification' });
-  }
-
-  async sendPasswordResetEmail(email: string, code: string): Promise<void> {
-    this.sent.push({ to: email, code, purpose: 'reset' });
+  async deliver(email: string, purpose: OtpPurpose, code: string): Promise<void> {
+    this.sent.push({
+      to: email,
+      code,
+      purpose: purpose === 'REGISTER' ? 'verification' : 'reset',
+    });
   }
 
   lastCodeFor(email: string, purpose: 'verification' | 'reset'): string {
@@ -221,7 +221,7 @@ class FakeMailer {
 const fakeUsers = new FakeUserRepo();
 const fakeRefresh = new FakeRefreshRepo();
 const fakeOtp = new FakeOtpRepo();
-const fakeMailer = new FakeMailer();
+const fakeOutbox = new FakeOtpOutbox();
 
 describe('Auth service (e2e)', () => {
   let app: INestApplication;
@@ -237,8 +237,8 @@ describe('Auth service (e2e)', () => {
       .useValue(fakeRefresh)
       .overrideProvider(OtpRepository)
       .useValue(fakeOtp)
-      .overrideProvider(MailerService)
-      .useValue(fakeMailer)
+      .overrideProvider(OtpOutboxService)
+      .useValue(fakeOutbox)
       // This suite is about auth behaviour, so it sends plain bodies. The real envelope
       // encryption is covered end to end in credential-crypto.e2e-spec.ts.
       .overrideProvider(CredentialCryptoService)
@@ -277,7 +277,7 @@ describe('Auth service (e2e)', () => {
     fakeUsers.usersByUsername.clear();
     fakeRefresh.tokens.clear();
     fakeOtp.codes = [];
-    fakeMailer.sent = [];
+    fakeOutbox.sent = [];
   });
 
   const registerBody = {
@@ -290,7 +290,7 @@ describe('Auth service (e2e)', () => {
     body = registerBody,
   ): Promise<{ otp: string }> {
     await request(server).post('/auth/register').send(body).expect(201);
-    const otp = fakeMailer.lastCodeFor(body.email, 'verification');
+    const otp = fakeOutbox.lastCodeFor(body.email, 'verification');
     await request(server)
       .post('/auth/verify-otp')
       .send({ email: body.email, otp })
@@ -698,8 +698,8 @@ describe('Auth service (e2e)', () => {
         .expect(201);
 
       expect(registered.body).toMatchObject({ status: 'PENDING' });
-      expect(fakeMailer.sent).toHaveLength(1);
-      expect(fakeMailer.sent[0].to).toBe(registerBody.email);
+      expect(fakeOutbox.sent).toHaveLength(1);
+      expect(fakeOutbox.sent[0].to).toBe(registerBody.email);
 
       await request(server)
         .post('/auth/login')
@@ -709,7 +709,7 @@ describe('Auth service (e2e)', () => {
         })
         .expect(401);
 
-      const otp = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+      const otp = fakeOutbox.lastCodeFor(registerBody.email, 'verification');
       const verified = await request(server)
         .post('/auth/verify-otp')
         .send({ email: registerBody.email, otp })
@@ -770,7 +770,7 @@ describe('Auth service (e2e)', () => {
           .post('/auth/register')
           .send(registerBody)
           .expect(201);
-        const code = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+        const code = fakeOutbox.lastCodeFor(registerBody.email, 'verification');
         return { otp: code };
       })();
 
@@ -789,7 +789,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/register')
         .send(registerBody)
         .expect(201);
-      const first = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+      const first = fakeOutbox.lastCodeFor(registerBody.email, 'verification');
 
       const resent = await request(server)
         .post('/auth/resend-otp')
@@ -797,7 +797,7 @@ describe('Auth service (e2e)', () => {
         .expect(200);
       expect(resent.body).toEqual({ sent: true });
 
-      const second = fakeMailer.lastCodeFor(registerBody.email, 'verification');
+      const second = fakeOutbox.lastCodeFor(registerBody.email, 'verification');
       await request(server)
         .post('/auth/verify-otp')
         .send({ email: registerBody.email, otp: first })
@@ -824,7 +824,7 @@ describe('Auth service (e2e)', () => {
 
       expect(known.body).toEqual({ sent: true });
       expect(unknown.body).toEqual(known.body);
-      expect(fakeMailer.sent.filter((m) => m.purpose === 'reset')).toHaveLength(
+      expect(fakeOutbox.sent.filter((m) => m.purpose === 'reset')).toHaveLength(
         1,
       );
     });
@@ -855,7 +855,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/forgot-password')
         .send({ email: registerBody.email })
         .expect(200);
-      const otp = fakeMailer.lastCodeFor(registerBody.email, 'reset');
+      const otp = fakeOutbox.lastCodeFor(registerBody.email, 'reset');
 
       const res = await request(server)
         .post('/auth/reset-password')
@@ -908,7 +908,7 @@ describe('Auth service (e2e)', () => {
         .post('/auth/forgot-password')
         .send({ email: registerBody.email })
         .expect(200);
-      const otp = fakeMailer.lastCodeFor(registerBody.email, 'reset');
+      const otp = fakeOutbox.lastCodeFor(registerBody.email, 'reset');
 
       const res = await request(server)
         .post('/auth/reset-password')

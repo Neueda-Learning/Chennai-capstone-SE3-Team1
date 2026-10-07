@@ -84,20 +84,20 @@ class NotificationLedgerFlowTest {
     }
 
     @Test
-    @DisplayName("A fill with an EMAIL preference is recorded QUEUED with the resolved address, then sent")
+    @DisplayName("A fill with a PUSH preference is recorded QUEUED with the resolved address, then sent")
     void filledEventIsRecordedAndSent() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
 
         NotificationRecorder.Recorded recorded = recorder.record("ev-1", 1L, NotificationKind.ORDER_FILLED, FILLED);
 
         assertThat(recorded).isEqualTo(new NotificationRecorder.Recorded(NotificationStatus.QUEUED, true));
-        assertThat(row("ev-1").getChannel()).isEqualTo("EMAIL");
-        assertThat(row("ev-1").getAddress()).isEqualTo("aarav.mehta@example.com");
+        assertThat(row("ev-1").getChannel()).isEqualTo("PUSH");
+        assertThat(row("ev-1").getAddress()).isEqualTo("account:1");
 
         dispatcher.dispatchQueued();
 
         assertThat(sender.sent).hasSize(1);
-        assertThat(sender.sent.get(0).address()).isEqualTo("aarav.mehta@example.com");
+        assertThat(sender.sent.get(0).address()).isEqualTo("account:1");
         assertThat(sender.sent.get(0).body()).isEqualTo("Your BUY order for 10 RELIANCE was filled at 2401.50.");
         assertThat(row("ev-1").getStatus()).isEqualTo("SENT");
         assertThat(row("ev-1").getDeliveredAt()).isNotNull();
@@ -106,7 +106,7 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("A wallet deposit and a withdrawal are recorded under their own kinds and emailed")
     void transfersAreRecordedAndSent() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
 
         recorder.record("transfer-t-1", 1L, NotificationKind.TRANSFER_IN,
                 MessageComposer.transferPayload(true, new java.math.BigDecimal("2500.00"), "INR"));
@@ -125,7 +125,7 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("A rejection is recorded exactly as a fill is, and says why")
     void rejectionIsRecorded() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
 
         recorder.record("ev-2", 1L, NotificationKind.ORDER_REJECTED,
                 "{\"symbol\":\"TCS\",\"side\":\"SELL\",\"quantity\":\"5\",\"reason\":\"Insufficient holdings\"}");
@@ -138,7 +138,7 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("Replaying the same event id writes no second row and sends no second message")
     void replayIsIdempotent() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
 
         NotificationRecorder.Recorded first = recorder.record("ev-3", 1L, NotificationKind.ORDER_FILLED, FILLED);
         NotificationRecorder.Recorded second = recorder.record("ev-3", 1L, NotificationKind.ORDER_FILLED, FILLED);
@@ -173,10 +173,10 @@ class NotificationLedgerFlowTest {
         dispatcher.rescanPending();
         assertThat(row("ev-5").getStatus()).isEqualTo("PENDING_CHANNEL");
 
-        prefer(2L, "EMAIL");
+        prefer(2L, "PUSH");
         dispatcher.rescanPending();
         assertThat(row("ev-5").getStatus()).isEqualTo("QUEUED");
-        assertThat(row("ev-5").getChannel()).isEqualTo("EMAIL");
+        assertThat(row("ev-5").getChannel()).isEqualTo("PUSH");
 
         dispatcher.dispatchQueued();
         assertThat(row("ev-5").getStatus()).isEqualTo("SENT");
@@ -186,12 +186,12 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("The channel is resolved when each event arrives, so a changed preference is honoured")
     void channelIsResolvedPerEvent() {
-        prefer(1L, "EMAIL");
+        prefer(1L, null);
         recorder.record("ev-7a", 1L, NotificationKind.ORDER_FILLED, FILLED);
         prefer(1L, "PUSH");
         recorder.record("ev-7b", 1L, NotificationKind.ORDER_FILLED, FILLED);
 
-        assertThat(row("ev-7a").getChannel()).isEqualTo("EMAIL");
+        assertThat(row("ev-7a").getChannel()).isNull();
         assertThat(row("ev-7b").getChannel()).isEqualTo("PUSH");
         assertThat(row("ev-7b").getAddress()).isEqualTo("account:1");
     }
@@ -199,7 +199,7 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("A resolver failure records the row as PENDING_CHANNEL; no fallback channel is chosen")
     void resolverFailureIsHeld() {
-        jdbc.update("INSERT INTO customer_preferences (account_id, default_account_id, channel) VALUES (999, 999, 'EMAIL')");
+        jdbc.update("INSERT INTO customer_preferences (account_id, default_account_id, channel) VALUES (999, 999, 'PUSH')");
 
         NotificationRecorder.Recorded recorded = recorder.record("ev-8", 999L, NotificationKind.ORDER_FILLED, FILLED);
 
@@ -210,8 +210,8 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("A channel that refuses the message leaves the row FAILED with a code, and it is not retried")
     void channelRefusalIsFailed() {
-        prefer(1L, "EMAIL");
-        sender.failure = new ChannelDeliveryException("EMAIL_REFUSED");
+        prefer(1L, "PUSH");
+        sender.failure = new ChannelDeliveryException("CHANNEL_REFUSED");
         recorder.record("ev-9", 1L, NotificationKind.ORDER_FILLED, FILLED);
 
         dispatcher.dispatchQueued();
@@ -219,14 +219,14 @@ class NotificationLedgerFlowTest {
         dispatcher.dispatchQueued();
 
         assertThat(row("ev-9").getStatus()).isEqualTo("FAILED");
-        assertThat(row("ev-9").getFailureCode()).isEqualTo("EMAIL_REFUSED");
+        assertThat(row("ev-9").getFailureCode()).isEqualTo("CHANNEL_REFUSED");
         assertThat(sender.sent).isEmpty();
     }
 
     @Test
     @DisplayName("An unexpected channel error is recorded FAILED and does not stop the rest of the batch")
     void unexpectedErrorDoesNotStopTheBatch() {
-        prefer(1L, "EMAIL");
+        prefer(1L, "PUSH");
         recorder.record("ev-10a", 1L, NotificationKind.ORDER_FILLED, FILLED);
         sender.failure = new IllegalStateException("boom");
         dispatcher.dispatchQueued();
@@ -258,8 +258,8 @@ class NotificationLedgerFlowTest {
     @Test
     @DisplayName("History is the account's own rows, newest first, honours limit and the before cursor, and omits the address")
     void historyIsPagedAndOwnOnly() throws Exception {
-        prefer(1L, "EMAIL");
-        prefer(2L, "EMAIL");
+        prefer(1L, "PUSH");
+        prefer(2L, "PUSH");
         for (int i = 0; i < 4; i++) {
             recorder.record("h-" + i, 1L, NotificationKind.ORDER_FILLED, FILLED);
             Thread.sleep(5);
@@ -278,7 +278,7 @@ class NotificationLedgerFlowTest {
         assertThat(history.history(1L, 5000, null)).hasSize(4);
         assertThat(history.history(1L, null, null)).hasSize(4);
         assertThat(firstPage.get(0).message()).isEqualTo("Your BUY order for 10 RELIANCE was filled at 2401.50.");
-        assertThat(firstPage.get(0).channel()).isEqualTo(ChannelKind.EMAIL);
+        assertThat(firstPage.get(0).channel()).isEqualTo(ChannelKind.PUSH);
         assertThat(firstPage.get(0).toString()).doesNotContain("example.com");
     }
 }

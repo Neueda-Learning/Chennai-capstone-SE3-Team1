@@ -76,13 +76,13 @@ class NotificationHistoryControllerWebTest {
     void ownHistory() throws Exception {
         signedInAs(1L, "CUSTOMER");
         given(service.history(eq(1L), any(), any())).willReturn(List.of(
-                entry(NotificationStatus.QUEUED, ChannelKind.EMAIL), entry(NotificationStatus.PENDING_CHANNEL, null)));
+                entry(NotificationStatus.QUEUED, ChannelKind.PUSH), entry(NotificationStatus.PENDING_CHANNEL, null)));
 
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].kind", is("ORDER_FILLED")))
-                .andExpect(jsonPath("$[0].channel", is("EMAIL")))
+                .andExpect(jsonPath("$[0].channel", is("PUSH")))
                 .andExpect(jsonPath("$[0].status", is("QUEUED")))
                 .andExpect(jsonPath("$[0].deliveredAt", nullValue()))
                 .andExpect(jsonPath("$[1].channel", nullValue()))

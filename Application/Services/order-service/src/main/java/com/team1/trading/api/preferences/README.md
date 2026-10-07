@@ -22,7 +22,6 @@ Per-customer record of the alert channel and the default account. Owns the one t
 | Situation | Result |
 |---|---|
 | No row, or `channel` is `NULL` | `Optional.empty()` |
-| `EMAIL` | profile email, or `channel_contact_override` when set |
 | `PUSH` | `account:{accountId}` |
 | Database failure, a stored row with no `users` row, or an unknown stored channel | throws `PreferenceResolutionException` |
 

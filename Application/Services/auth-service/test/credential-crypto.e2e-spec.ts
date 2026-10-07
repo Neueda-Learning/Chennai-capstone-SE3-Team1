@@ -13,7 +13,7 @@ import { AppModule } from '../src/app.module';
 import { UserRepository } from '../src/auth/user.repository';
 import { OtpRepository } from '../src/auth/otp.repository';
 import { RefreshTokenRepository } from '../src/auth/refresh-token.repository';
-import { MailerService } from '../src/auth/mailer.service';
+import { OtpOutboxService } from '../src/auth/otp-outbox.service';
 
 interface Params {
   publicKey: string;
@@ -87,8 +87,8 @@ describe('Credential encryption (e2e, real crypto)', () => {
       .useValue({})
       .overrideProvider(RefreshTokenRepository)
       .useValue({})
-      .overrideProvider(MailerService)
-      .useValue({ send: jest.fn() })
+      .overrideProvider(OtpOutboxService)
+      .useValue({ deliver: jest.fn() })
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(

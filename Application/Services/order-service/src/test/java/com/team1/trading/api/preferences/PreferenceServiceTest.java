@@ -37,23 +37,23 @@ class PreferenceServiceTest {
     @Test
     @DisplayName("A saved preference reads back, and the row is in customer_preferences")
     void saveThenReadBack() {
-        PreferencesResponse saved = service.put(1L, new PreferencesRequest(1L, ChannelKind.EMAIL));
+        PreferencesResponse saved = service.put(1L, new PreferencesRequest(1L, ChannelKind.PUSH));
 
         assertThat(saved.accountId()).isEqualTo(1L);
         assertThat(saved.defaultAccountId()).isEqualTo(1L);
-        assertThat(saved.channel()).isEqualTo(ChannelKind.EMAIL);
+        assertThat(saved.channel()).isEqualTo(ChannelKind.PUSH);
         assertThat(saved.updatedAt()).isNotNull();
         assertThat(service.get(1L)).isEqualTo(saved);
 
         String stored = jdbc.queryForObject(
                 "SELECT channel FROM customer_preferences WHERE account_id = 1", String.class);
-        assertThat(stored).isEqualTo("EMAIL");
+        assertThat(stored).isEqualTo("PUSH");
     }
 
     @Test
     @DisplayName("A second PUT replaces the first and leaves one row")
     void putReplaces() {
-        service.put(1L, new PreferencesRequest(1L, ChannelKind.EMAIL));
+        service.put(1L, new PreferencesRequest(1L, ChannelKind.PUSH));
         service.put(1L, new PreferencesRequest(1L, ChannelKind.PUSH));
 
         assertThat(service.get(1L).channel()).isEqualTo(ChannelKind.PUSH);
@@ -65,7 +65,7 @@ class PreferenceServiceTest {
     @Test
     @DisplayName("A default account that is not the customer's own is PRF-422 and nothing is written")
     void defaultAccountMustBeOwn() {
-        assertThatThrownBy(() -> service.put(1L, new PreferencesRequest(2L, ChannelKind.EMAIL)))
+        assertThatThrownBy(() -> service.put(1L, new PreferencesRequest(2L, ChannelKind.PUSH)))
                 .isInstanceOf(PreferencesInvalidException.class)
                 .hasFieldOrPropertyWithValue("code", "PRF-422");
 
@@ -76,7 +76,7 @@ class PreferenceServiceTest {
     @Test
     @DisplayName("One customer's preference is not visible under another account")
     void preferencesAreKeyedByAccount() {
-        service.put(1L, new PreferencesRequest(1L, ChannelKind.EMAIL));
+        service.put(1L, new PreferencesRequest(1L, ChannelKind.PUSH));
 
         assertThatThrownBy(() -> service.get(2L)).isInstanceOf(PreferencesNotFoundException.class);
     }
