@@ -253,8 +253,8 @@ describe('RegisterPage', () => {
     request.flush(userResponse());
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/verify-otp'], {
-      queryParams: { email: 'jane.doe@example.com' }
+    expect(navigate).toHaveBeenCalledWith(['/login'], {
+      queryParams: { registered: 'true' }
     });
     expect(session.isSignedIn()).toBe(false);
   });

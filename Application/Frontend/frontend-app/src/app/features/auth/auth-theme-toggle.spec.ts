@@ -7,19 +7,13 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { THEME_STORAGE } from '../../core/theme/theme.service';
 import { provideApi } from '../../generated/auth-client';
 import { provideApi as provideTradeApi } from '../../generated/trade-client';
-import { ForgotPasswordPage } from './forgot-password-page';
 import { LoginPage } from './login-page';
 import { RegisterPage } from './register-page';
-import { ResetPasswordPage } from './reset-password-page';
-import { VerifyOtpPage } from './verify-otp-page';
 
 describe('theme toggle on the pages without a navbar', () => {
   const pages: [string, Type<unknown>][] = [
     ['login', LoginPage],
-    ['register', RegisterPage],
-    ['verify-otp', VerifyOtpPage],
-    ['forgot-password', ForgotPasswordPage],
-    ['reset-password', ResetPasswordPage]
+    ['register', RegisterPage]
   ];
 
   beforeEach(() => {

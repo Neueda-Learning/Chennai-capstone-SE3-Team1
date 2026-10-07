@@ -113,17 +113,6 @@ describe('UserRepository', () => {
     });
   });
 
-  describe('setStatus', () => {
-    it('bumps version and stamps updated', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
-      await repo.setStatus(row.id, 'ACTIVE');
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('version = version + 1'),
-        ['ACTIVE', row.id],
-      );
-    });
-  });
-
   describe('updatePasswordHash', () => {
     it('increments version and stamps updated', async () => {
       pool.query.mockResolvedValue({ rows: [] });

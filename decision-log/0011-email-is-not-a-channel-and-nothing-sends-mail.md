@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | accepted |
+| Status | accepted; point 4 superseded by [`0012`](0012-registration-needs-no-email-verification.md) |
 | Date | 2026-10-07 |
 | Decided by | requested by the team; the email and chatbot code is kept on the `side` branch |
 

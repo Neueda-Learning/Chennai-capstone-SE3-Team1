@@ -24,14 +24,6 @@ import { LoginRequestDto } from './dto/login-request.dto';
 import { RefreshRequestDto } from './dto/refresh-request.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
-import { EmailRequestDto } from './dto/email-request.dto';
-import { VerifyOtpRequestDto } from './dto/verify-otp-request.dto';
-import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
-import {
-  OtpSentResponseDto,
-  OtpVerifiedResponseDto,
-  PasswordResetResponseDto,
-} from './dto/otp-response.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -88,96 +80,6 @@ export class AuthController {
   })
   async login(@Body() body: LoginRequestDto): Promise<TokenResponseDto> {
     return this.authService.login(body);
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify the emailed registration code and activate the account',
-  })
-  @ApiResponse({
-    status: 200,
-    type: OtpVerifiedResponseDto,
-    description: 'The account is now ACTIVE and can sign in',
-  })
-  @ApiResponse({
-    status: 410,
-    description: 'The code is wrong, spent or expired',
-  })
-  @ApiResponse({
-    status: 422,
-    description: 'The request failed field validation',
-  })
-  async verifyOtp(
-    @Body() body: VerifyOtpRequestDto,
-  ): Promise<OtpVerifiedResponseDto> {
-    return this.authService.verifyOtp(body);
-  }
-
-  @Post('forgot-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Email a password-reset code',
-    description:
-      'Always answers 200, whether or not the address has an account, so this route cannot be used to discover which emails exist.',
-  })
-  @ApiResponse({
-    status: 200,
-    type: OtpSentResponseDto,
-    description: 'Accepted',
-  })
-  @ApiResponse({
-    status: 422,
-    description: 'The request failed field validation',
-  })
-  async forgotPassword(
-    @Body() body: EmailRequestDto,
-  ): Promise<OtpSentResponseDto> {
-    return this.authService.forgotPassword(body);
-  }
-
-  @Post('resend-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Re-send the registration code, replacing any earlier one',
-    description: 'Always answers 200, so it reveals nothing about the address.',
-  })
-  @ApiResponse({
-    status: 200,
-    type: OtpSentResponseDto,
-    description: 'Accepted',
-  })
-  @ApiResponse({
-    status: 422,
-    description: 'The request failed field validation',
-  })
-  async resendOtp(@Body() body: EmailRequestDto): Promise<OtpSentResponseDto> {
-    return this.authService.resendOtp(body);
-  }
-
-  @Post('reset-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Set a new password using an emailed code',
-  })
-  @ApiResponse({
-    status: 200,
-    type: PasswordResetResponseDto,
-    description: 'Password changed; every session revoked',
-  })
-  @ApiResponse({
-    status: 410,
-    description: 'The code is wrong, spent or expired',
-  })
-  @ApiResponse({
-    status: 422,
-    description:
-      'The new password failed the policy, or the body failed field validation',
-  })
-  async resetPassword(
-    @Body() body: ResetPasswordRequestDto,
-  ): Promise<PasswordResetResponseDto> {
-    return this.authService.resetPassword(body);
   }
 
   @Post('refresh')

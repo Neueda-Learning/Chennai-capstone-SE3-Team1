@@ -438,7 +438,7 @@ initializer, or at the top of a guard/interceptor, **not later inside a callback
 ```
 /                  → LandingPage                  (public)
 /login             → LoginPage                    (public)
-/register, /verify-otp, /forgot-password, /reset-password   (public)
+/register   (public)
 /app               → Shell   (guarded)            ← the frame: sidebar + top bar
    /app/dashboard      → DashboardPage             (rendered INSIDE the Shell's <router-outlet>)
    /app/portfolio, /orders, /blotter, /account, /settings, /bank-accounts

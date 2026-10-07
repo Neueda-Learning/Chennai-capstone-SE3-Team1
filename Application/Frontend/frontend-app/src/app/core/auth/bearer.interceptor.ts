@@ -19,10 +19,6 @@ const PUBLIC_AUTH_ENDPOINTS = [
   '/auth/login',
   '/auth/register',
   '/auth/refresh',
-  '/auth/verify-otp',
-  '/auth/forgot-password',
-  '/auth/resend-otp',
-  '/auth/reset-password',
 ];
 
 function isPublicAuthEndpoint(url: string): boolean {

@@ -17,21 +17,6 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/register-page').then((m) => m.RegisterPage)
   },
   {
-    path: 'verify-otp',
-    loadComponent: () =>
-      import('./features/auth/verify-otp-page').then((m) => m.VerifyOtpPage)
-  },
-  {
-    path: 'forgot-password',
-    loadComponent: () =>
-      import('./features/auth/forgot-password-page').then((m) => m.ForgotPasswordPage)
-  },
-  {
-    path: 'reset-password',
-    loadComponent: () =>
-      import('./features/auth/reset-password-page').then((m) => m.ResetPasswordPage)
-  },
-  {
     path: 'app',
     canActivate: [authGuard],
     canActivateChild: [authGuardChild],

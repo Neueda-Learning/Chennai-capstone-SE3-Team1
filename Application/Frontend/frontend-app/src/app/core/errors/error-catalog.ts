@@ -15,9 +15,9 @@ export interface ErrorCatalogueEntry {
 
 export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
 
-export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422', 'AUTH-410'] as const;
+export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
-export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
+export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
 
 export const AUTH_SIGNIN_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
@@ -56,27 +56,12 @@ export const authRegisterErrorMessageByCode: Readonly<Record<string, string>> = 
 
 export const registerErrorMessageByCode = authRegisterErrorMessageByCode;
 
-export const authOtpErrorMessageByCode: Readonly<Record<string, string>> = {
-  'AUTH-401': 'That request could not be completed. Try again shortly.',
-  'AUTH-410': 'That code is not right, or it has expired. Ask for a new one and try again.',
-  'VAL-422': 'One of the fields is not valid. Check and try again.'
-};
-
-export const otpErrorMessageByCode = authOtpErrorMessageByCode;
-
-export const otpFallbackMessage = 'That could not be completed. Please try again.';
-export const resetFallbackMessage = 'The password could not be changed. Please try again.';
-
 export const authSignInFallback = 'Sign-in could not be completed. Please try again.';
 export const authRegisterFallback = 'Registration could not be completed. Please try again.';
-export const authVerifyFallback = 'Email verification could not be completed. Please try again.';
-export const authResetFallback = 'Password reset could not be completed. Please try again.';
 export const tradeFallbackMessage = 'Could not complete that operation. Please try again.';
 
 export const authSignInConnectionError = 'Could not reach the sign-in service. Check your connection and try again.';
 export const authRegisterConnectionError = 'Could not reach the registration service. Check your connection and try again.';
-export const authVerifyConnectionError = 'Could not reach the verification service. Check your connection and try again.';
-export const authResetConnectionError = 'Could not reach the password reset service. Check your connection and try again.';
 export const tradeConnectionError = 'Could not reach the trading service. Check your connection and try again.';
 
 export interface CatalogueCompleteness {
@@ -96,8 +81,7 @@ export function checkErrorCatalogueCompleteness(): CatalogueCompleteness {
   
   const allAuthMappings = {
     ...authSignInErrorMessageByCode,
-    ...authRegisterErrorMessageByCode,
-    ...authOtpErrorMessageByCode
+    ...authRegisterErrorMessageByCode
   };
   
   const unmappedAuthCodes = (AUTH_API_ERROR_CODES as readonly string[]).filter(
@@ -160,24 +144,6 @@ export class ErrorCatalog {
       authRegisterErrorMessageByCode,
       authRegisterConnectionError,
       authRegisterFallback
-    );
-  }
-
-  messageForVerify(failure: unknown): string {
-    return this.extractMessage(
-      failure,
-      authOtpErrorMessageByCode,
-      authVerifyConnectionError,
-      authVerifyFallback
-    );
-  }
-
-  messageForReset(failure: unknown): string {
-    return this.extractMessage(
-      failure,
-      authOtpErrorMessageByCode,
-      authResetConnectionError,
-      authResetFallback
     );
   }
 

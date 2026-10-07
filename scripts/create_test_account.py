@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Create (or reset) a ready-to-log-in test account by writing straight to the database.
 
-Registering through the UI sends a one-time code by email. This skips all of that: it writes
-the login, the trading account, a linked bank account and, unless told not to, some believable
+Registering through the UI gives only a login. This writes the login, the trading account, a linked bank account and, unless told not to, some believable
 activity (a funding transfer, two holdings, a few settled orders), so every screen has real
 rows to show.
 

@@ -10,9 +10,6 @@ import { LoginRequestDto } from './dto/login-request.dto';
 import { RefreshRequestDto } from './dto/refresh-request.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
-import { EmailRequestDto } from './dto/email-request.dto';
-import { VerifyOtpRequestDto } from './dto/verify-otp-request.dto';
-import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -22,10 +19,6 @@ describe('AuthController', () => {
     refresh: jest.Mock;
     logout: jest.Mock;
     me: jest.Mock;
-    verifyOtp: jest.Mock;
-    forgotPassword: jest.Mock;
-    resendOtp: jest.Mock;
-    resetPassword: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -35,10 +28,6 @@ describe('AuthController', () => {
       refresh: jest.fn(),
       logout: jest.fn(),
       me: jest.fn(),
-      verifyOtp: jest.fn(),
-      forgotPassword: jest.fn(),
-      resendOtp: jest.fn(),
-      resetPassword: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -150,50 +139,5 @@ describe('AuthController', () => {
 
     await expect(controller.me({ user: identity })).resolves.toBe(expected);
     expect(authService.me).toHaveBeenCalledWith(identity);
-  });
-
-  it('delegates verifyOtp and returns the verified flag', async () => {
-    const body = new VerifyOtpRequestDto();
-    body.email = 'priya.menon@example.com';
-    body.otp = '123456';
-    authService.verifyOtp.mockResolvedValue({ verified: true });
-
-    await expect(controller.verifyOtp(body)).resolves.toEqual({
-      verified: true,
-    });
-    expect(authService.verifyOtp).toHaveBeenCalledWith(body);
-  });
-
-  it('delegates forgotPassword and returns the sent flag', async () => {
-    const body = new EmailRequestDto();
-    body.email = 'priya.menon@example.com';
-    authService.forgotPassword.mockResolvedValue({ sent: true });
-
-    await expect(controller.forgotPassword(body)).resolves.toEqual({
-      sent: true,
-    });
-    expect(authService.forgotPassword).toHaveBeenCalledWith(body);
-  });
-
-  it('delegates resendOtp and returns the sent flag', async () => {
-    const body = new EmailRequestDto();
-    body.email = 'priya.menon@example.com';
-    authService.resendOtp.mockResolvedValue({ sent: true });
-
-    await expect(controller.resendOtp(body)).resolves.toEqual({ sent: true });
-    expect(authService.resendOtp).toHaveBeenCalledWith(body);
-  });
-
-  it('delegates resetPassword and returns the reset flag', async () => {
-    const body = new ResetPasswordRequestDto();
-    body.email = 'priya.menon@example.com';
-    body.otp = '123456';
-    body.newPassword = 'correct horse battery7';
-    authService.resetPassword.mockResolvedValue({ reset: true });
-
-    await expect(controller.resetPassword(body)).resolves.toEqual({
-      reset: true,
-    });
-    expect(authService.resetPassword).toHaveBeenCalledWith(body);
   });
 });

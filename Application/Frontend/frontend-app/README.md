@@ -155,7 +155,7 @@ along with `e2e/.auth/`):
 The Trade API account id is not configured: `e2e/api.ts` reads it out of the session token the
 UI itself is holding, so the API cross-checks cannot drift from the account on screen.
 
-Registration is not covered: it needs a live email OTP, and the OTP-verification endpoint is
-deliberately not stubbed for tests. Sign in with an account that already exists. The auth
+Registration is not covered: each run would leave a new user behind. Sign in with an account
+that already exists. The auth
 service locks a username after five failed attempts in 15 minutes, so the invalid-credential
 test uses a username that does not exist rather than a wrong password.

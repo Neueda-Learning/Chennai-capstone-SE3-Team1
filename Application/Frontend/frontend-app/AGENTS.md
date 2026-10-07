@@ -8,7 +8,7 @@ and extension guidance.
 
 ## Status in one line
 
-The screens are wired to the real services: sign-in, registration with email OTP, the
+The screens are wired to the real services: sign-in, registration (no email verification), the
 dashboard, the portfolio, the market and order screen, the blotter, bank account linking and
 funding, the shell's profile and notifications. What is still a placeholder is listed under
 "What is still fake" below; read that before assuming a button does something.

@@ -102,8 +102,8 @@ export class RegisterPage {
   }
 
   private onRegistered(): void {
-    void this.router.navigate(['/verify-otp'], {
-      queryParams: { email: this.email().trim() }
+    void this.router.navigate(['/login'], {
+      queryParams: { registered: 'true' }
     });
   }
 

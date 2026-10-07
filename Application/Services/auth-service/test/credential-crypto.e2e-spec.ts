@@ -11,9 +11,7 @@ import {
 } from 'crypto';
 import { AppModule } from '../src/app.module';
 import { UserRepository } from '../src/auth/user.repository';
-import { OtpRepository } from '../src/auth/otp.repository';
 import { RefreshTokenRepository } from '../src/auth/refresh-token.repository';
-import { OtpOutboxService } from '../src/auth/otp-outbox.service';
 
 interface Params {
   publicKey: string;
@@ -77,18 +75,27 @@ describe('Credential encryption (e2e, real crypto)', () => {
   const users = {
     findByEmail: jest.fn().mockResolvedValue(null),
     findByUsername: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockImplementation(async (input) => ({
+      id: 'u-1',
+      ...input,
+      phone: null,
+      accountId: null,
+      version: 1,
+      createdOn: new Date(),
+    })),
   };
+  const newUser = (email: string) => ({
+    username: 'nobody',
+    email,
+    password: 'Correct-Horse-Battery-9',
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(UserRepository)
       .useValue(users)
-      .overrideProvider(OtpRepository)
-      .useValue({})
       .overrideProvider(RefreshTokenRepository)
       .useValue({})
-      .overrideProvider(OtpOutboxService)
-      .useValue({ deliver: jest.fn() })
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
@@ -117,8 +124,6 @@ describe('Credential encryption (e2e, real crypto)', () => {
     for (const path of [
       'login',
       'register',
-      'verify-otp',
-      'forgot-password',
       'refresh',
     ]) {
       const res = await request(app.getHttpServer())
@@ -138,39 +143,42 @@ describe('Credential encryption (e2e, real crypto)', () => {
 
   it('accepts an encrypted request and answers with an encrypted response', async () => {
     const p = await params();
-    const { key, envelope } = seal(p, { email: 'nobody@example.com' });
+    const { key, envelope } = seal(p, newUser('nobody@example.com'));
     const res = await request(app.getHttpServer())
-      .post('/auth/forgot-password')
+      .post('/auth/register')
       .send(envelope)
-      .expect(200);
+      .expect(201);
 
     expect(res.body).toEqual({
       v: 1,
       iv: expect.any(String),
       ct: expect.any(String),
     });
-    expect(open(key, p.nonce, res.body)).toEqual({ sent: true });
+    expect(open(key, p.nonce, res.body)).toMatchObject({
+      username: 'nobody',
+      status: 'ACTIVE',
+    });
     expect(users.findByEmail).toHaveBeenCalledWith('nobody@example.com');
   });
 
   it('refuses the same envelope a second time (replay)', async () => {
     const p = await params();
-    const { envelope } = seal(p, { email: 'nobody@example.com' });
+    const { envelope } = seal(p, newUser('nobody@example.com'));
     await request(app.getHttpServer())
-      .post('/auth/forgot-password')
+      .post('/auth/register')
       .send(envelope)
-      .expect(200);
+      .expect(201);
     await request(app.getHttpServer())
-      .post('/auth/forgot-password')
+      .post('/auth/register')
       .send(envelope)
       .expect(422);
   });
 
   it('still validates the decrypted body', async () => {
     const p = await params();
-    const { envelope } = seal(p, { email: 'not-an-email' });
+    const { envelope } = seal(p, newUser('not-an-email'));
     const res = await request(app.getHttpServer())
-      .post('/auth/forgot-password')
+      .post('/auth/register')
       .send(envelope)
       .expect(422);
     expect(res.body.errorCode).toBe('VAL-422');

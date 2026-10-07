@@ -5,7 +5,6 @@ import {
   AUTH_API_ERROR_CODES,
   TRADE_API_ERROR_CODES,
   ErrorCatalog,
-  authOtpErrorMessageByCode,
   authRegisterErrorMessageByCode,
   authSignInErrorMessageByCode,
   checkErrorCatalogueCompleteness,
@@ -32,8 +31,7 @@ describe('ErrorCatalog', () => {
     it('maps every Auth API error code to a message', () => {
       const authMessageMap = {
         ...authSignInErrorMessageByCode,
-        ...authRegisterErrorMessageByCode,
-        ...authOtpErrorMessageByCode
+        ...authRegisterErrorMessageByCode
       };
 
       for (const code of AUTH_API_ERROR_CODES) {
@@ -183,30 +181,6 @@ describe('ErrorCatalog', () => {
       expect(message).toContain('connection');
     });
 
-    it('renders a connection error for email verification when status is 0', () => {
-      const failure = new HttpErrorResponse({
-        status: 0,
-        statusText: 'Unknown Error',
-        error: null
-      });
-      
-      const message = catalog.messageForVerify(failure);
-      
-      expect(message).toContain('connection');
-    });
-
-    it('renders a connection error for password reset when status is 0', () => {
-      const failure = new HttpErrorResponse({
-        status: 0,
-        statusText: 'Unknown Error',
-        error: null
-      });
-      
-      const message = catalog.messageForReset(failure);
-      
-      expect(message).toContain('connection');
-    });
-
     it('prioritizes status 0 even when errorCode is present', () => {
       const failure = new HttpErrorResponse({
         status: 0,
@@ -275,15 +249,5 @@ describe('ErrorCatalog', () => {
       expect(message.length).toBeGreaterThan(0);
     });
 
-    it('messageForVerify still uses authOtpErrorMessageByCode', () => {
-      const failure = new HttpErrorResponse({
-        status: 400,
-        statusText: 'Bad Request',
-        error: { errorCode: 'AUTH-410', message: 'otp error' }
-      });
-      const message = catalog.messageForVerify(failure);
-      expect(message).toBeTruthy();
-      expect(message.length).toBeGreaterThan(0);
-    });
   });
 });

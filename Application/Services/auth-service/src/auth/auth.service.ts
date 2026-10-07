@@ -6,21 +6,12 @@ import { UserRepository, UserRecord } from './user.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService, AccessTokenClaims, TokenPair } from './token.service';
 import { AuthServiceException } from './auth-errors';
-import { OtpService } from './otp.service';
 import { Role } from './dto/role';
 import { UserResponseDto } from './dto/user-response.dto';
 import { RegisterRequestDto } from './dto/register-request.dto';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { RefreshRequestDto } from './dto/refresh-request.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
-import { EmailRequestDto } from './dto/email-request.dto';
-import { VerifyOtpRequestDto } from './dto/verify-otp-request.dto';
-import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
-import {
-  OtpSentResponseDto,
-  OtpVerifiedResponseDto,
-  PasswordResetResponseDto,
-} from './dto/otp-response.dto';
 
 interface AuthLogger {
   log: (
@@ -57,7 +48,6 @@ export class AuthService {
     private readonly users: UserRepository,
     private readonly refreshTokens: RefreshTokenRepository,
     private readonly tokens: TokenService,
-    private readonly otp: OtpService,
     @Inject('AUTH_LOGGER') private readonly logger: AuthLogger,
   ) {}
 
@@ -84,9 +74,6 @@ export class AuthService {
       userId: user.id,
       username: user.username,
     });
-
-    await this.otp.issue(user.email, 'REGISTER');
-    this.logger.log('registration_otp_issued', 'register', { userId: user.id });
 
     return this.toUserResponse(user);
   }
@@ -119,15 +106,6 @@ export class AuthService {
     }
 
     this.rateLimiter.recordSuccess(request.username);
-
-    if (user.status === 'PENDING') {
-      this.logger.warn('login_blocked_pending_verification', 'login', {
-        userId: user.id,
-      });
-      throw AuthServiceException.unauthorised(
-        'Account created - check your email for the verification code and sign in once verified',
-      );
-    }
 
     if (this.password.needsRehash(user.passwordHash)) {
       const newHash = await this.password.hash(request.password);
@@ -216,70 +194,6 @@ export class AuthService {
     return this.toUserResponse(user);
   }
 
-  async verifyOtp(
-    request: VerifyOtpRequestDto,
-  ): Promise<OtpVerifiedResponseDto> {
-    const user = await this.users.findByEmail(request.email);
-    if (!user || user.status !== 'PENDING') {
-      throw AuthServiceException.otpInvalid();
-    }
-
-    await this.otp.verify(request.email, 'REGISTER', request.otp);
-    await this.users.setStatus(user.id, 'ACTIVE');
-
-    this.logger.log('registration_verified', 'verify-otp', { userId: user.id });
-    return { verified: true };
-  }
-
-  async forgotPassword(request: EmailRequestDto): Promise<OtpSentResponseDto> {
-    const user = await this.users.findByEmail(request.email);
-    if (user) {
-      await this.otp.issue(request.email, 'RESET');
-      this.logger.log('password_reset_otp_issued', 'forgot-password', {
-        userId: user.id,
-      });
-    }
-    return { sent: true };
-  }
-
-  async resendOtp(request: EmailRequestDto): Promise<OtpSentResponseDto> {
-    const user = await this.users.findByEmail(request.email);
-    if (user && user.status === 'PENDING') {
-      await this.otp.issue(request.email, 'REGISTER');
-      this.logger.log('registration_otp_reissued', 'resend-otp', {
-        userId: user.id,
-      });
-    }
-    return { sent: true };
-  }
-
-  async resetPassword(
-    request: ResetPasswordRequestDto,
-  ): Promise<PasswordResetResponseDto> {
-    const policyResult = this.policy.evaluate(request.newPassword);
-    if (!policyResult.valid) {
-      throw AuthServiceException.invalidInput(this.POLICY_MESSAGE);
-    }
-
-    const user = await this.users.findByEmail(request.email);
-    if (!user) {
-      throw AuthServiceException.otpInvalid();
-    }
-
-    await this.otp.verify(request.email, 'RESET', request.otp);
-
-    const hash = await this.password.hash(request.newPassword);
-    await this.users.updatePasswordHash(
-      user.id,
-      hash,
-      this.CURRENT_PARAMS_VERSION,
-    );
-    await this.refreshTokens.revokeAllForUser(user.id);
-
-    this.logger.log('password_reset', 'reset-password', { userId: user.id });
-    return { reset: true };
-  }
-
   private async createUser(
     request: RegisterRequestDto,
     passwordHash: string,
@@ -292,7 +206,7 @@ export class AuthService {
         roles,
         passwordHash,
         paramsVersion: this.CURRENT_PARAMS_VERSION,
-        status: 'PENDING',
+        status: 'ACTIVE',
       });
     } catch (error) {
       if (UserRepository.isUniqueViolation(error)) {

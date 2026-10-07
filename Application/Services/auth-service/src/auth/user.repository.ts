@@ -98,13 +98,6 @@ export class UserRepository {
     return mapRow(r.rows[0]);
   }
 
-  async setStatus(id: string, status: UserStatus): Promise<void> {
-    await this.pool.query(
-      `UPDATE users SET status = $1, version = version + 1, updated = now() WHERE id = $2`,
-      [status, id],
-    );
-  }
-
   async updatePasswordHash(
     id: string,
     passwordHash: string,
