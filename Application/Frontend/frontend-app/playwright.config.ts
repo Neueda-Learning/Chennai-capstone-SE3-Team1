@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// The repository's one .env (copied from the root .env.example). Missing is fine: every value has
+// a default, and a variable already set in the environment is not overridden.
 try {
-  process.loadEnvFile('.env.test');
+  process.loadEnvFile('../../../.env');
 } catch {
 }
 

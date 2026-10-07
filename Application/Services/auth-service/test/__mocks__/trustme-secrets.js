@@ -15,7 +15,7 @@ async function get(secretName) {
 }
 
 async function using() {
-  throw new Error('trustme.using() is not mocked for e2e tests; use trustme.get() instead.');
+  throw new Error('The TrustMe vault is not available in e2e tests; secrets come from the environment.');
 }
 
 async function forget() {

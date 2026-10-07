@@ -142,8 +142,9 @@ between runs — the assertions compare a before/after read rather than fixed va
 
 ### Configuration
 
-`playwright.config.ts` reads `.env.test` (copy `.env.test.example`, which is ignored by git
-along with `e2e/.auth/`):
+`playwright.config.ts` reads the repository's one `.env` (copy the root `.env.example`; `.env`
+is ignored by git, as is `e2e/.auth/`). Every variable has a default, and one already set in the
+environment wins:
 
 | Variable | Meaning |
 |---|---|

@@ -14,19 +14,21 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import trustme_secrets as trustme
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db_config import REPO_ROOT, SEED_DIR  # noqa: E402
+from db_config import SEED_DIR  # noqa: E402
+from vault_env import secret  # noqa: E402
 
 BATCH = 25
 SUFFIX = ".NS"
 
 
 def main() -> int:
-    trustme.use_key_file(str(REPO_ROOT / "leapcapstoneteam1-720d03.TM"))
-    base = trustme.get("Fauxnance_Endpoint").rstrip("/")
-    key = trustme.get("Fauxnance")
+    base = (secret("Fauxnance_Endpoint") or "").rstrip("/")
+    key = secret("Fauxnance")
+    if not base or not key:
+        print("Fauxnance_Endpoint/Fauxnance are not in the vault, and FAUXNANCE_BASE_URL/FAUXNANCE_API_KEY "
+              "are not set in the environment or .env", file=sys.stderr)
+        return 1
 
     with open(SEED_DIR / "040_instruments.csv", newline="", encoding="utf-8") as fh:
         active = [r["instrument_id"] for r in csv.DictReader(fh) if r["active"].lower() == "true"]

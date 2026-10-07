@@ -72,9 +72,11 @@ seed data from the shared `data.sql`.
 ## Build
 
 The characterisation tests run as part of the module's test suite. They need
-a local PostgreSQL server (default `localhost:5432`) and the team TrustMe
-key file at the repo root (`leapcapstoneteam1-720d03.TM`, overridable through
-the `TRUSTME_KEY_FILE` / `CHARACT_DB_NAME` environment variables):
+a local PostgreSQL server (default `localhost:5432`). Its credentials come from the team TrustMe
+key file at the repo root (`leapcapstoneteam1-720d03.TM`, overridable through `TRUSTME_KEY_FILE`;
+`TRUSTME_PASSWORD` or a remembered key opens it), else from `POSTGRES_HOST`, `POSTGRES_PORT`,
+`POSTGRES_USER` and `POSTGRES_PASSWORD` in the environment or the repository's `.env`. The database
+name is `CHARACT_DB_NAME` (default `trading_charact`):
 
 ```bash
 mvn -f Application/Services/order-service/pom.xml test

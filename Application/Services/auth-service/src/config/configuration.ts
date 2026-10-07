@@ -1,40 +1,35 @@
 import { registerAs } from '@nestjs/config';
 import * as Joi from 'joi';
-import trustme from 'trustme-secrets';
+import { TrustMeClient } from 'trustme-secrets';
+import { envNameFor, openVault, readSecret } from './secrets';
 
 const SERVICE_PORT = 3000;
 const JWT_ISSUER = 'auth-service';
 
-async function required(name: string): Promise<string> {
-  const value = await trustme.get(name);
-  if (typeof value !== 'string' || value === '') {
-    throw new Error(`TrustMe secret "${name}" is empty`);
+async function required(vault: TrustMeClient | null, name: string): Promise<string> {
+  const value = await readSecret(vault, name);
+  if (value === '') {
+    throw new Error(
+      `Secret "${name}" is not in the TrustMe vault and ${envNameFor(name)} is not set in the environment or .env`,
+    );
   }
   return value;
 }
 
-async function optional(name: string): Promise<string> {
-  try {
-    const value = await trustme.get(name);
-    return typeof value === 'string' ? value : '';
-  } catch {
-    return '';
-  }
-}
-
 export const configuration = registerAs('app', async () => {
+  const vault = await openVault();
   const [jwtSecret, dbHost, dbPort, dbName, dbUser, dbPassword] = await Promise.all([
-    required('JWT_SECRET'),
-    required('PostGres_Host'),
-    required('Postgres_Port'),
-    required('Postgres_DB'),
-    required('PostGres_User'),
-    required('PostGres'),
+    required(vault, 'JWT_SECRET'),
+    required(vault, 'PostGres_Host'),
+    required(vault, 'Postgres_Port'),
+    required(vault, 'Postgres_DB'),
+    required(vault, 'PostGres_User'),
+    required(vault, 'PostGres'),
   ]);
   const [authPrivateKey, fauxnanceKey, fauxnanceUrl] = await Promise.all([
-    optional('AUTH_PRIVATE_KEY'),
-    optional('Fauxnance'),
-    optional('Fauxnance_Endpoint'),
+    readSecret(vault, 'AUTH_PRIVATE_KEY'),
+    readSecret(vault, 'Fauxnance'),
+    readSecret(vault, 'Fauxnance_Endpoint'),
   ]);
 
   return {

@@ -11,13 +11,16 @@ mvn clean verify
 
 ## Configuration
 
-Secrets come from the TrustMe vault, not from environment variables or a `.env` file:
+Each `${trustme.secret.NAME}` resolves from the TrustMe vault when it can be opened (key file plus
+`-Dtrustme.password`/`TRUSTME_PASSWORD`, or a key this machine remembers), otherwise from the fallback
+variable, read from the environment or the repository's `.env` (`VaultEnvironmentPostProcessor`). It
+never prompts for a password.
 
-| TrustMe secret | Description |
-|---|---|
-| `Fauxnance`, `Fauxnance_Endpoint` | Fauxnance API key and base URL |
-| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | Database connection |
-| `JWT_SECRET` | Shared token-signing key |
+| TrustMe secret | Fallback variable | Description |
+|---|---|---|
+| `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | Fauxnance API key and base URL |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Database connection |
+| `JWT_SECRET` | `JWT_SECRET` | Shared token-signing key |
 
 The poll interval (60s; 50 symbols are two batches of 25 per cycle), symbol suffix (`.NS`) and port (8082) are fixed in `application.yml`. The one
 environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:29092`), because where Kafka is

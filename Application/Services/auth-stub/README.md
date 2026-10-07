@@ -12,7 +12,9 @@ two hardcoded users, same response shape, no mapping onto this project's seed da
 ```bash
 cd Application/Services/auth-stub
 npm install
-node server.js --trustme-key-file=../../../../leapcapstoneteam1-720d03.TM --trustme-password=<password>
+node server.js --trustme-key-file=../../../leapcapstoneteam1-720d03.TM --trustme-password=<password>
+# or, without the vault: JWT_SECRET from the environment or the repository's .env
+node server.js
 ```
 
 Listens on `http://localhost:4000`. It is the legacy stand-in for the real auth service
@@ -38,7 +40,8 @@ API's authentication check but not the per-account reach check — that still re
 ## The shared secret
 
 The Trade REST API and this stub both need the same HMAC secret, and both now get it from the
-same place: the `JWT_SECRET` entry in the TrustMe vault. The stub fetches it once at startup
-(the `--trustme-*` arguments above), refuses to start if it is missing or shorter than 32
-characters, and has no fallback value, so a token it issues verifies against the API without
-any step to keep two copies in sync.
+same place: the `JWT_SECRET` entry in the TrustMe vault, or `JWT_SECRET` in the environment or the
+repository's `.env` when the vault is not available. The stub reads it once at startup (the
+`--trustme-*` arguments above), never prompts for a password, refuses to start if it is missing or
+shorter than 32 characters, and has no built-in default, so a token it issues verifies against an
+API reading the same source.

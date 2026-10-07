@@ -5,8 +5,8 @@ import json
 import logging
 import os
 import time
+import sys
 from pathlib import Path
-import trustme_secrets as trustme
 
 try:
     import requests
@@ -15,11 +15,13 @@ except ImportError:
 
 DEFAULT_BASE_URL = "https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1"
 CACHE_DIR = Path(__file__).parent / ".cache"
-REPO_ROOT = Path(__file__).resolve().parents[1]
-trustme.use_key_file("leapcapstoneteam1-720d03.TM")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from vault_env import dotenv, env_name_for, secret, vault_secret  # noqa: E402
 
 KEY_VAR = "Fauxnance"
 BASE_URL_VAR = "Fauxnance_Endpoint"
+KEY_ENV_VAR = env_name_for(KEY_VAR)
 
 MAX_RETRIES = 3
 BACKOFF_BASE_SECONDS = 1.0
@@ -47,16 +49,20 @@ class MissingApiKey(RuntimeError):
 
 
 
+def _read_env_file() -> dict:
+    return dotenv()
+
+
 def base_url() -> str:
-    return (trustme.get(BASE_URL_VAR) or DEFAULT_BASE_URL).rstrip("/")
+    return (secret(BASE_URL_VAR) or DEFAULT_BASE_URL).rstrip("/")
 
 
 def _api_key() -> str:
-    key = trustme.get(KEY_VAR)
+    key = vault_secret(KEY_VAR) or os.environ.get(KEY_ENV_VAR) or _read_env_file().get(KEY_ENV_VAR)
     if not key:
         raise MissingApiKey(
-            f"The TrustMe secret {KEY_VAR!r} is empty or missing. Add it to the vault; "
-            f"there is no environment-variable or .env fallback."
+            f"The TrustMe secret {KEY_VAR!r} is empty or missing, and {env_name_for(KEY_VAR)} is not "
+            f"set in the environment or .env."
         )
     if key.startswith(("your-", "replace", "changeme")):
         raise MissingApiKey(
@@ -124,8 +130,8 @@ def extract(
         if 400 <= response.status_code < 500:
             meaning = {
                 400: "bad request (a range over ten years?)",
-                401: f"no API key was sent; set {KEY_VAR}",
-                403: (f"the key in {KEY_VAR} reached Fauxnance and was "
+                401: f"no API key was sent; set {KEY_VAR} in the vault or {KEY_ENV_VAR}",
+                403: (f"the key in {KEY_VAR} (or {KEY_ENV_VAR}) reached Fauxnance and was "
                       f"refused. It is present but not accepted: check it is "
                       f"current, not revoked, and issued for {base_url()}"),
                 404: f"Fauxnance does not serve {symbol}",

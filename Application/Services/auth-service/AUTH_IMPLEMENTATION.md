@@ -122,11 +122,12 @@ describes all five routes.
 | Setting | Source | Notes |
 |---|---|---|
 | Port, JWT issuer | fixed in code (`3000`, `auth-service`) | |
-| `JWT_SECRET` | TrustMe | Min 32 chars |
-| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | TrustMe | |
+| `JWT_SECRET` | TrustMe, else `JWT_SECRET` | Min 32 chars |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | TrustMe, else `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | |
 | `KAFKA_BROKER` | environment, default `localhost:29092` | Health check only |
 
-No setting is read from a `.env` file. See `src/config/configuration.ts`.
+A fallback variable is read from the environment, or from the repository's `.env`, which `main.ts`
+loads before anything else (a real environment variable wins). See `src/config/secrets.ts`.
 
 ## Tests
 

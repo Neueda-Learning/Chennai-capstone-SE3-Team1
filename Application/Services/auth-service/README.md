@@ -15,8 +15,8 @@ A NestJS-based trading service built with TypeScript, following clean architectu
 # Install dependencies
 npm ci
 
-# Copy environment file
-# no .env file: configuration comes from the TrustMe vault (see Configuration below)
+# Configuration: the TrustMe vault, else POSTGRES_*, JWT_SECRET, ... in the repository's .env
+# (copy .env.example in the repository root; see Configuration below)
 
 # Run in development mode
 npm run start:dev
@@ -43,16 +43,19 @@ npm run format
 
 ## Configuration
 
-Nothing is configured through a `.env` file. Secrets and connection details come from the TrustMe vault
-(the key file and its password are passed as `--trustme-key-file=...` / `--trustme-password=...`, as
-`run-local.ps1` does); see `src/config/configuration.ts`.
+Each secret comes from the TrustMe vault when it can be opened (the key file and its password are
+passed as `--trustme-key-file=...` / `--trustme-password=...`, as `run-local.ps1` does, or set as
+`TRUSTME_KEY_FILE` / `TRUSTME_PASSWORD`; a key this machine remembers also works), otherwise from the
+environment variable in the second column, otherwise from the repository's `.env` (copy the root
+`.env.example`). `main.ts` loads `.env` first; a real environment variable always wins over it. It never
+prompts for a password. See `src/config/secrets.ts` and `src/config/configuration.ts`.
 
-| TrustMe secret | Description |
-|---|---|
-| `JWT_SECRET` | JWT signing secret (min 32 chars), required |
-| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | PostgreSQL connection, required |
-| `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
-| `Fauxnance`, `Fauxnance_Endpoint` | Market-data API key and base URL. Optional |
+| TrustMe secret | Fallback variable | Description |
+|---|---|---|
+| `JWT_SECRET` | `JWT_SECRET` | JWT signing secret (min 32 chars), required |
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | PostgreSQL connection, required |
+| `AUTH_PRIVATE_KEY` | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
+| `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | Market-data API key and base URL. Optional |
 
 Fixed in code: port `3000`, JWT issuer `auth-service`. Registration creates the account `ACTIVE`: there is no email verification and no password-reset route.
 Read from the environment: `NODE_ENV` (default `development`) and `KAFKA_BROKER` (default
@@ -170,7 +173,7 @@ npm run test:cov
 
 Configuration is handled via `@nestjs/config` with:
 - Schema validation using Joi
-- Secrets in the TrustMe vault, never in `.env` files
+- Secrets from the TrustMe vault, with environment variables and the repository's `.env` as fallback
 - Type-safe configuration access via `ConfigService`
 
 ## Health Checks

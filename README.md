@@ -21,33 +21,48 @@ python scripts/verify_db.py     # run the checks
 python -m pytest tests/         # run the migration test suite
 ```
 
-The connection settings come from the TrustMe vault (see below); a CLI flag
-(`--host`, `--password`, ...) overrides any of them for one run.
+The connection settings come from the TrustMe vault, or from `POSTGRES_*` in `.env` (see below);
+a CLI flag (`--host`, `--password`, ...) overrides any of them for one run.
 
 If `psql` is not on `PATH` the scripts look in
-`C:\Program Files\PostgreSQL\<version>\bin`, or set the `PSQL_BIN` environment variable.
+`C:\Program Files\PostgreSQL\<version>\bin`, or set `PSQL_BIN` (in the environment or `.env`).
 
 ## Configuration and secrets
 
-Every secret and connection detail comes from the TrustMe vault
-(`leapcapstoneteam1-720d03.TM`). There are no `.env` files for them and no
-environment-variable fallbacks, so there is one place a value can live and one
-place it can be wrong.
+Every secret is looked up in the same order, by every service and script:
 
-| TrustMe secret | Used for | Read by |
-|---|---|---|
-| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | the database connection | Trade API, executor, auth service, `scripts/*.py` |
-| `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service |
-| `Fauxnance`, `Fauxnance_Endpoint` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `ETL_Analysis/` |
-| `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM, `\n` for line breaks) that opens encrypted login and registration bodies; a temporary key is generated if absent | auth service |
+1. **The TrustMe vault** (`leapcapstoneteam1-720d03.TM`), when its key file exists and a password
+   is supplied: `run-local.ps1` asks for it, or pass `-Dtrustme.password` (Java),
+   `--trustme-password` (Node), `-X trustme_password` (Python), or set `TRUSTME_PASSWORD`. The Java
+   and Node services also open it with a key this machine already remembers. Nothing ever stops to
+   prompt for a password.
+2. **An environment variable** with the name below, when the vault is not available or does not
+   hold that secret.
+3. **The repository's `.env`**, for anything the real environment does not set.
+
+There is one environment file for the whole repository: copy `.env.example` (tracked) to `.env`
+(git-ignored) in the repository root and fill it in. `run-local.ps1 -NoVault`, or Enter at its
+password prompt, runs the whole stack from `.env`.
+
+| TrustMe secret | Fallback variable | Used for | Read by |
+|---|---|---|---|
+| `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | the database connection | Trade API, executor, auth service, `scripts/*.py` |
+| `JWT_SECRET` | `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service, auth stub |
+| `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `Application/ETL/etl-live`, `scripts/verify_tickers.py` |
+| `AUTH_PRIVATE_KEY` | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM, `\n` for line breaks) that opens encrypted login and registration bodies; a temporary key is generated if absent | auth service |
+
+The resolvers are `VaultEnvironmentPostProcessor` (Trade API and executor, behind
+`${trustme.secret.NAME}`), `src/config/secrets.ts` (auth service) and `scripts/vault_env.py`
+(Python). In the Spring test profile (`trustme.enabled=false`) neither the vault nor `.env` is read.
 
 Everything else is a plain value in code or in `application.properties` / `application.yml`
-(ports, the JWT issuer, the currency, the SMTP port and TLS mode, the `.NS` symbol suffix, the
-poll interval). The only environment variables still read are `KAFKA_BOOTSTRAP_SERVERS` and
-`KAFKA_BROKER` (where Kafka is: `localhost` on a laptop, another host with
-`run-local.ps1 -KafkaHosted`), `NODE_ENV` (set by the runtime), and `PSQL_BIN` (where `psql` is).
+(ports, the JWT issuer, the currency, the `.NS` symbol suffix, the poll interval). The other
+settings read from the environment or `.env` are `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_BROKER`
+(where Kafka is: `localhost` on a laptop, another host with `run-local.ps1 -KafkaHosted`),
+`NODE_ENV` (set by the runtime), `PSQL_BIN` (where `psql` is), the Kafka box's `KAFKA_PORT` and
+`KAFKA_ADVERTISED_HOST`, and the Playwright settings (`BASE_URL`, `TEST_USERNAME`, ...).
 
-To add or change a secret, do it in TrustMe; nothing in the repo needs to change.
+To add a secret, add it to TrustMe and give it a fallback line in `.env.example`.
 
 ## Layout
 

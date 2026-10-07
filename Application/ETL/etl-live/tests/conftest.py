@@ -9,6 +9,9 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+if str(REPO_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
 ETL_LIVE = Path(__file__).resolve().parents[1]
 if "ETL_Analysis" not in sys.modules:
     import importlib.util
@@ -20,6 +23,15 @@ if "ETL_Analysis" not in sys.modules:
     _pkg = importlib.util.module_from_spec(_spec)
     sys.modules["ETL_Analysis"] = _pkg
     _spec.loader.exec_module(_pkg)
+
+
+@pytest.fixture(autouse=True)
+def _no_vault_or_dotenv(monkeypatch):
+    """Secrets come only from what each test sets, never from a real vault or the developer's .env."""
+    import vault_env
+
+    monkeypatch.setattr(vault_env, "_vault", None)
+    monkeypatch.setattr(vault_env, "_dotenv", {})
 
 
 PLOTLY_BUNDLE_MARKER = "plotly.js v"

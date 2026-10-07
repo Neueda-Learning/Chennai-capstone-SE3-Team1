@@ -1,6 +1,7 @@
 package com.team1.trading.api.characterisation;
 
 import app.trustme.TrustMe;
+import com.team1.trading.api.config.VaultEnvironmentPostProcessor;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.MapPropertySource;
@@ -92,20 +93,51 @@ public class PostgresCharactDbInitializer
                 dbName = "trading_charact";
             }
 
-            String host = null, port = null, user = null, password = null;
             Path keyPath = Paths.get(keyFile).toAbsolutePath().normalize();
-            if (Files.isRegularFile(keyPath)) {
-                TrustMe.useKeyFile(keyPath);
-                host = TrustMe.get("PostGres_Host");
-                port = TrustMe.get("Postgres_Port");
-                user = TrustMe.get("PostGres_User");
-                password = TrustMe.get("PostGres");
-            }
+            TrustMe vault = openVault(keyPath);
+            Path dotenvPath = VaultEnvironmentPostProcessor.findDotEnv(Paths.get("").toAbsolutePath());
+            Map<String, Object> dotenv = dotenvPath == null ? Map.of() : VaultEnvironmentPostProcessor.readDotEnv(dotenvPath);
+            String host = secret(vault, dotenv, "PostGres_Host");
+            String port = secret(vault, dotenv, "Postgres_Port");
+            String user = secret(vault, dotenv, "PostGres_User");
+            String password = secret(vault, dotenv, "PostGres");
             if (host == null || port == null || user == null || password == null) {
                 throw new IllegalArgumentException(
-                        "PostgreSQL credentials are not available from the TrustMe key file (" + keyPath + ").");
+                        "PostgreSQL credentials are not available from the TrustMe key file (" + keyPath
+                                + ") or from POSTGRES_HOST/POSTGRES_PORT/POSTGRES_USER/POSTGRES_PASSWORD in the environment or .env.");
             }
             return new DbSettings(host.trim(), port.trim(), user.trim(), password, dbName);
+        }
+
+        private static TrustMe openVault(Path keyPath) {
+            if (!Files.isRegularFile(keyPath)) {
+                return null;
+            }
+            try {
+                return VaultEnvironmentPostProcessor.openVault(keyPath, envOrSystem("TRUSTME_PASSWORD", "trustme.password"));
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+
+        private static String secret(TrustMe vault, Map<String, Object> dotenv, String name) {
+            if (vault != null) {
+                try {
+                    String value = vault.fetch(name);
+                    if (value != null && !value.isBlank()) {
+                        return value;
+                    }
+                } catch (RuntimeException ignored) {
+                    // fall back to the environment below
+                }
+            }
+            String envName = VaultEnvironmentPostProcessor.envNameFor(name);
+            String value = System.getenv(envName);
+            if (value == null || value.isBlank()) {
+                Object fromFile = dotenv.get(envName);
+                value = fromFile == null ? null : fromFile.toString();
+            }
+            return value == null || value.isBlank() ? null : value;
         }
 
         private static String envOrSystem(String env, String sysProp) {

@@ -97,8 +97,8 @@ export class CredentialCryptoService {
       // Fine for one instance on a laptop; with two instances, or across a restart, a client
       // holding the old public key gets a clean failure and simply re-fetches the params.
       this.logger.warn(
-        'TrustMe secret AUTH_PRIVATE_KEY is not set: using a temporary key generated at startup. ' +
-          'Add an RSA private key (PKCS#8 PEM) to the vault so every instance shares one.',
+        'AUTH_PRIVATE_KEY is not set (TrustMe vault, environment or .env): using a temporary key generated at startup. ' +
+          'Add an RSA private key (PKCS#8 PEM) to the vault, or AUTH_PRIVATE_KEY to .env, so every instance shares one.',
       );
       this.privateKey = generateKeyPairSync('rsa', {
         modulusLength: 2048,

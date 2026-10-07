@@ -29,8 +29,8 @@ follow [Diagnosis](#diagnosis) before changing anything.
 bash infra/kafka/up.sh
 ```
 
-That's it - no `.env` to hand-edit. It creates `.env` (in `infra/kafka/`, not the repo root -
-Compose looks for it in whatever directory you actually run the command from) on first run,
+That's it - no `.env` to hand-edit. It uses the repository's one `.env` at the repo root
+(creating it from `.env.example` on first run, and passing it to Compose with `--env-file`),
 auto-detects this box's own reachable address (EC2 metadata endpoint, falling back to
 `hostname -I`) for `KAFKA_ADVERTISED_HOST`, and brings Kafka up. Safe to re-run - it leaves
 `KAFKA_ADVERTISED_HOST` alone once it's been set to something other than the `localhost`
@@ -39,7 +39,7 @@ default, so a manual override always wins.
 `KAFKA_ADVERTISED_HOST` has to be this box's own reachable address, not `localhost` (which
 only means something to a process running on the box itself) - if auto-detection ever fails
 (no EC2 metadata endpoint, no `hostname -I`, e.g. off EC2 or a minimal image), `up.sh` says
-so and leaves you to set it in `infra/kafka/.env` by hand before re-running. Getting this
+so and leaves you to set it in the repo-root `.env` by hand before re-running. Getting this
 wrong is the single most common failure, and the least obvious from the error: everything
 past the first connection attempt fails with an `UNKNOWN_TOPIC_OR_PARTITION`-shaped error
 that looks unrelated to the real cause.
@@ -50,7 +50,8 @@ that looks unrelated to the real cause.
 .\run-local.ps1
 ```
 
-It prompts for the TrustMe password and for the Kafka host's address (the same value you
+It prompts for the TrustMe password (Enter, or `-NoVault`, uses the repo-root `.env` instead) and
+for the Kafka host's address (the same value you
 just put in the Linux box's `.env`), then builds, creates the six topics on that remote
 broker, starts the auth stub + API + executor locally, and tails their logs. `-KafkaHost` /
 `-TrustMePassword` skip the prompts if you'd rather script it; `-Stop` shuts down the local

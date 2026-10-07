@@ -1,5 +1,8 @@
-# Local connection overrides. Never commit real credentials.
+# The one local environment file (copy .env.example). Never commit real credentials;
+# only .env.example is tracked.
 .env
+.env.*
+!.env.example
 
 # Node (services/auth-stub)
 node_modules/

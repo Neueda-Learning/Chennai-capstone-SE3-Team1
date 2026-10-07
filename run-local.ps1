@@ -11,8 +11,9 @@
     (e.g. docker-compose in infra/kafka on a Linux box) - you'll be prompted for its address.
 
     What it does, in order:
-      1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
-         and Application\Services\auth-service.
+      1. Checks java, mvn, python, node, npm, psql and Application\Services\auth-service, and
+         decides where secrets come from: the TrustMe vault (key file present, password typed
+         or passed) or, with -NoVault, a blank password or no key file, the repository's .env.
       2. Kafka 3.8.0 CLI tools: downloads to -KafkaHome if absent. Without -KafkaHosted,
          also formats KRaft storage once and starts a local broker, waiting for :29092. With
          -KafkaHosted, instead verifies the remote broker at -KafkaHost:29092 is reachable.
@@ -22,10 +23,9 @@
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
          and dist\ when they are there.
       5. Starts the auth service (:3000), the API (:8081) and the executor (:8082), waits for
-         health on all three. All three read their database settings from the TrustMe vault,
-         the same place apply_db.py reads them; the auth service signs tokens with the vault's
-         JWT_SECRET and the API/executor verify with the same vault entry, so the two are
-         always in sync - nothing here overrides it.
+         health on all three. All three read their database settings and JWT_SECRET from the
+         same place apply_db.py does - the vault, or POSTGRES_* and JWT_SECRET in .env - so the
+         auth service and the API/executor always sign and verify with the same key.
       6. Mints a 1-hour JWT for account 1 and prints ready-to-paste commands, including the
          full onboarding flow against the auth service: register, log in, link a bank account,
          refresh, fund the wallet.
@@ -33,7 +33,8 @@
          Ctrl+C. Ctrl+C stops only the tail; the services keep running. Use -Stop to shut them
          down.
 
-.PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted, which is the normal way to run this.
+.PARAMETER TrustMePassword   Password for leapcapstoneteam1-720d03.TM. Prompted for (masked) if omitted; press Enter at the prompt to use .env instead.
+.PARAMETER NoVault           Don't use the TrustMe vault at all: every secret comes from the repository's .env (copy .env.example).
 .PARAMETER KafkaHosted       Connect to a Kafka broker running elsewhere instead of starting one locally. Prompts for -KafkaHost if it isn't passed. No broker is started or stopped on this machine in this mode - only the CLI tools run here, to create topics and let you inspect it.
 .PARAMETER KafkaHost         Address of the remote broker, used only with -KafkaHosted. Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
 .PARAMETER KafkaHome         Where Kafka lives / gets installed - the broker files in local mode, just the CLI tools with -KafkaHosted. Default C:\kafka.
@@ -46,6 +47,8 @@
 .EXAMPLE
     .\run-local.ps1                            # prompts for the TrustMe password; Kafka runs locally
 .EXAMPLE
+    .\run-local.ps1 -NoVault                   # secrets from .env, no password asked
+.EXAMPLE
     .\run-local.ps1 -SkipBuild                 # fast restart after a stop
 .EXAMPLE
     .\run-local.ps1 -KafkaHosted -KafkaHost 10.8.65.2   # connect to a remote broker instead
@@ -57,6 +60,7 @@
 [CmdletBinding()]
 param(
     [string]$TrustMePassword,
+    [switch]$NoVault,
     [switch]$KafkaHosted,
     [string]$KafkaHost,
     [string]$KafkaHome = "C:\kafka",
@@ -164,42 +168,58 @@ if (-not $psql) {
     $cand = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
     if ($cand) { $env:PSQL_BIN = $cand.FullName; $env:PATH = "$($cand.DirectoryName);$env:PATH" } else { Fail "psql not found; install PostgreSQL" }
 }
-cmd /c "python -c ""import trustme_secrets"" 2>nul" | Out-Null
-if ($LASTEXITCODE -ne 0) { Fail "python module trustme_secrets missing (pip install trustme-secrets)" }
-if (-not (Test-Path $KeyFile)) { Fail "TrustMe key file missing: $KeyFile" }
 if (-not (Test-Path (Join-Path $AuthDir "package.json"))) { Fail "auth service missing: $AuthDir" }
 if (-not (Test-Port 5432)) { Fail "Postgres is not listening on 5432 (start the postgresql service)" }
 
-if (-not $TrustMePassword) {
-    $sec = Read-Host "TrustMe key file password" -AsSecureString
+# Secrets: the TrustMe vault when its key file is here and a password is given, otherwise the
+# repository's .env. Each service would fall back secret by secret on its own, but run-local picks
+# one source for the whole stack so the auth service and the API/executor never mix a vault
+# JWT_SECRET with a .env one.
+$UseVault = (-not $NoVault) -and (Test-Path $KeyFile)
+if ($UseVault -and -not $TrustMePassword) {
+    $sec = Read-Host "TrustMe key file password (Enter to use .env instead)" -AsSecureString
     $TrustMePassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+}
+if ($UseVault -and -not $TrustMePassword) { $UseVault = $false }
+if ($UseVault) {
+    cmd /c "python -c ""import trustme_secrets"" 2>nul" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "python module trustme_secrets missing (pip install trustme-secrets), or run with -NoVault" }
+    # A previous -NoVault run in this same PowerShell session leaves its marker behind.
+    if ($env:TRUSTME_KEY_FILE -eq "vault-disabled-by-run-local") { Remove-Item Env:TRUSTME_KEY_FILE }
+    $SecretSource = "the TrustMe vault"
+} else {
+    if (-not (Test-Path (Join-Path $RepoRoot ".env"))) { Fail "no TrustMe vault in use and no .env: copy .env.example to .env and fill it in" }
+    # Every process started from here inherits this, so none of them opens the vault - not even
+    # with a key this machine remembers - and all of them read the same .env.
+    $env:TRUSTME_KEY_FILE = "vault-disabled-by-run-local"
+    $SecretSource = ".env"
 }
 if ($KafkaHosted -and -not $KafkaHost) {
     $KafkaHost = Read-Host "Kafka host (the box running docker-compose in infra/kafka)"
 }
 if ($KafkaHosted -and -not $KafkaHost) { Fail "Kafka host is required with -KafkaHosted (pass -KafkaHost or enter it when prompted)" }
 Write-Host "    java: $((cmd /c "java -version 2>&1" | Select-Object -First 1))"
-Write-Host "    key file, psql, python, postgres: ok"
+Write-Host "    psql, python, postgres: ok; secrets from $SecretSource"
 
-$pyTrust = @("-X", "trustme_password=$TrustMePassword", "-X", "trustme_keyfile=$KeyFile")
+$pyTrust = if ($UseVault) { @("-X", "trustme_password=$TrustMePassword", "-X", "trustme_keyfile=$KeyFile") } else { @() }
 
-# The auth service is Node, so it can't open the TrustMe vault itself: read the database
-# settings here, through the same resolver apply_db.py uses (vault, then .env, then defaults),
-# and hand them to its process only. One value per line: host, port, dbname, user, password.
+# Read the database settings through the same resolver apply_db.py uses (vault, then POSTGRES_*
+# in the environment or .env, then defaults), to show them and check them before anything starts.
+# One value per line: host, port, dbname, user, password.
 $dbLines = & python @pyTrust -c "import sys; sys.path.insert(0, 'scripts'); from db_config import DbConfig; c = DbConfig.resolve(); print(c.host); print(c.port); print(c.dbname); print(c.user); print(c.password)" 2>$null
-if ($LASTEXITCODE -ne 0 -or @($dbLines).Count -lt 5) { Fail "could not read the database settings from the TrustMe vault (wrong password?)" }
+if ($LASTEXITCODE -ne 0 -or @($dbLines).Count -lt 5) { Fail "could not read the database settings from $SecretSource (wrong password, or POSTGRES_PASSWORD missing from .env?)" }
 $Db = @{ host = $dbLines[0]; port = $dbLines[1]; name = $dbLines[2]; user = $dbLines[3]; password = $dbLines[4] }
-Write-Host "    database settings: $($Db.user)@$($Db.host):$($Db.port)/$($Db.name) (from the vault)"
+Write-Host "    database settings: $($Db.user)@$($Db.host):$($Db.port)/$($Db.name) (from $SecretSource)"
 
 # The auth service (configuration.ts) and the API/executor (application.properties/yml's
-# ${trustme.secret.JWT_SECRET}) each fetch this independently from the vault - nothing in this
-# script sets JWT_SECRET as an env var to override either of them, or the two would only agree
-# by coincidence. Read here purely to mint the cheat-sheet token below with the same value.
-$JwtSecret = & python @pyTrust -c "import trustme_secrets as trustme; print(trustme.get('JWT_SECRET'))" 2>$null
-if ($LASTEXITCODE -ne 0 -or -not $JwtSecret) { Fail "could not read JWT_SECRET from the TrustMe vault" }
+# ${trustme.secret.JWT_SECRET}) each resolve this themselves from the same source - nothing in
+# this script sets JWT_SECRET as an env var to override either of them. Read here purely to mint
+# the cheat-sheet token below with the same value.
+$JwtSecret = & python @pyTrust -c "import sys; sys.path.insert(0, 'scripts'); from vault_env import secret; print(secret('JWT_SECRET') or '')" 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $JwtSecret) { Fail "could not read JWT_SECRET from $SecretSource" }
 # The auth service validates its config at startup and refuses a JWT_SECRET under 32 characters;
 # failing here says why, instead of a health check that just never goes green.
-if ($JwtSecret.Length -lt 32) { Fail "the vault's JWT_SECRET must be at least 32 characters (the auth service refuses a shorter one)" }
+if ($JwtSecret.Length -lt 32) { Fail "JWT_SECRET ($SecretSource) must be at least 32 characters (the auth service refuses a shorter one)" }
 
 # ------------------------------------------------------------------ 2. kafka
 if ($KafkaHosted) { Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}:${KafkaPort}" }
@@ -348,13 +368,13 @@ if ($prev) {
 }
 foreach ($p in $ApiPort, $ExecPort, $AuthPort) { if (Test-Port $p) { Fail "port $p is already in use by something this script did not start" } }
 
-$jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile")
+$jvmCommon = if ($UseVault) { @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key-file=$KeyFile") } else { @("-Xmx512m") }
 
 # No JWT_SECRET env var is set here on purpose: the auth service (configuration.ts) and the
-# API/executor (${trustme.secret.JWT_SECRET}) each read it straight from the vault, and setting
+# API/executor (${trustme.secret.JWT_SECRET}) each read it from the vault or .env, and setting
 # it as an env var for only the JVM side would override just that side's lookup - the two would
 # then agree only if this value happened to match the vault's, which it wouldn't after a vault
-# rotation. See $JwtSecret above, read from the same vault purely for the cheat-sheet token.
+# rotation. See $JwtSecret above, read from the same source purely for the cheat-sheet token.
 #
 # KAFKA_BOOTSTRAP_SERVERS has to be set before EITHER the API or the executor start: both run a
 # Kafka producer (trade-api publishes ORDER_PLACED, the executor publishes/consumes everything
@@ -367,11 +387,11 @@ $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 # The auth service's settings go into this process's environment only for as long as it takes
 # to start it (Start-Process hands the child a copy), then come straight back out. Nothing
 # sensitive is among them, and neither are the database settings: the auth service's own config
-# (configuration.ts) fetches its JWT secret, its database host/port/name/user/password and its
-# mail credentials straight from the TrustMe vault, the same way Java's application.properties
-# and Python's db_config.py already do - so the two --trustme-* args below are handed to it
-# directly instead, the same way $jvmCommon does for the JVM services. What is left is the one
-# deployment address it needs, for its Kafka health check.
+# (configuration.ts) resolves its JWT secret and its database host/port/name/user/password from
+# the TrustMe vault or .env, the same way Java's application.properties and Python's db_config.py
+# do - so in vault mode the two --trustme-* args below are handed to it directly, the same way
+# $jvmCommon does for the JVM services. What is left is the one deployment address it needs, for
+# its Kafka health check.
 $authEnv = @{
     NODE_ENV = "development"; KAFKA_BROKER = $KafkaBootstrap
 }
@@ -379,7 +399,7 @@ foreach ($k in $authEnv.Keys) { Set-Item -Path "Env:$k" -Value $authEnv[$k] }
 try {
     $authStub = Start-Process -FilePath node -PassThru -WindowStyle Hidden -WorkingDirectory $AuthDir `
         -RedirectStandardOutput (Join-Path $LogDir "auth.log") -RedirectStandardError (Join-Path $LogDir "auth.err") `
-        -ArgumentList @("dist\main.js", "--trustme-key-file=$KeyFile", "--trustme-password=$TrustMePassword")
+        -ArgumentList $(if ($UseVault) { @("dist\main.js", "--trustme-key-file=$KeyFile", "--trustme-password=$TrustMePassword") } else { @("dist\main.js") })
 } finally {
     foreach ($k in $authEnv.Keys) { Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue }
 }

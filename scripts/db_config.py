@@ -6,7 +6,9 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-import trustme_secrets as trustme
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vault_env import env_name_for, secret, setting  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -60,7 +62,7 @@ class DbError(RuntimeError):
 
 
 def find_psql():
-    override = os.environ.get("PSQL_BIN")
+    override = setting("PSQL_BIN")
     if override:
         if Path(override).is_file():
             return override
@@ -99,11 +101,12 @@ class DbConfig:
         settings = {}
         for name, secret_name in ENV_KEYS.items():
             cli_value = getattr(args, name, None) if args is not None else None
-            settings[name] = cli_value or trustme.get(secret_name) or DEFAULTS.get(name)
+            settings[name] = cli_value or secret(secret_name) or DEFAULTS.get(name)
         if not settings["password"]:
             raise DbError(
                 "No database password found. Add a " + repr(ENV_KEYS["password"])
-                + " secret to the TrustMe vault, or pass --password."
+                + " secret to the TrustMe vault, set " + env_name_for(ENV_KEYS["password"])
+                + " in the environment or .env, or pass --password."
             )
         psql = getattr(args, "psql", None) if args is not None else None
         return cls(psql=psql or find_psql(), **settings)
@@ -209,10 +212,10 @@ def quote_ident(value):
 
 
 def add_connection_args(parser):
-    g = parser.add_argument_group("connection (read from the TrustMe vault unless given here)")
+    g = parser.add_argument_group("connection (TrustMe vault, then POSTGRES_* in the environment or .env, unless given here)")
     g.add_argument("--host", help="database host (default " + DEFAULTS["host"] + ",)")
     g.add_argument("--port", help="database port (default " + DEFAULTS["port"] + ",)")
     g.add_argument("--dbname", help="database name (default " + DEFAULTS["dbname"] + ",)")
     g.add_argument("--user", help="database user (default " + DEFAULTS["user"] + ",)")
-    g.add_argument("--password", help="database password (default: the vault's PostGres secret)")
+    g.add_argument("--password", help="database password (default: the vault's PostGres secret, or POSTGRES_PASSWORD)")
     g.add_argument("--psql", help="path to the psql binary (default: found on PATH, or the PSQL_BIN environment variable)")

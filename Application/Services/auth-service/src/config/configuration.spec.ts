@@ -1,18 +1,29 @@
 const secrets: Record<string, string> = {};
 
+let vaultOpens = true;
+
 jest.mock('trustme-secrets', () => ({
   __esModule: true,
   default: {
-    get: async (name: string) => {
-      if (name in secrets) {
-        return secrets[name];
+    using: async () => {
+      if (!vaultOpens) {
+        throw new Error('Incorrect password');
       }
-      throw new Error(`No such secret: ${name}`);
+      return {
+        appId: 'test',
+        fetch: async (name: string) => {
+          if (name in secrets) {
+            return secrets[name];
+          }
+          throw new Error(`No such secret: ${name}`);
+        },
+      };
     },
   },
 }));
 
 import { configuration, validationSchema } from './configuration';
+import { ENV_NAMES } from './secrets';
 
 const VAULT = {
   JWT_SECRET: 'a-vault-jwt-secret-of-at-least-32-chars',
@@ -37,6 +48,12 @@ describe('configuration', () => {
       delete secrets[key];
     }
     Object.assign(secrets, VAULT);
+    vaultOpens = true;
+    for (const name of Object.values(ENV_NAMES)) {
+      delete process.env[name];
+    }
+    process.env.TRUSTME_KEY_FILE = __filename;
+    process.env.TRUSTME_PASSWORD = 'test-password';
   });
 
   afterEach(() => {
@@ -99,20 +116,60 @@ describe('configuration', () => {
     },
   );
 
-  it('refuses a secret that exists but is empty', async () => {
+  it('refuses a secret that exists but is empty, naming the variable that could stand in for it', async () => {
     secrets['PostGres'] = '';
 
-    await expect(load()).rejects.toThrow('PostGres');
+    await expect(load()).rejects.toThrow(/PostGres.*POSTGRES_PASSWORD/);
   });
 
-  it('ignores the environment variables it used to read, so a stray one cannot override the vault', async () => {
+  it('falls back to the environment variable for a secret the vault does not hold', async () => {
+    delete secrets['PostGres_Host'];
+    process.env.POSTGRES_HOST = 'db.env.test';
+
+    const config = await load();
+
+    expect(config.database.host).toBe('db.env.test');
+    expect(config.database.password).toBe('vault-password');
+  });
+
+  it('takes every secret from the environment when the vault cannot be opened', async () => {
+    vaultOpens = false;
+    Object.assign(process.env, {
+      JWT_SECRET: 'an-env-jwt-secret-of-at-least-32-characters',
+      POSTGRES_HOST: 'db.env.test',
+      POSTGRES_PORT: '5433',
+      POSTGRES_DB: 'env_db',
+      POSTGRES_USER: 'env_user',
+      POSTGRES_PASSWORD: 'env-password',
+      FAUXNANCE_API_KEY: 'env-key',
+      FAUXNANCE_BASE_URL: 'https://fauxnance.env.test/',
+    });
+
+    const config = await load();
+
+    expect(config.jwt.secret).toBe('an-env-jwt-secret-of-at-least-32-characters');
+    expect(config.database).toEqual({
+      host: 'db.env.test',
+      port: 5433,
+      username: 'env_user',
+      password: 'env-password',
+      name: 'env_db',
+    });
+    expect(config.fauxnance).toEqual({ apiKey: 'env-key', baseUrl: 'https://fauxnance.env.test' });
+  });
+
+  it('skips the vault when there is no key file, without prompting', async () => {
+    process.env.TRUSTME_KEY_FILE = 'no-such-key-file.TM';
+    delete secrets['JWT_SECRET'];
+
+    await expect(load()).rejects.toThrow(/JWT_SECRET/);
+  });
+
+  it('prefers the vault over the environment, so a stray variable cannot override it', async () => {
     Object.assign(process.env, {
       JWT_SECRET: 'env-secret-that-must-be-ignored-0123456789',
-      DB_HOST: 'env-host',
-      DB_PORT: '1111',
-      DB_USERNAME: 'env-user',
-      DB_PASSWORD: 'env-password',
-      DB_NAME: 'env-db',
+      POSTGRES_HOST: 'env-host',
+      POSTGRES_PASSWORD: 'env-password',
       FAUXNANCE_API_KEY: 'env-key',
       FAUXNANCE_BASE_URL: 'https://env.test',
       PORT: '9999',
@@ -140,7 +197,7 @@ describe('configuration', () => {
 });
 
 describe('validationSchema', () => {
-  it('asks for nothing: no secret is an environment variable any more', () => {
+  it('asks for nothing: secrets are resolved by configuration(), not validated here', () => {
     const { error, value } = validationSchema.validate({});
 
     expect(error).toBeUndefined();

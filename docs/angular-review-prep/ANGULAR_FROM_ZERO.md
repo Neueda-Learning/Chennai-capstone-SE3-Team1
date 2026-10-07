@@ -752,7 +752,7 @@ that attribute. Charts read their colours from `chart-theme.ts` and redraw when 
   (`TestBed.runInInjectionContext`).
 
 **End-to-end — Playwright** (`e2e/`, `npm run test:e2e`). Real browser, real backend. Needs the
-whole stack running and test credentials (`.env.test.example`). I did not run these.
+whole stack running and test credentials (`TEST_USERNAME`/`TEST_PASSWORD` in the root `.env`). I did not run these.
 
 ---
 
