@@ -37,6 +37,27 @@ public final class ChatAction {
             String reason) {
     }
 
+    /**
+     * A conditional order the assistant suggests. The customer's click places it through
+     * POST /api/v1/orders/conditional with their own token; until then nothing exists. Every field has been
+     * checked in code: a real instrument, a sensible limit and trigger, enough held to sell, room under the cap.
+     */
+    public record ConditionalOrderProposal(
+            String symbol,
+            String side,
+            int quantity,
+            BigDecimal limitPrice,
+            String conditionType,
+            BigDecimal triggerPrice,
+            Integer shortWindow,
+            Integer longWindow,
+            BigDecimal bandWidth,
+            int expiresInDays,
+            String condition,
+            String reason,
+            BigDecimal currentPrice) {
+    }
+
     /** A "go there" button: a page in the app, optionally with a stock or a search filled in. */
     public record NavigationLink(String label, String path, Map<String, String> query) {
     }

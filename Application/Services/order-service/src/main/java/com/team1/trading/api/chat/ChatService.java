@@ -96,14 +96,18 @@ public class ChatService {
 
         // An audit line, not a transcript: who, how much, which tools, what was suggested. No message
         // text and no portfolio data is logged.
-        log.info("[chat] account={} messages={} tools={} suggestions={} alertProposals={} watchlistProposals={} links={} ms={}",
+        log.info("[chat] account={} messages={} tools={} suggestions={} alertProposals={} watchlistProposals={} "
+                        + "conditionalOrderProposals={} links={} ms={}",
                 accountId, messages.size(), used,
                 context.suggestions().stream().map(s -> s.side() + " " + s.quantity() + " " + s.symbol()).toList(),
                 context.alertProposals().stream().map(a -> a.symbol() + " " + a.direction() + " " + a.threshold()).toList(),
                 context.watchlistProposals().stream().map(w -> w.mode() + " " + w.name() + " x" + w.symbols().size()).toList(),
+                context.conditionalOrderProposals().stream()
+                        .map(c -> c.side() + " " + c.quantity() + " " + c.symbol() + " " + c.conditionType()).toList(),
                 context.links().stream().map(NavigationLink::path).toList(),
                 System.currentTimeMillis() - started);
         return new ChatResponse(reply, List.copyOf(context.suggestions()), List.copyOf(context.alertProposals()),
-                List.copyOf(context.watchlistProposals()), List.copyOf(context.links()));
+                List.copyOf(context.watchlistProposals()), List.copyOf(context.links()),
+                List.copyOf(context.conditionalOrderProposals()));
     }
 }

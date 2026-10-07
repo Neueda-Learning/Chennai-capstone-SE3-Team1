@@ -14,6 +14,7 @@ import { MarketQuote, MarketService } from '../../core/services/market.service';
 import { Portfolio, PortfolioService } from '../../core/services/portfolio.service';
 import { ThemeService } from '../../core/theme/theme.service';
 import { WatchlistStore } from '../../core/watchlists/watchlist.store';
+import { AdviceIdeas } from '../../shared/advice-ideas/advice-ideas';
 import { AlertList } from '../../shared/alert-list/alert-list';
 import { SymbolPicker } from '../../shared/symbol-picker/symbol-picker';
 import { WatchlistCard } from '../../shared/watchlist-card/watchlist-card';
@@ -31,7 +32,7 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
 
 @Component({
   selector: 'tui-dashboard-page',
-  imports: [RouterLink, WatchlistCard, AlertList, SymbolPicker],
+  imports: [RouterLink, WatchlistCard, AlertList, SymbolPicker, AdviceIdeas],
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.css'
 })

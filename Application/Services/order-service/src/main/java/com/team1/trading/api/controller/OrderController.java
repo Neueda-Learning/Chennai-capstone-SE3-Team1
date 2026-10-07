@@ -1,12 +1,14 @@
 package com.team1.trading.api.controller;
 
 import com.team1.trading.api.dto.OrderResponse;
+import com.team1.trading.api.dto.OrderStatusResponse;
 import com.team1.trading.api.security.TokenAccountIdResolver;
 import com.team1.trading.api.service.OrderService;
 import com.team1.trading.domain.dto.PlaceOrderRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +33,13 @@ public class OrderController {
                                                     @RequestHeader(value = "Authorization", required = false)
                                                     String authorization) {
         return ResponseEntity.ok(orderService.placeOrder(request, tokenAccountIdResolver.resolve(authorization)));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<OrderStatusResponse> getOrder(@PathVariable("id") String id,
+                                                        @RequestHeader(value = "Authorization", required = false)
+                                                        String authorization) {
+        return ResponseEntity.ok(orderService.getOrder(id.trim(), tokenAccountIdResolver.resolve(authorization)));
     }
 
     @DeleteMapping("/{id}")

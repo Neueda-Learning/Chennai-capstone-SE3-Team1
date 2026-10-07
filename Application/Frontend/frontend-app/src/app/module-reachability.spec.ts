@@ -15,6 +15,7 @@ import { provideApi as provideTradeApi } from './generated/trade-client';
 import { SettingsPage } from './features/settings/settings-page';
 import { PortfolioPage } from './features/portfolio/portfolio-page';
 import { WatchlistsPage } from './features/watchlists/watchlists-page';
+import { AdvicePage } from './features/advice/advice-page';
 
 const appChildren = (): Route[] => routes.find((route) => route.path === 'app')?.children ?? [];
 const child = (path: string): Route | undefined => appChildren().find((route) => route.path === path);
@@ -25,7 +26,7 @@ describe('The four Sprint 10 modules are reachable from the Angular application'
     expect(app?.canActivate?.length).toBeGreaterThan(0);
     expect(app?.canActivateChild?.length).toBeGreaterThan(0);
 
-    for (const path of ['portfolio', 'watchlists', 'settings']) {
+    for (const path of ['portfolio', 'watchlists', 'settings', 'advice']) {
       expect(child(path)?.loadComponent, `/app/${path} has no page`).toBeTypeOf('function');
     }
   });
@@ -34,10 +35,11 @@ describe('The four Sprint 10 modules are reachable from the Angular application'
     expect(await child('portfolio')?.loadComponent?.()).toBe(PortfolioPage);
     expect(await child('watchlists')?.loadComponent?.()).toBe(WatchlistsPage);
     expect(await child('settings')?.loadComponent?.()).toBe(SettingsPage);
+    expect(await child('advice')?.loadComponent?.()).toBe(AdvicePage);
   });
 
   it('sends the short paths a customer might type to the page under /app', () => {
-    for (const path of ['portfolio', 'watchlists', 'settings']) {
+    for (const path of ['portfolio', 'watchlists', 'settings', 'advice']) {
       const redirect = routes.find((route) => route.path === path);
       expect(redirect?.redirectTo).toBe(`app/${path}`);
     }

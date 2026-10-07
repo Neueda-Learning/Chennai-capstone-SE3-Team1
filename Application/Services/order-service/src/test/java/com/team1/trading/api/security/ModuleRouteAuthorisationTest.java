@@ -1,6 +1,11 @@
 package com.team1.trading.api.security;
 
 import com.jayway.jsonpath.JsonPath;
+import com.team1.trading.api.advice.AdviceController;
+import com.team1.trading.api.advice.AdviceService;
+import com.team1.trading.api.conditional.ConditionalOrderController;
+import com.team1.trading.api.conditional.ConditionalOrderQueries;
+import com.team1.trading.api.service.OrderService;
 import com.team1.trading.api.controller.AccountController;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
@@ -53,7 +58,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(controllers = {PreferenceController.class, NotificationHistoryController.class,
-        WatchlistController.class, AlertController.class, AccountController.class},
+        WatchlistController.class, AlertController.class, AccountController.class, AdviceController.class,
+        ConditionalOrderController.class},
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtVerificationFilter.class))
 @Import({AccessGuard.class, AccountService.class, HeaderTokenAccountIdResolver.class})
 @TestPropertySource(properties = {
@@ -61,7 +67,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
         "jwt.issuer=auth-service",
         "spring.datasource.url=jdbc:h2:mem:routeauth;DB_CLOSE_DELAY=-1"
 })
-@DisplayName("Preferences, Notifications, Watchlists and Portfolio authorise every account route against the token")
+@DisplayName("Preferences, Notifications, Watchlists, Portfolio, Advice and Conditional orders authorise every account route against the token")
 class ModuleRouteAuthorisationTest {
 
     private static final String LIST_ID = "6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f";
@@ -92,7 +98,10 @@ class ModuleRouteAuthorisationTest {
             "GET /api/v1/accounts/{id}/balance",
             "GET /api/v1/accounts/{id}/portfolio",
             "GET /api/v1/accounts/{id}/orders",
-            "GET /api/v1/accounts/{id}/notifications");
+            "GET /api/v1/accounts/{id}/notifications",
+            "GET /api/v1/accounts/{accountId}/advice",
+            "GET /api/v1/accounts/{accountId}/advice/{symbol}",
+            "GET /api/v1/accounts/{accountId}/conditional-orders");
 
     @Autowired
     private MockMvc mockMvc;
@@ -108,6 +117,12 @@ class ModuleRouteAuthorisationTest {
     private WatchlistService watchlistService;
     @MockitoBean
     private AlertService alertService;
+    @MockitoBean
+    private AdviceService adviceService;
+    @MockitoBean
+    private ConditionalOrderQueries conditionalOrderQueries;
+    @MockitoBean
+    private OrderService orderService;
     @MockitoBean
     private AccountMapper accountMapper;
     @MockitoBean
@@ -197,7 +212,7 @@ class ModuleRouteAuthorisationTest {
 
     private void nothingBehindTheGuardWasReached() {
         verifyNoInteractions(preferenceService, notificationHistoryService, watchlistService, alertService,
-                orderMapper, positionMapper, notificationMapper);
+                adviceService, conditionalOrderQueries, orderService, orderMapper, positionMapper, notificationMapper);
     }
 
     @Test

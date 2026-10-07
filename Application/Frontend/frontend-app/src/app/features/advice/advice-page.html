@@ -1,0 +1,105 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Trade advice</h1>
+    <p class="page-subtitle">
+      The analysis service's buy, sell or hold view on what you hold and watch, its reasons, and a prediction for the
+      next session.
+    </p>
+  </div>
+  <button type="button" class="btn-custom btn-custom-outline-primary" data-testid="advice-refresh" (click)="load()">
+    <i class="bi bi-arrow-clockwise"></i> Refresh
+  </button>
+</div>
+
+@if (loading() && data() === null) {
+  <p class="small text-muted-green" data-testid="advice-loading">Loading your analysis...</p>
+}
+
+@if (error(); as message) {
+  <p class="small text-danger" role="alert" data-testid="advice-error">{{ message }}</p>
+}
+
+@if (data(); as advice) {
+  <div class="card mb-4" data-testid="advice-methodology">
+    <div class="card-header">
+      <h2 class="card-title">How these are worked out</h2>
+    </div>
+    <p class="small mb-2">{{ advice.methodology }}</p>
+    @if (advice.dataAsOf) {
+      <p class="small mb-2" data-testid="advice-as-of">
+        Prices to {{ advice.dataAsOf }}@if (advice.generatedAt) {, analysed {{ advice.generatedAt }}}.
+        @if (advice.stale) {
+          <span class="badge-table pending" data-testid="advice-stale">Data is more than a few days old</span>
+        }
+      </p>
+    }
+    <p class="small text-muted-green mb-0" data-testid="advice-disclaimer">
+      <i class="bi bi-info-circle"></i> {{ advice.disclaimer }}
+    </p>
+  </div>
+
+  @if (advice.signals.length === 0) {
+    <p class="small text-muted-green" data-testid="advice-empty">
+      Nothing to advise on yet. Buy an instrument or add one to a
+      <a routerLink="/app/watchlists">watchlist</a> and it will appear here.
+    </p>
+  }
+
+  <div class="row g-4">
+    @for (item of advice.signals; track item.symbol) {
+      <div class="col-12 col-lg-6">
+        <div class="card h-100" [attr.data-testid]="'signal-' + item.symbol">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h2 class="card-title mb-0">{{ item.symbol }}</h2>
+              <span class="small text-muted-green">{{ item.name }} · {{ sources(item) }}</span>
+            </div>
+            @if (item.status === 'OK') {
+              <span [class]="'badge-table ' + badge(item)" data-testid="signal-direction">
+                {{ item.suggestion }} · {{ item.confidence | lowercase }}
+              </span>
+            } @else {
+              <span class="badge-table pending" data-testid="signal-direction">No suggestion</span>
+            }
+          </div>
+          <p class="mb-2" data-testid="signal-reason">{{ item.summary }}</p>
+          @if (item.reasons.length > 0) {
+            <ul class="small mb-3" data-testid="signal-reasons">
+              @for (reason of item.reasons; track $index) {
+                <li>{{ reason }}</li>
+              }
+            </ul>
+          }
+          @if (item.prediction; as p) {
+            <div class="small mb-3" data-testid="signal-prediction">
+              <strong>Next session ({{ p.forDate }}):</strong>
+              about {{ p.predictedClose | number: '1.2-2' }}, usually between {{ p.low68 | number: '1.2-2' }} and
+              {{ p.high68 | number: '1.2-2' }} (nine times in ten {{ p.low90 | number: '1.2-2' }} to
+              {{ p.high90 | number: '1.2-2' }}); chance of an up session {{ p.probUp | percent: '1.0-0' }}.
+            </div>
+          }
+          @if (item.indicators; as ind) {
+            <table class="table-custom small mb-0">
+              <tbody>
+                <tr><th scope="row">Close</th><td>{{ ind.close | number: '1.2-2' }} ({{ item.asOf }})</td></tr>
+                <tr><th scope="row">20 / 50-day average</th><td>{{ ind.sma20 | number: '1.2-2' }} / {{ ind.sma50 | number: '1.2-2' }}</td></tr>
+                <tr><th scope="row">RSI (14)</th><td>{{ ind.rsi14 | number: '1.0-0' }}</td></tr>
+                <tr><th scope="row">20-session return</th><td>{{ ind.return20dPct | number: '1.2-2' }}%</td></tr>
+                <tr><th scope="row">Volatility (annualised)</th><td>{{ ind.volatilityPct | number: '1.0-0' }}%</td></tr>
+                @if (item.heldQuantity !== null) {
+                  <tr><th scope="row">You hold</th><td>{{ item.heldQuantity }} at {{ item.averageCost | number: '1.2-2' }} average</td></tr>
+                }
+              </tbody>
+            </table>
+          }
+          @if (item.suggestion === 'BUY' || item.suggestion === 'SELL') {
+            <a class="small mt-2 d-inline-block" routerLink="/app/orders" data-testid="signal-trade"
+               [queryParams]="{ symbol: item.symbol, schedule: 'level' }">
+              Schedule an order on {{ item.symbol }}'s chart <i class="bi bi-arrow-right-short"></i>
+            </a>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}

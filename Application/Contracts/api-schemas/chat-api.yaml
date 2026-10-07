@@ -20,6 +20,12 @@ info:
     as a card, and only when the customer confirms does it call the ordinary alert or watchlist endpoints
     as them. `links` are "go there" buttons to the app's own pages.
 
+    `conditionalOrderProposals` are conditional orders the assistant suggests (decision-log/0013). Nothing
+    is placed by the chat call: the client shows each as a card, and the customer's click calls
+    `POST /api/v1/orders/conditional` as them, with a fresh idempotency key. The assistant can also read
+    an order's status, the customer's waiting conditional orders, and the ETL analysis service's published
+    suggestions and daily predictions; those reads take the account from the token, never from the model.
+
     ## Errors
 
     | Code | HTTP | Meaning |
@@ -155,8 +161,28 @@ components:
               label: { type: string, maxLength: 60 }
               path:
                 type: string
-                enum: [/app/dashboard, /app/portfolio, /app/orders, /app/blotter, /app/watchlists, /app/account, /app/settings, /app/bank-accounts]
+                enum: [/app/dashboard, /app/portfolio, /app/orders, /app/blotter, /app/watchlists, /app/advice, /app/account, /app/settings, /app/bank-accounts]
               query:
                 type: object
                 additionalProperties: { type: string }
                 description: symbol, side and quantity for /app/orders; alert for /app/watchlists; q for /app/blotter.
+        conditionalOrderProposals:
+          type: array
+          maxItems: 2
+          items:
+            type: object
+            required: [symbol, side, quantity, limitPrice, conditionType, expiresInDays, condition, reason]
+            properties:
+              symbol: { type: string }
+              side: { type: string, enum: [BUY, SELL] }
+              quantity: { type: integer, minimum: 1, maximum: 10000 }
+              limitPrice: { type: number, description: The order's limit once released. A BUY limit is at or above a price trigger, a SELL limit at or below it. }
+              conditionType: { type: string, enum: [PRICE_AT_OR_ABOVE, PRICE_AT_OR_BELOW, MA_CROSS_ABOVE, MA_CROSS_BELOW, BOLLINGER_BELOW_LOWER, BOLLINGER_ABOVE_UPPER] }
+              triggerPrice: { type: [number, 'null'] }
+              shortWindow: { type: [integer, 'null'] }
+              longWindow: { type: [integer, 'null'] }
+              bandWidth: { type: [number, 'null'] }
+              expiresInDays: { type: integer, minimum: 1, maximum: 90 }
+              condition: { type: string, description: 'The condition in words, for example "when the price falls to 3500.00 or lower".' }
+              reason: { type: string, maxLength: 300 }
+              currentPrice: { type: [number, 'null'] }

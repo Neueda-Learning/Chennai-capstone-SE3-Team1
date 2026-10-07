@@ -69,6 +69,7 @@ public class ChatWorkspaceTools {
         MARKET_AND_TRADE("/app/orders", "Market & Trade"),
         BLOTTER("/app/blotter", "Blotter"),
         WATCHLISTS("/app/watchlists", "Watchlists"),
+        ADVICE("/app/advice", "Advice"),
         ACCOUNT("/app/account", "My Account"),
         SETTINGS("/app/settings", "Settings"),
         BANK_ACCOUNT("/app/bank-accounts", "Bank Account Details");
@@ -129,7 +130,8 @@ public class ChatWorkspaceTools {
                                 + "help. At most " + MAX_LINKS + " per answer.",
                         ToolSchema.object()
                                 .prop("destination", "STRING", "One of: DASHBOARD, PORTFOLIO, MARKET_AND_TRADE, BLOTTER, "
-                                        + "WATCHLISTS, ACCOUNT, SETTINGS, BANK_ACCOUNT").required("destination")
+                                        + "WATCHLISTS, ADVICE, ACCOUNT, SETTINGS, BANK_ACCOUNT")
+                                .required("destination")
                                 .prop("label", "STRING", "The button's text, for example 'Open your watchlists'")
                                 .prop("symbol", "STRING", "For MARKET_AND_TRADE: the stock to open. For WATCHLISTS: a stock "
                                         + "whose price-alert chart to open")

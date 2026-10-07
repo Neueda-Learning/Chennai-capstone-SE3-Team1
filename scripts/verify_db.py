@@ -56,6 +56,7 @@ ENUM_CONSTRAINTS = [
     ("chk_clients_account_state", "AccountStatus"),
     ("chk_order_history_previous_status", "OrderStatus"),
     ("chk_order_history_new_status", "OrderStatus"),
+    ("chk_orders_condition_type", "ConditionType"),
 ]
 
 MONEY_COLUMNS = [

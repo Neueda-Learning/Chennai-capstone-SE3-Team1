@@ -1,12 +1,19 @@
 package com.team1.trading.api.service;
 
+import com.team1.trading.api.conditional.ConditionInvalidException;
+import com.team1.trading.api.conditional.ConditionText;
+import com.team1.trading.api.conditional.ConditionalOrderLimitException;
+import com.team1.trading.api.dto.ConditionSpec;
+import com.team1.trading.api.dto.ConditionalOrderRequest;
 import com.team1.trading.api.dto.OrderResponse;
+import com.team1.trading.api.dto.OrderStatusResponse;
 import com.team1.trading.api.event.OrderPlacedEvent;
 import com.team1.trading.api.mapper.AccountMapper;
 import com.team1.trading.api.mapper.AccountMapper.AccountRow;
 import com.team1.trading.api.mapper.InstrumentMapper;
 import com.team1.trading.api.mapper.InstrumentMapper.InstrumentRow;
 import com.team1.trading.api.mapper.OrderMapper;
+import com.team1.trading.api.mapper.OrderMapper.ConditionRow;
 import com.team1.trading.api.mapper.OrderMapper.OrderInsert;
 import com.team1.trading.api.mapper.OrderMapper.OrderRow;
 import com.team1.trading.api.mapper.PositionMapper;
@@ -15,6 +22,7 @@ import com.team1.trading.domain.dto.PlaceOrderRequest;
 import com.team1.trading.domain.entity.Client;
 import com.team1.trading.domain.entity.Instrument;
 import com.team1.trading.domain.entity.Order;
+import com.team1.trading.domain.entity.types.ConditionType;
 import com.team1.trading.domain.entity.types.OrderSide;
 import com.team1.trading.domain.entity.types.OrderStatus;
 import com.team1.trading.domain.entity.types.OrderType;
@@ -39,6 +47,9 @@ import java.util.UUID;
 @Service
 public class OrderService {
 
+    /** Conditional orders one account may have waiting at once. */
+    public static final int MAX_PENDING_CONDITIONAL = 25;
+
     private final AccountMapper accountMapper;
     private final InstrumentMapper instrumentMapper;
     private final OrderMapper orderMapper;
@@ -57,6 +68,70 @@ public class OrderService {
 
     @Transactional
     public OrderResponse placeOrder(PlaceOrderRequest request, Long tokenAccountId) {
+        Order order = validated(request, tokenAccountId);
+        String orderUuid = insert(order, request.getIdempotencyKey());
+
+        applicationEventPublisher.publishEvent(OrderPlacedEvent.of(
+                orderUuid, request.getAccountId(), request.getSymbol(), request.getSide(), request.getQuantity(),
+                request.getPrice(), request.getIdempotencyKey(), order.getCreatedAt()));
+
+        return new OrderResponse(displayId(orderUuid), OrderStatus.NEW, "Order accepted",
+                request.getSymbol(), request.getSide(), request.getQuantity(), request.getPrice());
+    }
+
+    /**
+     * Places an order that waits in the book as PENDING until its condition is met (ADR 0012). It passes every
+     * check placeOrder makes, now, and is not published: the conditional-order poller releases it later.
+     */
+    @Transactional
+    public OrderResponse placeConditionalOrder(ConditionalOrderRequest request, Long tokenAccountId) {
+        PlaceOrderRequest plain = request.toOrder();
+        Order order = validated(plain, tokenAccountId);
+        if (orderMapper.countPending(plain.getAccountId()) >= MAX_PENDING_CONDITIONAL) {
+            throw new ConditionalOrderLimitException("An account can have at most " + MAX_PENDING_CONDITIONAL
+                    + " conditional orders waiting; cancel one to place another");
+        }
+        ConditionSpec c = request.getCondition();
+        try {
+            order.holdUntil(c.type(), c.triggerPrice(), c.shortWindow(), c.longWindow(), c.bandWidth(),
+                    order.getCreatedAt().plusDays(request.expiryDays()));
+        } catch (IllegalArgumentException e) {
+            throw new ConditionInvalidException(e.getMessage());
+        }
+        String orderUuid = insert(order, plain.getIdempotencyKey());
+        String when = ConditionText.describe(order.getConditionType(), order.getTriggerPrice(),
+                order.getShortWindow(), order.getLongWindow(), order.getBandWidth());
+        return new OrderResponse(displayId(orderUuid), OrderStatus.PENDING, "Held until " + when.substring(5),
+                plain.getSymbol(), plain.getSide(), plain.getQuantity(), plain.getPrice());
+    }
+
+    /** Where one order stands, including the condition of a conditional order still in the book. */
+    @Transactional(readOnly = true)
+    public OrderStatusResponse getOrder(String orderId, Long tokenAccountId) {
+        String orderUuid = toOrderUuid(orderId);
+        OrderRow row = orderMapper.findByUuid(orderUuid)
+                .orElseThrow(() -> new OrderNotFoundException(displayId(orderUuid)));
+        if (tokenAccountId == null || !tokenAccountId.equals(row.getAccountId())) {
+            throw new AccountNotActiveException(row.getAccountId(), "TOKEN");
+        }
+        OrderStatusResponse.ConditionView condition = orderMapper.findCondition(orderUuid)
+                .map(OrderService::toView).orElse(null);
+        return new OrderStatusResponse(displayId(orderUuid), row.getAccountId(), row.getSymbol(), row.getSide(),
+                row.getQuantity(), row.getPrice(), row.getExecutedPrice(), row.getStatus(), row.getReason(),
+                row.getCreatedAt(), condition);
+    }
+
+    public static OrderStatusResponse.ConditionView toView(ConditionRow c) {
+        ConditionType type = ConditionType.valueOf(c.getType());
+        return new OrderStatusResponse.ConditionView(c.getType(),
+                ConditionText.describe(type, c.getTriggerPrice(), c.getShortWindow(), c.getLongWindow(),
+                        c.getBandWidth()),
+                c.getTriggerPrice(), c.getShortWindow(), c.getLongWindow(), c.getBandWidth(), c.getState(),
+                c.getExpiresAt(), c.getLastCheckedAt(), c.getTriggeredAt(), c.getTriggerReason());
+    }
+
+    /** Every check an order must pass before it may enter the book, whether it is sent now or held. */
+    private Order validated(PlaceOrderRequest request, Long tokenAccountId) {
         Long accountId = request.getAccountId();
 
         AccountRow accountRow = accountMapper.findRow(accountId)
@@ -104,24 +179,21 @@ public class OrderService {
             throw new DuplicateOrderException(request.getIdempotencyKey());
         }
 
-        String orderUuid = UUID.randomUUID().toString();
-        Order order = new Order(accountId, accountId, request.getSymbol(), OrderType.HOLDING,
+        return new Order(accountId, accountId, request.getSymbol(), OrderType.HOLDING,
                 request.getSide(), BigDecimal.valueOf(quantity), price, request.getIdempotencyKey());
+    }
+
+    private String insert(Order order, String idempotencyKey) {
+        String orderUuid = UUID.randomUUID().toString();
         try {
             orderMapper.insert(toInsert(order, orderUuid));
         } catch (DataIntegrityViolationException e) {
             if (isIdempotencyViolation(e)) {
-                throw new DuplicateOrderException(request.getIdempotencyKey());
+                throw new DuplicateOrderException(idempotencyKey);
             }
             throw e;
         }
-
-        applicationEventPublisher.publishEvent(OrderPlacedEvent.of(
-                orderUuid, accountId, request.getSymbol(), request.getSide(), quantity, price,
-                request.getIdempotencyKey(), order.getCreatedAt()));
-
-        return new OrderResponse(displayId(orderUuid), OrderStatus.NEW, "Order accepted",
-                request.getSymbol(), request.getSide(), quantity, price);
+        return orderUuid;
     }
 
     @Transactional
@@ -159,6 +231,14 @@ public class OrderService {
         insert.setIdempotencyKey(order.getIdempotencyKey());
         insert.setExternalOrderId(order.getExternalOrderId());
         insert.setOrderUuid(orderUuid);
+        if (order.isConditional()) {
+            insert.setConditionType(order.getConditionType().name());
+            insert.setTriggerPrice(order.getTriggerPrice());
+            insert.setShortWindow(order.getShortWindow());
+            insert.setLongWindow(order.getLongWindow());
+            insert.setBandWidth(order.getBandWidth());
+            insert.setExpiresAt(order.getExpiresAt());
+        }
         return insert;
     }
 

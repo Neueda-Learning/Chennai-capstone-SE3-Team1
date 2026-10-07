@@ -1,0 +1,64 @@
+<div class="card mb-0" data-testid="advice-ideas">
+  <div class="card-header mb-1 d-flex justify-content-between align-items-center">
+    <h2 class="card-title">Ideas &amp; predictions</h2>
+    <a routerLink="/app/advice" class="small">All advice <i class="bi bi-arrow-right-short"></i></a>
+  </div>
+
+  @if (failed()) {
+    <p class="small text-muted-green mb-0" data-testid="ideas-failed">The analysis could not be loaded just now.</p>
+  } @else if (data(); as advice) {
+    @if (advice.dataAsOf === null) {
+      <p class="small text-muted-green mb-0" data-testid="ideas-none">No analysis has been published yet.</p>
+    } @else {
+      <p class="small text-muted-green mb-2" data-testid="ideas-as-of">
+        From prices to {{ advice.dataAsOf }}
+        @if (advice.stale) {
+          <span class="badge-table pending" data-testid="ideas-stale">stale</span>
+        }
+      </p>
+
+      @if (mine().length > 0) {
+        <h3 class="small fw-semibold mb-1">Yours</h3>
+        <ul class="list-unstyled small mb-3" data-testid="ideas-mine">
+          @for (item of mine(); track item.symbol) {
+            <li class="d-flex justify-content-between align-items-center mb-1">
+              <span>
+                <a [routerLink]="'/app/advice'">{{ item.symbol }}</a>
+                @if (item.prediction; as p) {
+                  <span class="text-muted-green">· next {{ p.predictedClose | number: '1.2-2' }}, up {{ p.probUp | percent: '1.0-0' }}</span>
+                }
+              </span>
+              <span [class]="'badge-table ' + badge(item)">{{ item.suggestion }}</span>
+            </li>
+          }
+        </ul>
+      }
+
+      <h3 class="small fw-semibold mb-1">Strongest buys</h3>
+      <ul class="list-unstyled small mb-2" data-testid="ideas-buy">
+        @for (item of buy(); track item.symbol) {
+          <li class="mb-1" [title]="item.summary">
+            <span class="badge-table success">{{ item.symbol }}</span>
+            <span class="text-muted-green">{{ item.confidence?.toLowerCase() }}, score {{ item.score }}</span>
+          </li>
+        } @empty {
+          <li class="text-muted-green">None today.</li>
+        }
+      </ul>
+      <h3 class="small fw-semibold mb-1">Strongest sells</h3>
+      <ul class="list-unstyled small mb-2" data-testid="ideas-sell">
+        @for (item of sell(); track item.symbol) {
+          <li class="mb-1" [title]="item.summary">
+            <span class="badge-table failed">{{ item.symbol }}</span>
+            <span class="text-muted-green">{{ item.confidence?.toLowerCase() }}, score {{ item.score }}</span>
+          </li>
+        } @empty {
+          <li class="text-muted-green">None today.</li>
+        }
+      </ul>
+      <p class="text-muted-green mb-0" style="font-size: 0.75rem">Information, not a recommendation.</p>
+    }
+  } @else {
+    <p class="small text-muted-green mb-0">Loading...</p>
+  }
+</div>

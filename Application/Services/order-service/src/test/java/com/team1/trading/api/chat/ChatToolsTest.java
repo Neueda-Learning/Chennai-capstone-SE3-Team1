@@ -58,13 +58,15 @@ class ChatToolsTest {
     private InstrumentMapper instruments;
     @Mock
     private ChatWorkspaceTools workspace;
+    @Mock
+    private ChatOrderTools orderTools;
 
     private ChatTools tools;
     private ChatContext context;
 
     @BeforeEach
     void setUp() {
-        tools = new ChatTools(accounts, market, candles, instruments, workspace);
+        tools = new ChatTools(accounts, market, candles, instruments, workspace, orderTools);
         context = new ChatContext(ACCOUNT, TOKEN_ACCOUNT, new ArrayList<>());
     }
 

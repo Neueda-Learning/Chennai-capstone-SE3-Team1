@@ -66,7 +66,8 @@ describe('ChatStore', () => {
       suggestions: [{ symbol: 'TCS', side: 'SELL', quantity: 2, reason: 'Concentration' }],
       alerts: [],
       lists: [],
-      links: []
+      links: [],
+      orders: []
     });
   });
 
@@ -284,6 +285,48 @@ describe('ChatStore', () => {
       store.dismiss(last(), 'alerts', 1);
       expect(last().alerts[1].status).toBe('dismissed');
       http.expectNone(ALERTS);
+    });
+
+    it('places a proposed conditional order only when confirmed, with the customer account and a fresh key', () => {
+      configure();
+      const proposal = {
+        symbol: 'TCS', side: 'BUY', quantity: 2, limitPrice: 3510, conditionType: 'PRICE_AT_OR_BELOW', triggerPrice: 3500,
+        shortWindow: null, longWindow: null, bandWidth: null, expiresInDays: 30,
+        condition: 'when the price falls to 3500.00 or lower', reason: 'Buy the dip', currentPrice: 3600
+      };
+      reply({ conditionalOrderProposals: [proposal] });
+      expect(last().orders?.[0].status).toBe('idle');
+      http.expectNone(`${BASE}/api/v1/orders/conditional`);
+
+      store.confirmOrder(last(), 0);
+      const request = http.expectOne(`${BASE}/api/v1/orders/conditional`);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toMatchObject({
+        accountId: 7, symbol: 'TCS', side: 'BUY', quantity: 2, price: 3510, expiresInDays: 30,
+        condition: { type: 'PRICE_AT_OR_BELOW', triggerPrice: 3500 }
+      });
+      expect(request.request.body.condition).not.toHaveProperty('shortWindow');
+      expect(request.request.body.idempotencyKey).toMatch(/^chat-/);
+      request.flush({ orderId: 'ORD-9', status: 'PENDING', message: 'Held' });
+
+      expect(last().orders?.[0].status).toBe('done');
+      expect(last().orders?.[0].note).toBe('ORD-9');
+      store.confirmOrder(last(), 0);
+      http.expectNone(`${BASE}/api/v1/orders/conditional`);
+    });
+
+    it('shows why a conditional order was refused and lets it be tried again', () => {
+      configure();
+      reply({ conditionalOrderProposals: [{
+        symbol: 'TCS', side: 'BUY', quantity: 2, limitPrice: 3510, conditionType: 'PRICE_AT_OR_BELOW', triggerPrice: 3500,
+        shortWindow: null, longWindow: null, bandWidth: null, expiresInDays: 30, condition: 'c', reason: 'r', currentPrice: 3600
+      }] });
+
+      store.confirmOrder(last(), 0);
+      http.expectOne(`${BASE}/api/v1/orders/conditional`)
+        .flush({ errorCode: 'COND-429', message: 'cap' }, { status: 429, statusText: 'x' });
+      expect(last().orders?.[0].status).toBe('failed');
+      expect(last().orders?.[0].note).toContain('25 conditional orders');
     });
 
     it('creates a new watchlist and then puts the stocks in it', () => {

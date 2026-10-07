@@ -23,6 +23,8 @@ public final class ErrorCatalogue {
     public static final String WLT_409 = "WLT-409";
     public static final String WLT_422 = "WLT-422";
     public static final String WLT_429 = "WLT-429";
+    public static final String COND_422 = "COND-422";
+    public static final String COND_429 = "COND-429";
 
     public static final String CHT_429 = "CHT-429";
     public static final String CHT_503 = "CHT-503";
@@ -46,6 +48,8 @@ public final class ErrorCatalogue {
             Map.entry(WLT_409, HttpStatus.CONFLICT),
             Map.entry(WLT_422, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(WLT_429, HttpStatus.TOO_MANY_REQUESTS),
+            Map.entry(COND_422, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(COND_429, HttpStatus.TOO_MANY_REQUESTS),
             Map.entry(CHT_429, HttpStatus.TOO_MANY_REQUESTS),
             Map.entry(CHT_503, HttpStatus.SERVICE_UNAVAILABLE),
             Map.entry(INTERNAL_500, HttpStatus.INTERNAL_SERVER_ERROR)

@@ -289,6 +289,9 @@ if ($ResetDb) { $dbArgs += "--reset" }
 & python @pyTrust @dbArgs 2>&1 | Where-Object { $_ -match "migrations :|seed       :|Database ready|FAILED|EDITED|ERROR" } | ForEach-Object { Write-Host "    $_" }
 if ($LASTEXITCODE -ne 0) { Fail "apply_db.py failed (a migration was edited after being applied? re-run with -ResetDb)" }
 
+# The daily ETL (warehouse refresh + analysis publish) is run by the Trade API itself once it is up: once per
+# analysis day, recorded in etl_daily_runs, so restarting here the same day reuses what was published (ADR 0015).
+
 # ------------------------------------------------------------------ 4. build
 $apiJar  = Join-Path $RepoRoot "Application\Services\order-service\target\sprint-06-api-0.0.1-SNAPSHOT.jar"
 $execJar = Join-Path $RepoRoot "Application\Services\executor-service\target\trade-executor-0.0.1-SNAPSHOT.jar"
@@ -411,7 +414,7 @@ Write-Host "    auth       pid $authStubId  -> http://localhost:$AuthPort  (Open
 
 $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "api.log") -RedirectStandardError (Join-Path $LogDir "api.err") `
-    -ArgumentList ($jvmCommon + @("-jar", $apiJar))
+    -ArgumentList ($jvmCommon + @("-Detl.daily.workdir=$RepoRoot", "-jar", $apiJar))
 Write-Host "    trade-api  pid $($api.Id)  -> http://localhost:$ApiPort"
 
 $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `

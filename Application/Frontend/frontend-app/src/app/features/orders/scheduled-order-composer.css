@@ -1,0 +1,57 @@
+.schedule-head {
+  justify-content: space-between;
+}
+
+.schedule-head i {
+  margin-right: 0.3rem;
+}
+
+.schedule-average {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.schedule-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.schedule-field input {
+  width: 5.5rem;
+}
+
+.schedule-fast {
+  font-size: 0.85rem;
+}
+
+.schedule-sides {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.schedule-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.schedule-field-stack small {
+  color: var(--text-muted-green);
+}
+
+@media (max-width: 576px) {
+  .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}

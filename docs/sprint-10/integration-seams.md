@@ -12,8 +12,10 @@ Both seams are Java interfaces, not HTTP routes. The reasoning is in [`decision-
 |---|---|---|---|
 | Customer Preferences | `com.team1.trading.api.preferences` | `PreferenceResolver` | — |
 | Customer Notifications | `com.team1.trading.api.notifications` | `NotificationDelivery` | `trade-events`, group `notification-service` |
-| Watchlists and Price Alerts | `com.team1.trading.api.watchlists` | — | `market-data`, group `watchlist-service` |
+| Watchlists and Price Alerts | `com.team1.trading.api.watchlists` | `WatchedSymbols` (seam 3, added for Advice) | `market-data`, group `watchlist-service` |
 | Portfolio and P&L | `com.team1.trading.api.portfolio` | — | `market-data`, group `portfolio-service` (already live) |
+| Trade Advice and Signals (stretch) | `com.team1.trading.api.advice` | — | — (reads what the ETL analysis job publishes) |
+| Conditional orders (stretch) | `com.team1.trading.api.conditional` | — | — (polls `market_quotes` every minute) |
 
 A module imports from another module's package **only** through the interfaces listed in the third column. Reaching into another module's mappers, repositories or tables is the mistake [`decision-log/0001`](../../decision-log/0001-extension-modules-live-as-packages-in-the-trade-rest-api.md) warns about; a reviewer will grep for it.
 
@@ -179,6 +181,29 @@ Watchlists **never** falls back to writing the alert to a log file in place of c
 
 Synchronous and in-process. The call runs on the Watchlists Kafka consumer thread (`market-data`). There is no timeout; a slow DB stalls the `market-data` partition for this consumer group, which is survivable because `watchlist-service` and `portfolio-service` are different groups and portfolio keeps consuming independently (see [`decision-log/0002`](../../decision-log/0002-one-consumer-group-per-extension-module.md)).
 
+## Seam 3 — `WatchedSymbols`
+
+Advice calls this to learn which instruments a customer watches. Published by the Watchlists package; Advice has no visibility into the watchlist tables. Reasoning in [`decision-log/0014`](../../decision-log/0014-watchlists-publishes-the-symbols-a-customer-watches-through-a-java-interface.md).
+
+```java
+package com.team1.trading.api.watchlists;
+
+public interface WatchedSymbols {
+    /** Distinct symbols across all of the account's watchlists, in the order they were first added. */
+    List<String> symbolsWatchedBy(long accountId);
+}
+```
+
+| Situation | Returns |
+|---|---|
+| Account has watchlists with instruments | The distinct symbols, oldest first |
+| No watchlists, or empty ones | An empty list, never null |
+| Database failure | The `DataAccessException` propagates; Advice answers 500 for the request rather than presenting a partial list as complete |
+
+Advice calls it only after its controller's `ACC-403` check, with the path account. It reveals symbols only: no watchlist names, ids or alerts.
+
+Conditional orders publish nothing and call no other extension module. They live in the order book itself ([`decision-log/0012`](../../decision-log/0012-a-conditional-order-waits-in-the-orders-table-as-pending-and-is-released-by-a-one-minute-poller.md)).
+
 ## Consumer group identifiers
 
 Fixed by `Application/Contracts/event-schemas/kafka-topics.md` and recorded here for the Sprint 10 modules.
@@ -189,7 +214,7 @@ Fixed by `Application/Contracts/event-schemas/kafka-topics.md` and recorded here
 | Customer Notifications | `trade-events` | `notification-service` | 3 | 3 |
 | Watchlists and Price Alerts | `market-data` | `watchlist-service` | 6 | 6 |
 
-Each group id is listed in the owning module's README. A new consumer with any of these names, in this process or any other, would silently split the partitions and lose messages — the catalogue flags this: "Two different consumers sharing a group identifier will split the partitions between them and each will see only part of the stream, which presents as messages going missing at random." The three group ids above are reserved; a module that needs a second consumer picks a new name.
+Each group id is listed in the owning module's README. A new consumer with any of these names, in this process or any other, would silently split the partitions and lose messages — the catalogue flags this: "Two different consumers sharing a group identifier will split the partitions between them and each will see only part of the stream, which presents as messages going missing at random." The group ids above are reserved; a module that needs a second consumer picks a new name.
 
 ## What this document rules out
 

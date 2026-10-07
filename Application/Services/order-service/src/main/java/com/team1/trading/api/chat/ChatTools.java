@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.team1.trading.api.chat.ChatAction.AlertProposal;
+import com.team1.trading.api.chat.ChatAction.ConditionalOrderProposal;
 import com.team1.trading.api.chat.ChatAction.NavigationLink;
 import com.team1.trading.api.chat.ChatAction.WatchlistProposal;
 import com.team1.trading.api.chat.LlmClient.ToolSpec;
@@ -67,14 +68,16 @@ public class ChatTools {
     private final CandleService candles;
     private final InstrumentMapper instruments;
     private final ChatWorkspaceTools workspace;
+    private final ChatOrderTools orderTools;
 
     public ChatTools(AccountService accounts, MarketService market, CandleService candles,
-                     InstrumentMapper instruments, ChatWorkspaceTools workspace) {
+                     InstrumentMapper instruments, ChatWorkspaceTools workspace, ChatOrderTools orderTools) {
         this.accounts = accounts;
         this.market = market;
         this.candles = candles;
         this.instruments = instruments;
         this.workspace = workspace;
+        this.orderTools = orderTools;
     }
 
     /** One conversation turn's scope: who is asking, and the suggestions collected so far. */
@@ -84,10 +87,12 @@ public class ChatTools {
             List<OrderSuggestion> suggestions,
             List<AlertProposal> alertProposals,
             List<WatchlistProposal> watchlistProposals,
-            List<NavigationLink> links) {
+            List<NavigationLink> links,
+            List<ConditionalOrderProposal> conditionalOrderProposals) {
 
         public ChatContext(long accountId, Long tokenAccountId, List<OrderSuggestion> suggestions) {
-            this(accountId, tokenAccountId, suggestions, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+            this(accountId, tokenAccountId, suggestions, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                    new ArrayList<>());
         }
     }
 
@@ -103,7 +108,8 @@ public class ChatTools {
                                 + "rejection reason.",
                         schema().prop("limit", "INTEGER", "How many orders, 1 to " + MAX_ORDERS + " (default "
                                 + DEFAULT_ORDERS + ")")
-                                .prop("status", "STRING", "Optional filter: NEW, FILLED, REJECTED or CANCELLED")),
+                                .prop("status", "STRING", "Optional filter: PENDING (a conditional order waiting "
+                                        + "for its condition), NEW, FILLED, REJECTED or CANCELLED")),
                 spec(MARKET_OVERVIEW,
                         "The latest price, change and change percent of every instrument that can be traded.",
                         schema()),
@@ -134,6 +140,7 @@ public class ChatTools {
                                 .prop("reason", "STRING", "One sentence on why").required("reason")));
         List<ToolSpec> all = new ArrayList<>(own);
         all.addAll(workspace.specs());
+        all.addAll(orderTools.specs());
         return all;
     }
 
@@ -148,7 +155,9 @@ public class ChatTools {
                 case PRICE_STATS -> priceStats(safeArgs);
                 case OUTLOOK -> outlook(safeArgs, context);
                 case SUGGEST_ORDER -> suggestOrder(safeArgs, context);
-                default -> workspace.handles(name) ? workspace.execute(name, safeArgs, context) : error("Unknown tool " + name);
+                default -> workspace.handles(name) ? workspace.execute(name, safeArgs, context)
+                        : orderTools.handles(name) ? orderTools.execute(name, safeArgs, context)
+                        : error("Unknown tool " + name);
             };
         } catch (DomainException e) {
             return error(e.getMessage());

@@ -32,7 +32,7 @@
           <div class="chat-intro">
             <p>
               Ask about your portfolio, a stock's recent behaviour, or what a term means. I use your holdings and
-              the prices in this app. I can suggest orders, price alerts and watchlists, and point you to any page, but
+              the prices in this app. I can suggest orders, conditional orders, price alerts and watchlists, and point you to any page, but
               nothing is placed or saved until you press the button.
             </p>
             <div class="chat-starters">
@@ -96,6 +96,34 @@
                         {{ item.status === 'working' ? 'Setting…' : item.status === 'failed' ? 'Try again' : 'Set this alert' }}
                       </button>
                       <button type="button" class="chat-card-dismiss" data-testid="chat-dismiss" [disabled]="item.status === 'working'" (click)="store.dismiss(entry, 'alerts', $index)">Not now</button>
+                    </div>
+                  }
+                </div>
+              }
+            }
+            @for (item of entry.orders ?? []; track $index) {
+              @if (item.status !== 'dismissed') {
+                <div class="chat-suggestion chat-card" data-testid="chat-order-card">
+                  <div class="chat-suggestion-head">
+                    <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                    <strong>{{ item.proposal.side === 'BUY' ? 'Buy' : 'Sell' }} {{ item.proposal.quantity }} {{ item.proposal.symbol }} at a limit of &#8377;{{ item.proposal.limitPrice }}</strong>
+                  </div>
+                  <small class="chat-card-sub">
+                    Placed automatically {{ item.proposal.condition }} &middot; waits up to {{ item.proposal.expiresInDays }} days
+                    @if (item.proposal.currentPrice !== null) { &middot; now &#8377;{{ item.proposal.currentPrice }} }
+                  </small>
+                  <p>{{ item.proposal.reason }}</p>
+                  @if (item.status === 'done') {
+                    <span class="chat-card-done" data-testid="chat-card-done"><i class="bi bi-check-circle-fill"></i> Waiting as {{ item.note }}</span>
+                  } @else {
+                    @if (item.status === 'failed') {
+                      <div class="chat-card-failed" role="alert" data-testid="chat-card-failed">{{ item.note }}</div>
+                    }
+                    <div class="chat-card-actions">
+                      <button type="button" class="chat-open-order" data-testid="chat-confirm-order" [disabled]="item.status === 'working'" (click)="store.confirmOrder(entry, $index)">
+                        {{ item.status === 'working' ? 'Placing…' : item.status === 'failed' ? 'Try again' : 'Place conditional order' }}
+                      </button>
+                      <button type="button" class="chat-card-dismiss" data-testid="chat-dismiss" [disabled]="item.status === 'working'" (click)="store.dismiss(entry, 'orders', $index)">Not now</button>
                     </div>
                   }
                 </div>

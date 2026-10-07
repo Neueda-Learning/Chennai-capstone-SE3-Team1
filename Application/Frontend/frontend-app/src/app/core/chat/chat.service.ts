@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { Configuration } from '../../generated/trade-client';
+import { ConditionType } from '../services/conditional-order.service';
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
@@ -35,6 +36,26 @@ export interface WatchlistProposal {
   reason: string;
 }
 
+/**
+ * A conditional order the assistant suggests. Nothing exists until the customer confirms it; the click places it
+ * through POST /api/v1/orders/conditional with their own session.
+ */
+export interface ConditionalOrderProposal {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  quantity: number;
+  limitPrice: number;
+  conditionType: ConditionType;
+  triggerPrice: number | null;
+  shortWindow: number | null;
+  longWindow: number | null;
+  bandWidth: number | null;
+  expiresInDays: number;
+  condition: string;
+  reason: string;
+  currentPrice: number | null;
+}
+
 /** A "go there" button. The path is checked against the app's own pages before it is ever followed. */
 export interface NavLink {
   label: string;
@@ -48,6 +69,7 @@ export interface ChatReply {
   alertProposals?: AlertProposal[];
   watchlistProposals?: WatchlistProposal[];
   links?: NavLink[];
+  conditionalOrderProposals?: ConditionalOrderProposal[];
 }
 
 @Injectable({ providedIn: 'root' })

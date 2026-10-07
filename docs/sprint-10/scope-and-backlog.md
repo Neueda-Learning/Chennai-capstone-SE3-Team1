@@ -137,6 +137,38 @@ Story IDs are local to this document (PRF, NTF, WLT, PFL, INT, SEC, DOC). Each i
 | PFL-3 | P&L correctness | Cost basis, market value, unrealised and realised P&L verified against hand-computed cases |
 | PFL-4 | Angular alignment | Portfolio screen reads the contract routes |
 
+### Stretch: Trade advice and signals (`...api.advice` + `etl-live/analysis.py`, built 2026-10-07)
+
+Taken on the stretch terms in the brief once the four mandatory modules were built. On 2026-10-07 the product owner asked for the computing to move to the ETL analysis service. Contract: `Application/Contracts/api-schemas/advice-api.yaml`. Migration `032`. Decisions [`0011`](../../decision-log/0011-advice-is-computed-by-the-etl-analysis-service-and-published-to-postgres-for-the-api-to-read.md), [`0014`](../../decision-log/0014-watchlists-publishes-the-symbols-a-customer-watches-through-a-java-interface.md).
+
+| ID | Story | Acceptance criteria |
+|---|---|---|
+| ADV-1 | Analysis computed by the ETL service | `analysis.py` reads `daily_price` (extended with the API's newer `daily_candles`), computes trend, momentum and RSI and a next-session prediction, and publishes `market_analysis` and `daily_predictions` in one transaction; the Trade API runs the warehouse refresh and the publish once per analysis day, recorded in `etl_daily_runs`, and a restart the same day reuses the run (ADR 0015) |
+| ADV-2 | BUY/SELL/HOLD with explanations | Every suggestion carries confidence, score, one reason sentence per rule with the numbers, the indicators and the data date; every response the methodology and a disclaimer |
+| ADV-3 | No signal when data insufficient | Under 60 sessions is published as `INSUFFICIENT_DATA` with no suggestion; an instrument with nothing published is listed with no suggestion and says so; data over four days old is flagged stale |
+| ADV-4 | Unauthorised access rejected | `ACC-403` on both routes for another account, no ADMIN bypass, `AUTH-401` without a token; in `ModuleRouteAuthorisationTest` |
+| ADV-5 | Dashboard and UI | Dashboard "Ideas & predictions" card (strongest buys and sells, the customer's signals with predictions); `/app/advice` with reasons, numbers and prediction |
+
+### Stretch: Automated strategy execution, as conditional orders (`...api.conditional`, built 2026-10-07)
+
+Per the product owner on 2026-10-07: a conditional order is held in the `orders` table as `PENDING` and a one-minute poller releases it when its condition is met. Contract: `Application/Contracts/api-schemas/conditional-orders-api.yaml`. Migration `031`. Decisions [`0012`](../../decision-log/0012-a-conditional-order-waits-in-the-orders-table-as-pending-and-is-released-by-a-one-minute-poller.md), [`0013`](../../decision-log/0013-the-assistant-proposes-conditional-orders-and-the-customer-places-them.md).
+
+| ID | Story | Acceptance criteria |
+|---|---|---|
+| CND-1 | Held in the order book | `POST /api/v1/orders/conditional` runs every ordinary order check, stores `status = PENDING` with the condition and expiry, publishes nothing; 25 per account |
+| CND-2 | Moving-average crossover and Bollinger-band triggers (plus price levels) | Checked every minute against fresh `market-data` quotes; crossings and band exits are events (state stored, so the next crossing triggers); stale or old quotes are never acted on |
+| CND-3 | Orders placed via the Trade REST API path | On trigger, a guarded `PENDING` to `NEW` update and the same `OrderPlacedEvent` as `POST /api/v1/orders`; the executor fills or rejects as usual; released at most once |
+| CND-4 | Lifecycle | Cancel with `DELETE /api/v1/orders/{id}`; unmet orders expire to history as `CANCELLED`/`EXPIRED`; `GET /api/v1/orders/{id}` shows status and condition |
+| CND-5 | UI | On Market & Trade, "At a price level" and "On a moving average" open the stock's chart: mark a level (rise or fall inferred) or use the average line, then choose buy or sell; waiting orders listed under the ticket with Cancel and drawn on the chart; no separate page ([`0016`](../../decision-log/0016-scheduled-orders-are-placed-from-the-stocks-chart-with-the-condition-inferred-not-chosen.md)) |
+
+### Stretch: assistant tools (built 2026-10-07)
+
+| ID | Story | Acceptance criteria |
+|---|---|---|
+| CHT-1 | Conditional orders from the assistant | `propose_conditional_order` validates in code and records a card; the customer's click places it ([`0013`](../../decision-log/0013-the-assistant-proposes-conditional-orders-and-the-customer-places-them.md)) |
+| CHT-2 | Order status | `get_order_status` (one order, with its condition) and `get_conditional_orders`; `get_recent_orders` accepts `PENDING` |
+| CHT-3 | Analysis and predictions | `get_analysis` (one symbol, or the strongest ideas with counts) and `get_daily_predictions` (a symbol's history, or the customer's holdings and watchlist), with the disclaimer |
+
 ### Cross-cutting
 
 | ID | Story | Acceptance criteria |

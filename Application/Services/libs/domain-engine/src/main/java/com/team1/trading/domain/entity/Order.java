@@ -1,5 +1,6 @@
 package com.team1.trading.domain.entity;
 
+import com.team1.trading.domain.entity.types.ConditionType;
 import com.team1.trading.domain.entity.types.OrderStatus;
 import com.team1.trading.domain.entity.types.OrderType;
 import com.team1.trading.domain.entity.types.OrderSide;
@@ -24,6 +25,18 @@ public class Order {
     private String externalOrderId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // The condition of a conditional order; all null for an ordinary one.
+    private ConditionType conditionType;
+    private BigDecimal triggerPrice;
+    private Integer shortWindow;
+    private Integer longWindow;
+    private BigDecimal bandWidth;
+    private String conditionState;
+    private LocalDateTime expiresAt;
+    private LocalDateTime lastCheckedAt;
+    private LocalDateTime triggeredAt;
+    private String triggerReason;
 
     public Order(Long clientId, Long accountId, String instrumentId, OrderType orderType,
                  OrderSide side, BigDecimal quantity, BigDecimal price, String idempotencyKey) {
@@ -56,6 +69,66 @@ public class Order {
     public String getExternalOrderId() { return externalOrderId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public ConditionType getConditionType() { return conditionType; }
+    public BigDecimal getTriggerPrice() { return triggerPrice; }
+    public Integer getShortWindow() { return shortWindow; }
+    public Integer getLongWindow() { return longWindow; }
+    public BigDecimal getBandWidth() { return bandWidth; }
+    public String getConditionState() { return conditionState; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public LocalDateTime getLastCheckedAt() { return lastCheckedAt; }
+    public LocalDateTime getTriggeredAt() { return triggeredAt; }
+    public String getTriggerReason() { return triggerReason; }
+
+    public boolean isConditional() {
+        return conditionType != null;
+    }
+
+    /**
+     * Turns a new order into a conditional one: it is held as PENDING until {@link #release} and is never
+     * sent to the executor before then. The parameters the condition type needs must be present; the
+     * others are dropped.
+     */
+    public void holdUntil(ConditionType type, BigDecimal triggerPrice, Integer shortWindow, Integer longWindow,
+                          BigDecimal bandWidth, LocalDateTime expiresAt) {
+        requireTransitionableFromNew();
+        Objects.requireNonNull(type, "condition type must not be null");
+        Objects.requireNonNull(expiresAt, "expiresAt must not be null");
+        if (type.isPriceLevel() && (triggerPrice == null || triggerPrice.signum() <= 0)) {
+            throw new IllegalArgumentException("a price condition needs a positive triggerPrice");
+        }
+        if (type.isCrossover()
+                && (shortWindow == null || longWindow == null || shortWindow < 1 || longWindow <= shortWindow
+                    || longWindow < 2)) {
+            // shortWindow 1 is the price itself: "the price crosses its longWindow average".
+            throw new IllegalArgumentException("a crossover needs 1 <= shortWindow < longWindow");
+        }
+        if (type.isBand() && (longWindow == null || longWindow < 2 || bandWidth == null || bandWidth.signum() <= 0)) {
+            throw new IllegalArgumentException("a band condition needs longWindow >= 2 and a positive bandWidth");
+        }
+        if (!expiresAt.isAfter(createdAt)) {
+            throw new IllegalArgumentException("expiresAt must be after the order is created");
+        }
+        this.conditionType = type;
+        this.triggerPrice = type.isPriceLevel() ? triggerPrice : null;
+        this.shortWindow = type.isCrossover() ? shortWindow : null;
+        this.longWindow = type.isPriceLevel() ? null : longWindow;
+        this.bandWidth = type.isBand() ? bandWidth : null;
+        this.expiresAt = expiresAt;
+        this.status = OrderStatus.PENDING;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** The condition was met: the order becomes NEW and goes to the executor like any other. */
+    public void release(String reason) {
+        if (this.status != OrderStatus.PENDING) {
+            throw new IllegalStateException("order " + orderId + " is " + status + ", only a PENDING order is released");
+        }
+        this.status = OrderStatus.NEW;
+        this.triggeredAt = LocalDateTime.now();
+        this.triggerReason = reason;
+        this.updatedAt = this.triggeredAt;
+    }
 
     public void markInProgress() {
         requireTransitionableFromNew();
@@ -77,7 +150,9 @@ public class Order {
     }
 
     public void cancel() {
-        requireTransitionableFromNew();
+        if (this.status != OrderStatus.PENDING) {
+            requireTransitionableFromNew();
+        }
         this.status = OrderStatus.CANCELLED;
         this.updatedAt = LocalDateTime.now();
     }

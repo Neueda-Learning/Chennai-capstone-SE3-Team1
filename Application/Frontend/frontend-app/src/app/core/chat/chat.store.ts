@@ -2,8 +2,17 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { ErrorCatalog } from '../errors/error-catalog';
 import { SessionStore } from '../auth/session.store';
+import { ConditionalOrderService, newIdempotencyKey } from '../services/conditional-order.service';
 import { WatchlistStore } from '../watchlists/watchlist.store';
-import { AlertProposal, ChatService, ChatTurn, NavLink, OrderSuggestion, WatchlistProposal } from './chat.service';
+import {
+  AlertProposal,
+  ChatService,
+  ChatTurn,
+  ConditionalOrderProposal,
+  NavLink,
+  OrderSuggestion,
+  WatchlistProposal
+} from './chat.service';
 
 export type CardStatus = 'idle' | 'working' | 'done' | 'failed' | 'dismissed';
 
@@ -21,7 +30,11 @@ export interface ChatEntry {
   alerts: Card<AlertProposal>[];
   lists: Card<WatchlistProposal>[];
   links: NavLink[];
+  /** Conditional orders the assistant proposed. Absent on entries saved before the feature existed. */
+  orders?: Card<ConditionalOrderProposal>[];
 }
+
+type CardKind = 'alerts' | 'lists' | 'orders';
 
 /** The pages a "go there" button may open: the app's own, nothing else. */
 const APP_PATHS = new Set([
@@ -30,6 +43,7 @@ const APP_PATHS = new Set([
   '/app/orders',
   '/app/blotter',
   '/app/watchlists',
+  '/app/advice',
   '/app/account',
   '/app/settings',
   '/app/bank-accounts'
@@ -51,6 +65,7 @@ export class ChatStore {
   private readonly session = inject(SessionStore);
   private readonly errors = inject(ErrorCatalog);
   private readonly workspace = inject(WatchlistStore);
+  private readonly conditionalOrders = inject(ConditionalOrderService);
   private readonly newer = new WeakMap<ChatEntry, ChatEntry>();
 
   readonly open = signal(false);
@@ -108,7 +123,8 @@ export class ChatStore {
             suggestions: reply.suggestions ?? [],
             alerts: (reply.alertProposals ?? []).map((proposal) => card(proposal)),
             lists: (reply.watchlistProposals ?? []).map((proposal) => card(proposal)),
-            links: (reply.links ?? []).filter(isAppLink)
+            links: (reply.links ?? []).filter(isAppLink),
+            orders: (reply.conditionalOrderProposals ?? []).map((proposal) => card(proposal))
           }
         ]);
         this.sending.set(false);
@@ -173,7 +189,39 @@ export class ChatStore {
     });
   }
 
-  dismiss(entry: ChatEntry, kind: 'alerts' | 'lists', index: number): void {
+  /** The customer confirmed a conditional order: this click, and only this, places it, with their own session. */
+  confirmOrder(entry: ChatEntry, index: number): void {
+    const target = (entry.orders ?? [])[index];
+    const accountId = this.session.accountId();
+    if (target === undefined || accountId === null || (target.status !== 'idle' && target.status !== 'failed')) {
+      return;
+    }
+    const p = target.proposal;
+    this.setCard(entry, 'orders', index, 'working', null);
+    this.conditionalOrders
+      .place({
+        accountId,
+        symbol: p.symbol,
+        side: p.side,
+        quantity: p.quantity,
+        price: p.limitPrice,
+        idempotencyKey: newIdempotencyKey('chat'),
+        condition: {
+          type: p.conditionType,
+          ...(p.triggerPrice !== null ? { triggerPrice: p.triggerPrice } : {}),
+          ...(p.shortWindow !== null ? { shortWindow: p.shortWindow } : {}),
+          ...(p.longWindow !== null ? { longWindow: p.longWindow } : {}),
+          ...(p.bandWidth !== null ? { bandWidth: p.bandWidth } : {})
+        },
+        expiresInDays: p.expiresInDays
+      })
+      .subscribe({
+        next: (placed) => this.setCard(entry, 'orders', index, 'done', placed.orderId),
+        error: (failure: unknown) => this.setCard(entry, 'orders', index, 'failed', this.errors.messageForTrade(failure))
+      });
+  }
+
+  dismiss(entry: ChatEntry, kind: CardKind, index: number): void {
     this.setCard(entry, kind, index, 'dismissed', null);
   }
 
@@ -181,12 +229,13 @@ export class ChatStore {
    * Cards live inside entries, and an entry is replaced when one changes. A request that finishes later still holds
    * the old object, so each replacement is remembered and the newest version is looked up before changing it.
    */
-  private setCard(entry: ChatEntry, kind: 'alerts' | 'lists', index: number, status: CardStatus, note: string | null): void {
+  private setCard(entry: ChatEntry, kind: CardKind, index: number, status: CardStatus, note: string | null): void {
     let live = entry;
     while (this.newer.has(live)) {
       live = this.newer.get(live) as ChatEntry;
     }
-    const next = { ...live, [kind]: live[kind].map((c, i) => (i === index ? { ...c, status, note } : c)) } as ChatEntry;
+    const cards = (live[kind] ?? []) as Card<unknown>[];
+    const next = { ...live, [kind]: cards.map((c, i) => (i === index ? { ...c, status, note } : c)) } as ChatEntry;
     this.newer.set(live, next);
     this.messages.update((all) => all.map((current) => (current === live ? next : current)));
   }
@@ -223,7 +272,8 @@ function restore(): ChatEntry[] {
           suggestions: entry.suggestions,
           alerts: restoreCards(entry.alerts),
           lists: restoreCards(entry.lists),
-          links: Array.isArray(entry.links) ? entry.links.filter(isAppLink) : []
+          links: Array.isArray(entry.links) ? entry.links.filter(isAppLink) : [],
+          orders: restoreCards(entry.orders)
         })
       )
       .slice(-MAX_KEPT);
