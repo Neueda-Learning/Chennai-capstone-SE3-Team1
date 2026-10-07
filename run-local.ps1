@@ -14,14 +14,14 @@
       1. Checks java, mvn, python (+trustme_secrets), node, npm, psql, the TrustMe key file
          and Application\Services\auth-service.
       2. Kafka 3.8.0 CLI tools: downloads to -KafkaHome if absent. Without -KafkaHosted,
-         also formats KRaft storage once and starts a local broker, waiting for :9092. With
-         -KafkaHosted, instead verifies the remote broker at -KafkaHost:9092 is reachable.
+         also formats KRaft storage once and starts a local broker, waiting for :29092. With
+         -KafkaHosted, instead verifies the remote broker at -KafkaHost:29092 is reachable.
          Either way, creates the six contracted topics against whichever broker is in play.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
       4. Builds libs/domain-engine, libs/eventbus, order-service and executor-service, and the auth service
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
          and dist\ when they are there.
-      5. Starts the auth service (:3000), the API (:8081) and the executor (:8083), waits for
+      5. Starts the auth service (:3000), the API (:8081) and the executor (:8082), waits for
          health on all three. All three read their database settings from the TrustMe vault,
          the same place apply_db.py reads them; the auth service signs tokens with the vault's
          JWT_SECRET and the API/executor verify with the same vault entry, so the two are
@@ -78,8 +78,8 @@ $PidFile    = Join-Path $LogDir "pids.json"
 $KafkaVer   = "3.8.0"
 $KafkaUrl   = "https://archive.apache.org/dist/kafka/$KafkaVer/kafka_2.13-$KafkaVer.tgz"
 $ApiPort    = 8081
-$ExecPort   = 8083
-$KafkaPort  = 9092
+$ExecPort   = 8082
+$KafkaPort  = 29092
 $AuthPort   = 3000
 $AuthDir    = Join-Path $RepoRoot "Application\Services\auth-service"
 $AuthMain   = Join-Path $AuthDir "dist\main.js"
@@ -267,7 +267,7 @@ if ($KafkaHosted) {
         }
         $kp = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir "kafka.log") -RedirectStandardError (Join-Path $LogDir "kafka.err") `
-            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg, "--override", "log.cleaner.enable=false", "--override", "log.retention.hours=876000")
+            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg, "--override", "log.cleaner.enable=false", "--override", "log.retention.hours=876000", "--override", "listeners=PLAINTEXT://:$KafkaPort,CONTROLLER://:9093", "--override", "advertised.listeners=PLAINTEXT://localhost:$KafkaPort")
         $kafkaPid = $kp.Id
         Write-Host "    broker starting (pid $kafkaPid)"
         if (-not (Wait-Until "kafka :$KafkaPort" { Test-Port $KafkaPort } 90)) { Fail "see $LogDir\kafka.log" }
@@ -360,7 +360,7 @@ $jvmCommon = @("-Xmx512m", "-Dtrustme.password=$TrustMePassword", "-Dtrustme.key
 # Kafka producer (trade-api publishes ORDER_PLACED, the executor publishes/consumes everything
 # else), and Spring only reads env vars present at JVM startup - setting it after the API was
 # already launched (an earlier version of this script did exactly that) meant the API silently
-# fell back to its localhost:9092 default, which happened to work only because Kafka used to
+# fell back to its localhost:29092 default, which happened to work only because Kafka used to
 # run on this same machine.
 $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 

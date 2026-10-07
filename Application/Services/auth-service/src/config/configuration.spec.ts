@@ -165,12 +165,12 @@ describe('configuration', () => {
 
   it('still honours NODE_ENV and KAFKA_BROKER, the two things the runtime and the deployment set', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.KAFKA_BROKER = 'kafka.example:9092';
+    process.env.KAFKA_BROKER = 'kafka.example:29092';
 
     const config = await load();
 
     expect(config.nodeEnv).toBe('production');
-    expect(config.kafka.broker).toBe('kafka.example:9092');
+    expect(config.kafka.broker).toBe('kafka.example:29092');
   });
 });
 
@@ -179,7 +179,7 @@ describe('validationSchema', () => {
     const { error, value } = validationSchema.validate({});
 
     expect(error).toBeUndefined();
-    expect(value).toEqual({ NODE_ENV: 'development', KAFKA_BROKER: 'localhost:9092' });
+    expect(value).toEqual({ NODE_ENV: 'development', KAFKA_BROKER: 'localhost:29092' });
   });
 
   it('rejects an unknown NODE_ENV', () => {

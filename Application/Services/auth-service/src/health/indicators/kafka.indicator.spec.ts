@@ -25,7 +25,7 @@ describe('KafkaHealthIndicator', () => {
     configService = {
       get: jest.fn((key: string) => {
         const values: Record<string, any> = {
-          'app.kafka.broker': 'localhost:9092',
+          'app.kafka.broker': 'localhost:29092',
         };
         return values[key];
       }),
@@ -68,16 +68,16 @@ describe('KafkaHealthIndicator', () => {
         kafka: {
           status: 'up',
           message: 'Kafka broker reachable',
-          broker: 'localhost:9092',
+          broker: 'localhost:29092',
         },
       });
-      expect(mockSocket.connect).toHaveBeenCalledWith(9092, 'localhost');
+      expect(mockSocket.connect).toHaveBeenCalledWith(29092, 'localhost');
       expect(mockLogger.logFromSource).toHaveBeenCalledWith(
         'kafka',
         'log',
         'Health check passed',
         'kafka',
-        { broker: 'localhost:9092' },
+        { broker: 'localhost:29092' },
       );
     });
 
@@ -99,7 +99,7 @@ describe('KafkaHealthIndicator', () => {
         'error',
         'Health check failed',
         'kafka',
-        { broker: 'localhost:9092' },
+        { broker: 'localhost:29092' },
         expect.any(String),
       );
     });
@@ -122,7 +122,7 @@ describe('KafkaHealthIndicator', () => {
         'error',
         'Health check failed',
         'kafka',
-        { broker: 'localhost:9092' },
+        { broker: 'localhost:29092' },
         expect.any(String),
       );
     });

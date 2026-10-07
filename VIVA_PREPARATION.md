@@ -534,7 +534,7 @@ FROM eclipse-temurin:21-jre AS executor
   # Copy only JAR from Stage 1
   # JRE only (no Maven, no sources)
   # Non-root user for security
-  # Exposes port 8083
+  # Exposes port 8082
   # Longer health check (waits for Postgres + Kafka ready)
 ```
 
@@ -596,16 +596,16 @@ kafka:
     KAFKA_NODE_ID: 1
     KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
     KAFKA_LISTENERS:                     # Three listeners
-      - PLAINTEXT://0.0.0.0:9092         # External (host machine)
-      - INTERNAL://0.0.0.0:29092         # Internal (container network)
+      - PLAINTEXT://0.0.0.0:29092         # External (host machine)
+      - INTERNAL://0.0.0.0:19092         # Internal (container network)
       - CONTROLLER://0.0.0.0:29093       # Raft
     KAFKA_ADVERTISED_LISTENERS:
-      - PLAINTEXT://<your_private_ip>:9092    # External clients
-      - INTERNAL://kafka:29092                 # Internal containers
+      - PLAINTEXT://<your_private_ip>:29092    # External clients
+      - INTERNAL://kafka:19092                 # Internal containers
   ports:
-    - "9092:9092"
+    - "29092:29092"
   healthcheck:
-    test: /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+    test: /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list
     interval: 10s
     retries: 30
     start_period: 30s
@@ -623,7 +623,7 @@ trade-api:
       condition: service_healthy         # Wait for Postgres health check
   environment:
     SERVER_PORT: 8080
-    KAFKA_BOOTSTRAP_SERVERS: kafka:29092 # Internal network address
+    KAFKA_BOOTSTRAP_SERVERS: kafka:19092 # Internal network address
     TRUSTME_KEY_FILE: /app/...TM         # Copied into image
   ports:
     - "8080:8080"
@@ -645,40 +645,40 @@ executor:
     postgres:
       condition: service_healthy
   environment:
-    SERVER_PORT: 8083
-    KAFKA_BOOTSTRAP_SERVERS: kafka:29092 # IMPORTANT: not localhost:9092
+    SERVER_PORT: 8082
+    KAFKA_BOOTSTRAP_SERVERS: kafka:19092 # IMPORTANT: not localhost:29092
     FAUXNANCE_BASE_URL: ${FAUXNANCE_BASE_URL}
     FAUXNANCE_API_KEY: ${FAUXNANCE_API_KEY}
     POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
   ports:
-    - "8083:8083"
+    - "8082:8082"
   volumes:
     - ./leapcapstoneteam1-720d03.TM:/app/...TM:ro
   healthcheck:
-    test: curl -fsS http://localhost:8083/actuator/health
+    test: curl -fsS http://localhost:8082/actuator/health
     start_period: 40s  # Longer: waits on Postgres + Kafka
 ```
 
 **Network Configuration:**
 ```
 Host Machine:
-  localhost:9092 → Kafka PLAINTEXT listener
+  localhost:29092 → Kafka PLAINTEXT listener
   localhost:5432 → PostgreSQL
   localhost:8080 → Trade API
-  localhost:8083 → Trade Executor
+  localhost:8082 → Trade Executor
 
 Docker Network (trading_platform_net):
-  kafka:29092 → Kafka INTERNAL listener (containers talk to this)
+  kafka:19092 → Kafka INTERNAL listener (containers talk to this)
   postgres:5432 → PostgreSQL (containers talk to this)
   trade-api:8080
-  executor:8083
+  executor:8082
 ```
 
-**Why kafka:29092 Inside Container?**
-- Host machine must use `localhost:9092` (external listener, routable from outside Docker)
-- Containers inside Docker network must use `kafka:29092` (internal listener, DNS name resolved within network)
+**Why kafka:19092 Inside Container?**
+- Host machine must use `localhost:29092` (external listener, routable from outside Docker)
+- Containers inside Docker network must use `kafka:19092` (internal listener, DNS name resolved within network)
 - `KAFKA_ADVERTISED_LISTENERS` tells clients which address to use based on which listener they connected to
-- **Pitfall**: If executor tries to use `localhost:9092` from inside container, it gets "connection refused" (localhost inside container is the executor, not the host)
+- **Pitfall**: If executor tries to use `localhost:29092` from inside container, it gets "connection refused" (localhost inside container is the executor, not the host)
 
 ---
 
@@ -1231,7 +1231,7 @@ Postgres transaction: STILL OPEN, not committed
 
 ---
 
-### **Q10: Explain the Kafka network topology inside Docker. Why kafka:29092 and not localhost:9092?**
+### **Q10: Explain the Kafka network topology inside Docker. Why kafka:19092 and not localhost:29092?**
 
 **Answer:**
 
@@ -1239,45 +1239,45 @@ Postgres transaction: STILL OPEN, not committed
 Outside Docker (Host Machine):
   Client Program (e.g., Kafka console tool on laptop)
     ↓ connects to
-  Kafka PLAINTEXT listener: localhost:9092
+  Kafka PLAINTEXT listener: localhost:29092
   
 Inside Docker Network:
   Executor Container
     ↓ connects to
-  Kafka INTERNAL listener: kafka:29092 (DNS resolved within docker network)
+  Kafka INTERNAL listener: kafka:19092 (DNS resolved within docker network)
 ```
 
 **Why two listeners?**
 
 Kafka publishes `ADVERTISED_LISTENERS` which tells clients:
-- "I see you coming from the PLAINTEXT listener, so connect to localhost:9092 for future messages"
-- "I see you coming from the INTERNAL listener, so connect to kafka:29092 for future messages"
+- "I see you coming from the PLAINTEXT listener, so connect to localhost:29092 for future messages"
+- "I see you coming from the INTERNAL listener, so connect to kafka:19092 for future messages"
 
 ```yaml
 # docker-compose.yml
 kafka:
   environment:
     KAFKA_LISTENERS:
-      PLAINTEXT://0.0.0.0:9092      # Listen on 9092 (all interfaces)
-      INTERNAL://0.0.0.0:29092       # Listen on 29092 (all interfaces)
+      PLAINTEXT://0.0.0.0:29092      # Listen on 29092 (all interfaces)
+      INTERNAL://0.0.0.0:19092       # Listen on 19092 (all interfaces)
       CONTROLLER://0.0.0.0:29093     # Raft consensus
     
     KAFKA_ADVERTISED_LISTENERS:
-      PLAINTEXT://<your_private_ip>:9092   # Tell external clients use this
-      INTERNAL://kafka:29092              # Tell docker clients use this
+      PLAINTEXT://<your_private_ip>:29092   # Tell external clients use this
+      INTERNAL://kafka:19092              # Tell docker clients use this
 ```
 
 **Executor configuration:**
 ```yaml
 executor:
   environment:
-    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    # NOT localhost:9092 (that's the host machine's loopback)
-    # NOT <your_private_ip>:9092 (wrong listener, executor isn't on that network)
-    # kafka:29092 = DNS name within docker network
+    KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    # NOT localhost:29092 (that's the host machine's loopback)
+    # NOT <your_private_ip>:29092 (wrong listener, executor isn't on that network)
+    # kafka:19092 = DNS name within docker network
 ```
 
-**If executor used localhost:9092:**
+**If executor used localhost:29092:**
 - localhost inside executor container = the executor itself (not Kafka)
 - Connection refused immediately
 - Executor starts but can't connect to Kafka
@@ -1627,7 +1627,7 @@ trade-api:
 
 executor:
   healthcheck:
-    test: curl -fsS http://localhost:8083/actuator/health
+    test: curl -fsS http://localhost:8082/actuator/health
     start_period: 40s    # Waits for Postgres + Kafka ready
 ```
 
@@ -1783,7 +1783,7 @@ COPY ./seed /seed
 5. **Docker Containerization**
    - Multi-stage builds (smaller, safer images)
    - Service dependencies and health checks
-   - Network topology (kafka:29092 vs localhost:9092)
+   - Network topology (kafka:19092 vs localhost:29092)
 
 6. **Analytics Pipeline**
    - Watermark for idempotency

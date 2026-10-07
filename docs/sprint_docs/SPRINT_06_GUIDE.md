@@ -10,7 +10,7 @@ Before running the service locally, make sure these pieces are available:
 2. A local PostgreSQL database populated with the sprint 3 schema and seed data.
 3. The TrustMe key file at the repository root: `leapcapstoneteam1-720d03.TM`.
 4. A JWT secret in the TrustMe secret store, plus any auth-stub data the tests expect.
-5. Kafka reachable on `localhost:9092` if you want to exercise the order event path end to end.
+5. Kafka reachable on `localhost:29092` if you want to exercise the order event path end to end.
 
 The module reads its infrastructure settings from `sprint-06-api/src/main/resources/application.properties`. The important defaults are:
 

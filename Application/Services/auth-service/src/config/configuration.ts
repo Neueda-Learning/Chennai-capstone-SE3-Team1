@@ -68,7 +68,7 @@ export const configuration = registerAs('app', async () => {
     },
 
     kafka: {
-      broker: process.env.KAFKA_BROKER ?? 'localhost:9092',
+      broker: process.env.KAFKA_BROKER ?? 'localhost:29092',
     },
 
     fauxnance: {
@@ -93,5 +93,5 @@ export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
-  KAFKA_BROKER: Joi.string().default('localhost:9092'),
+  KAFKA_BROKER: Joi.string().default('localhost:29092'),
 }).unknown(true);

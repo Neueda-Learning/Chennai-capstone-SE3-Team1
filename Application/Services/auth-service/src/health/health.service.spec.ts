@@ -17,7 +17,7 @@ describe('HealthService', () => {
     kafka: {
       status: 'up',
       message: 'Kafka broker reachable',
-      broker: 'localhost:9092',
+      broker: 'localhost:29092',
     },
   };
 
@@ -67,7 +67,7 @@ describe('HealthService', () => {
         kafka: {
           status: 'up',
           message: 'Kafka broker reachable',
-          broker: 'localhost:9092',
+          broker: 'localhost:29092',
         },
       });
       expect(databaseIndicator.isHealthy).toHaveBeenCalledWith('database');
@@ -86,7 +86,7 @@ describe('HealthService', () => {
         kafka: {
           status: 'up',
           message: 'Kafka broker reachable',
-          broker: 'localhost:9092',
+          broker: 'localhost:29092',
         },
       });
       expect(databaseIndicator.isHealthy).toHaveBeenCalledWith('database');

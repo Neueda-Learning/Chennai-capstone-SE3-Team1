@@ -57,7 +57,7 @@ Nothing is configured through a `.env` file. Secrets and connection details come
 
 Fixed in code: port `3000`, JWT issuer `auth-service`, SMTP port `587` with required STARTTLS.
 Read from the environment: `NODE_ENV` (default `development`) and `KAFKA_BROKER` (default
-`localhost:9092`, used only by the health check).
+`localhost:29092`, used only by the health check).
 
 ## Docker
 

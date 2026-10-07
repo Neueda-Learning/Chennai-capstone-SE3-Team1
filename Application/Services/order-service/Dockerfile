@@ -42,9 +42,9 @@ USER app
 
 COPY --from=build /src/Application/Services/executor-service/target/trade-executor-0.0.1-SNAPSHOT.jar /app/app.jar
 
-EXPOSE 8083
+EXPOSE 8082
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=12 \
-  CMD curl -fsS http://localhost:8083/actuator/health || exit 1
+  CMD curl -fsS http://localhost:8082/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

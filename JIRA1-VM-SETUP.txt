@@ -4,7 +4,7 @@ JIRA-1 — WHAT WAS IMPLEMENTED
 1. Broker (infra)
    - infra/kafka/docker-compose.yml
      Kafka 3.8 KRaft combined node, auto.create.topics.enable=false,
-     host listener localhost:9092, internal listener kafka:29092,
+     host listener localhost:29092, internal listener kafka:19092,
      on the shared trading_platform_net.
      Health check: kafka-topics.sh --list succeeds.
 
@@ -74,17 +74,17 @@ Step 4 — Create the six topics
 
 Step 5 — Show the result on screen (for review)
   docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
-    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list
 
   docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
-    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --describe
 
   Read out the partitions and retention values — they must match the contract.
 
 Step 6 — Prove auto-creation is off (optional, strong at review)
   "test" | docker-compose -f infra/kafka/docker-compose.yml exec -T kafka \
     /opt/kafka/bin/kafka-console-producer.sh \
-    --bootstrap-server localhost:9092 --topic should-not-exist 2>&1
+    --bootstrap-server localhost:29092 --topic should-not-exist 2>&1
 
   Expect UNKNOWN_TOPIC_OR_PARTITION. The topic list is unchanged.
 
@@ -101,9 +101,9 @@ Replace the PowerShell commands with the bash equivalents:
   docker compose -f infra/kafka/docker-compose.yml up -d
   bash infra/kafka/create-topics.sh
   docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
-    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list
   docker compose -f infra/kafka/docker-compose.yml exec -T kafka \
-    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe
+    /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --describe
   docker compose -f infra/kafka/docker-compose.yml down
 
 
@@ -137,7 +137,7 @@ TROUBLESHOOTING
   $env:PATH = "C:\Program Files\Docker\Docker\resources\bin;" + $env:PATH
 - Broker stays unhealthy: check `docker compose -f infra/kafka/docker-compose.yml logs kafka`.
   First boot takes time; wait at least 30 seconds.
-- Port 9092 already in use: stop whatever is using it, or change
+- Port 29092 already in use: stop whatever is using it, or change
   KAFKA_PORT in .env and re-run up + create-topics.
 - WSL + .sh script hangs: enable Docker Desktop WSL integration for
   Ubuntu, or just use the .ps1 from Windows PowerShell.

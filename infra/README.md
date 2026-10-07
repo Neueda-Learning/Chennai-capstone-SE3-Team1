@@ -13,7 +13,7 @@ follow [Diagnosis](#diagnosis) before changing anything.
 
 - **Linux box**: Docker + Docker Compose (or the `docker compose` plugin). Reachable from
   every Windows machine that will run `run-local.ps1` - same VPN/private network, or a
-  public IP with port 9092 open.
+  public IP with port 29092 open.
 - **Windows box(es)**: everything `run-local.ps1`'s own prerequisite check looks for (java,
   mvn, python + `trustme_secrets`, node, npm, psql, a local PostgreSQL service already
   running on 5432). See the script's own `.SYNOPSIS`/`.PARAMETER` docs (`Get-Help
@@ -81,7 +81,7 @@ processes without touching Kafka (that's stopped separately, on Linux).
 
 - Is Docker running on the Linux box? `docker info` succeeds.
 - Is Kafka healthy? `docker-compose -f infra/kafka/docker-compose.yml ps` shows `healthy`.
-- Can Windows actually reach it? From a Windows box: `Test-NetConnection <KafkaHost> -Port 9092`.
+- Can Windows actually reach it? From a Windows box: `Test-NetConnection <KafkaHost> -Port 29092`.
 - Wrong advertised address is the most common failure and the least obvious from the error:
   if Kafka logs or `run-local.ps1`'s "ensuring topics" step complain about a broker that
   "does not host this topic-partition", check `KAFKA_ADVERTISED_HOST` in the Linux box's

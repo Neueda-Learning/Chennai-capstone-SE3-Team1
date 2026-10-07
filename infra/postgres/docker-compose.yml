@@ -76,7 +76,7 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       DB_NAME: ${POSTGRES_DB:-trading_platform}
-      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:9092}
+      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:29092}
     ports:
       - "${AUTH_PORT:-3000}:3000"
     networks:

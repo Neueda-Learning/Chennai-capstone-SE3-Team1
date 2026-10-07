@@ -19,8 +19,8 @@ Secrets come from the TrustMe vault, not from environment variables or a `.env` 
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | Database connection |
 | `JWT_SECRET` | Shared token-signing key |
 
-The poll interval (60s; 50 symbols are two batches of 25 per cycle), symbol suffix (`.NS`) and port (8083) are fixed in `application.yml`. The one
-environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`), because where Kafka is
+The poll interval (60s; 50 symbols are two batches of 25 per cycle), symbol suffix (`.NS`) and port (8082) are fixed in `application.yml`. The one
+environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:29092`), because where Kafka is
 differs between machines.
 
 ## Prerequisites
@@ -77,9 +77,9 @@ mvn test -Dtest=SettlementServiceTest
 3. Note account balance before
 4. Replay the same message:
    ```bash
-   kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders \
+   kafka-console-consumer.sh --bootstrap-server localhost:29092 --topic orders \
      --from-beginning --max-messages 1 --property print.key=true --property key.separator=$'\t' > order.txt
-   kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders \
+   kafka-console-producer.sh --bootstrap-server localhost:29092 --topic orders \
      --property parse.key=true --property key.separator=$'\t' < order.txt
    ```
 5. Verify:

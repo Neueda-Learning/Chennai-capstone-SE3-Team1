@@ -8,7 +8,7 @@ The chain under test: a stored channel preference drives a trade notification, a
 
 1. The stack must be a build that contains Sprint 10: migrations `026`–`029` applied and the new `order-service` jar. A stack started before those merged returns 404 on `/preferences`, `/notification-history` and `/watchlists`, and the script stops at its first step and says so.
    ```powershell
-   .\run-local.ps1 -ResetDb      # rebuilds, applies migrations, starts Kafka, DB, auth :3000, API :8081, executor :8083
+   .\run-local.ps1 -ResetDb      # rebuilds, applies migrations, starts Kafka, DB, auth :3000, API :8081, executor :8082
    ```
    `run-local.ps1` asks for the TrustMe vault password. Type it at the prompt; do not paste it into a command line or a chat, because a password passed as a process argument is visible in the process list (see the security review, finding on `run-local.ps1`).
 2. The script mints nothing itself. `run-local.ps1` writes a one-hour token for account 1 to `logs\local\token.txt`. If it has expired, the script refuses to start and tells you; re-run `run-local.ps1`, or sign in with `--username` and `--password`.

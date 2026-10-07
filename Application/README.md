@@ -24,7 +24,7 @@ derived artifacts came as separate follow-up commits on the same branch.)
 |---|---|---|
 | `services/team1-nestjs/` | `Services/auth-service/` | Real auth service, :3000 |
 | `sprint-06-api/` (incl. `Dockerfile`, `pom.xml`, `src/`) | `Services/order-service/` | Trade REST API, :8081 locally (`:8080` container mapping, unchanged) |
-| `executor/` | `Services/executor-service/` | Trade executor + market-data poller, :8083 (baseline said 8082; kept, ports frozen) |
+| `executor/` | `Services/executor-service/` | Trade executor + market-data poller, :8082 |
 | `sprint-05-domain-engine/` | `Services/libs/domain-engine/` | Shared framework-free domain library both Java services install from source |
 | `sprint-07/eventbus/` | `Services/libs/eventbus/` | Shared Kafka `Envelope` library |
 | `services/auth-stub/` | `Services/auth-stub/` | Dev-only JWT stub (:4000), kept for local testing; `run-local.ps1` no longer starts it |
@@ -67,7 +67,7 @@ derived artifacts came as separate follow-up commits on the same branch.)
 never edited), `warehouse.duckdb`, `docs/`, `design/`, `legacy/`.
 
 ## Invariants held through the move
-* **Ports frozen:** 4200 / 3000 / 8081 / 8083 / 9092 / 5432 — including the Docker `8080` mapping.
+* **Ports frozen:** 4200 / 3000 / 8081 / 8082 / 29092 / 5432 — including the Docker `8080` mapping.
 * **Secrets frozen:** everything still resolves from the TrustMe vault; only
   *relative* `trustme.key-file` defaults were re-pointed (`../` → `../../../`).
 * **Maven coordinates frozen:** `artifactId`s, jar names and the Docker build

@@ -112,7 +112,7 @@ scope attribute to `html` as well), and jsdom has no layout, so specs stub the c
 
 `e2e/` drives the real screens against the real services — no mocked network, no stubbed
 auth. Start the stack first (`.\run-local.ps1` from the repo root: auth `:3000`, Trade API
-`:8081`, executor `:8083`, Postgres, Kafka), then:
+`:8081`, executor `:8082`, Postgres, Kafka), then:
 
 ```bash
 npm install

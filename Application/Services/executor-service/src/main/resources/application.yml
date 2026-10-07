@@ -18,7 +18,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
       group-id: trade-executor
       auto-offset-reset: earliest
@@ -66,7 +66,7 @@ executor:
   dead-letter-topic: orders.DLT
 
 server:
-  port: 8083
+  port: 8082
 
 logging:
   level:

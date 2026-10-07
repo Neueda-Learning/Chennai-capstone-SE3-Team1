@@ -241,15 +241,15 @@ Auto-creation is switched off on the broker and stays off. It produces a one-par
 The three commands below state what the contracted topics require. Where the command lives, whether it is a script, a Makefile target or three lines typed once and recorded, is the team's decision.
 
 ```bash
-kafka-topics.sh --bootstrap-server localhost:9092 --create \
+kafka-topics.sh --bootstrap-server localhost:29092 --create \
   --topic orders --partitions 3 --replication-factor 1 \
   --config retention.ms=604800000
 
-kafka-topics.sh --bootstrap-server localhost:9092 --create \
+kafka-topics.sh --bootstrap-server localhost:29092 --create \
   --topic trade-events --partitions 3 --replication-factor 1 \
   --config retention.ms=2592000000
 
-kafka-topics.sh --bootstrap-server localhost:9092 --create \
+kafka-topics.sh --bootstrap-server localhost:29092 --create \
   --topic market-data --partitions 6 --replication-factor 1 \
   --config retention.ms=86400000
 ```

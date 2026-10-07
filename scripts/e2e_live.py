@@ -386,7 +386,7 @@ def parse(argv=None):
     p.add_argument("--token-file", default=str(REPO_ROOT / "logs" / "local" / "token.txt"))
     p.add_argument("--username", help="sign in through the auth service instead of reading the token file")
     p.add_argument("--password", default=os.environ.get("E2E_PASSWORD", ""))
-    p.add_argument("--bootstrap", default="localhost:9092")
+    p.add_argument("--bootstrap", default="localhost:29092")
     p.add_argument("--kafka-home", default="C:\\kafka" if on_windows else "/opt/kafka")
     p.add_argument("--channel", choices=["PUSH", "EMAIL"], default="PUSH")
     p.add_argument("--symbol", help="trade and alert on this symbol (default: the first live quote)")

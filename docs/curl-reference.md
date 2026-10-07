@@ -25,7 +25,7 @@ PowerShell-specific to begin with. Requests with no body (GET, DELETE, and the P
 that take query params instead of a body) are a single block that works unmodified in all
 three tools, `--%` not needed.
 
-Services: auth `:3000`, trade-api `:8081`, executor `:8083`.
+Services: auth `:3000`, trade-api `:8081`, executor `:8082`.
 
 ---
 
@@ -37,7 +37,7 @@ curl -s http://localhost:3000/health
 curl -s http://localhost:3000/health/ready
 curl -s http://localhost:3000/health/startup
 curl -s http://localhost:8081/actuator/health
-curl -s http://localhost:8083/actuator/health
+curl -s http://localhost:8082/actuator/health
 ```
 
 The executor has no other REST surface — it's purely Kafka-driven (consumes `orders`,
@@ -374,8 +374,8 @@ variable).
 
 ---
 
-## Kafka (`:9092` — not HTTP, no curl)
+## Kafka (`:29092` — not HTTP, no curl)
 ```
-java -cp "C:\kafka\libs\*" org.apache.kafka.tools.TopicCommand --bootstrap-server localhost:9092 --list
-java -cp "C:\kafka\libs\*" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server localhost:9092 --topic trade-events --from-beginning
+java -cp "C:\kafka\libs\*" org.apache.kafka.tools.TopicCommand --bootstrap-server localhost:29092 --list
+java -cp "C:\kafka\libs\*" org.apache.kafka.tools.consumer.ConsoleConsumer --bootstrap-server localhost:29092 --topic trade-events --from-beginning
 ```
