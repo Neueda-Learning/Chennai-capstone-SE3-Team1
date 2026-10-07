@@ -125,6 +125,17 @@ public interface WatchlistMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE)
     Optional<EntryRow> findEntry(@Param("id") String id, @Param("symbol") String symbol);
 
+    @Select("""
+            SELECT wi.instrument_id
+            FROM watchlist_instruments wi
+            JOIN watchlists w ON w.watchlist_id = wi.watchlist_id
+            WHERE w.account_id = #{accountId}
+            GROUP BY wi.instrument_id
+            ORDER BY MIN(wi.added_at), wi.instrument_id
+            """)
+    @Options(flushCache = Options.FlushCachePolicy.TRUE)
+    List<String> findWatchedSymbols(@Param("accountId") long accountId);
+
     class WatchlistRow {
         private String id;
         private String name;

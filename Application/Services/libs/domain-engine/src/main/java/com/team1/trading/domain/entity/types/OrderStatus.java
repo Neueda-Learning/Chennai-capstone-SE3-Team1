@@ -5,4 +5,6 @@ public enum OrderStatus {
     FILLED,
     REJECTED,
     CANCELLED,
+    /** A conditional order held in the order book until its condition is met; never sent to the executor. */
+    PENDING,
 }

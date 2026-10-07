@@ -1,0 +1,215 @@
+openapi: 3.1.0
+
+info:
+  title: Conditional Orders API
+  version: 1.0.0
+  summary: Orders that wait in the order book as PENDING until a price or signal is reached, then run as ordinary orders.
+  description: |
+    Served by the Trade REST API (`com.team1.trading.api.conditional`, `OrderController`). Decision:
+    `decision-log/0012`.
+
+    ## Lifecycle
+
+    1. `POST /api/v1/orders/conditional` runs every check `POST /api/v1/orders` runs (token account, account
+       state, instrument, quantity, price, cash or holdings, idempotency key) and stores the order in `orders`
+       with `status = PENDING` and its condition. It is **not** published to the `orders` topic.
+    2. Every minute the service checks each PENDING order against the latest `market-data` quotes. A symbol
+       whose latest quote is flagged stale or is more than ten minutes old is not judged.
+    3. When the condition is met the order becomes `NEW` and is published exactly as an ordinary order; the
+       executor fills it at `price` or better, or rejects it.
+    4. An order still PENDING at `expiresAt` moves to history as `CANCELLED`, external status `EXPIRED`.
+    5. `DELETE /api/v1/orders/{id}` cancels a PENDING order.
+
+    ## Conditions
+
+    | `type` | Parameters | Met when |
+    |---|---|---|
+    | `PRICE_AT_OR_ABOVE` | `triggerPrice` | the latest price is at or above it (on any check) |
+    | `PRICE_AT_OR_BELOW` | `triggerPrice` | the latest price is at or below it (on any check) |
+    | `MA_CROSS_ABOVE` | `shortWindow` < `longWindow`, in quotes; `shortWindow` 1 is the price itself | the short average (or the price) moves above the long since the last check |
+    | `MA_CROSS_BELOW` | as above | the short average moves below the long since the last check |
+    | `BOLLINGER_BELOW_LOWER` | `longWindow`, `bandWidth` (standard deviations) | the price moves below the lower band since the last check |
+    | `BOLLINGER_ABOVE_UPPER` | as above | the price moves above the upper band since the last check |
+
+    Crossover and band conditions are events: the first check only records where things stand, so an order
+    placed after a crossing waits for the next one.
+
+    ## Errors
+
+    | Code | HTTP | When |
+    |---|---|---|
+    | `AUTH-401` | 401 | No verified token |
+    | `ACC-403` | 403 | The body's or path's account is not the token's |
+    | `VAL-422` | 422 | A field missing or out of range, an unknown condition type or field |
+    | `COND-422` | 422 | The condition lacks what its type needs (for example a crossover with shortWindow >= longWindow) |
+    | `COND-429` | 429 | 25 conditional orders already waiting on the account |
+    | `ORD-400`, `ORD-409`, `INS-404` | as `trade-api.yaml` | The ordinary order checks |
+
+servers:
+  - url: http://localhost:8080
+    description: The Trade REST API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/orders/conditional:
+    post:
+      operationId: placeConditionalOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConditionalOrderRequest'
+      responses:
+        '201':
+          description: Held as PENDING
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId: { type: string, examples: ['ORD-1f2e3d4c-...'] }
+                  status: { type: string, enum: [PENDING] }
+                  message: { type: string, examples: ['Held until the price falls to 3500.00 or lower'] }
+                  symbol: { type: string }
+                  side: { type: string, enum: [BUY, SELL] }
+                  quantity: { type: integer }
+                  price: { type: number }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /api/v1/orders/{id}:
+    get:
+      operationId: getOrder
+      summary: Where one order stands, with its condition while a conditional order is in the book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /api/v1/accounts/{accountId}/conditional-orders:
+    get:
+      operationId: listConditionalOrders
+      summary: The account's conditional orders still waiting, newest first
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Waiting orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingOrder'
+        '403': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Error:
+      description: The service's error envelope
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [errorCode, message]
+            properties:
+              errorCode: { type: string }
+              message: { type: string }
+
+  schemas:
+    Condition:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [PRICE_AT_OR_ABOVE, PRICE_AT_OR_BELOW, MA_CROSS_ABOVE, MA_CROSS_BELOW, BOLLINGER_BELOW_LOWER, BOLLINGER_ABOVE_UPPER]
+        triggerPrice: { type: number, minimum: 0.01 }
+        shortWindow: { type: integer, minimum: 1, maximum: 199, description: 1 means the price itself crossing the longWindow average }
+        longWindow: { type: integer, minimum: 2, maximum: 200 }
+        bandWidth: { type: number, minimum: 0.5, maximum: 4.0 }
+
+    ConditionalOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, symbol, side, quantity, price, idempotencyKey, condition]
+      properties:
+        accountId: { type: integer, format: int64 }
+        symbol: { type: string, maxLength: 20 }
+        side: { type: string, enum: [BUY, SELL] }
+        quantity: { type: integer, minimum: 1 }
+        price: { type: number, minimum: 0.01, description: The limit the executor fills at or better once released }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 100 }
+        condition: { $ref: '#/components/schemas/Condition' }
+        expiresInDays: { type: integer, minimum: 1, maximum: 90, default: 30 }
+
+    OrderStatus:
+      type: object
+      properties:
+        orderId: { type: string }
+        accountId: { type: integer, format: int64 }
+        symbol: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        quantity: { type: integer }
+        price: { type: number }
+        executedPrice: { type: [number, 'null'] }
+        status: { type: string, enum: [PENDING, NEW, FILLED, REJECTED, CANCELLED] }
+        reason: { type: [string, 'null'] }
+        createdOn: { type: string, format: date-time }
+        condition:
+          type: [object, 'null']
+          properties:
+            type: { type: string }
+            description: { type: string }
+            triggerPrice: { type: [number, 'null'] }
+            shortWindow: { type: [integer, 'null'] }
+            longWindow: { type: [integer, 'null'] }
+            bandWidth: { type: [number, 'null'] }
+            lastState: { type: [string, 'null'], enum: [ABOVE, BELOW, INSIDE, null] }
+            expiresAt: { type: string, format: date-time }
+            lastCheckedAt: { type: [string, 'null'], format: date-time }
+            triggeredAt: { type: [string, 'null'], format: date-time }
+            triggerReason: { type: [string, 'null'] }
+
+    PendingOrder:
+      type: object
+      properties:
+        orderId: { type: string }
+        symbol: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        quantity: { type: integer }
+        price: { type: number }
+        conditionType: { type: string }
+        condition: { type: string }
+        triggerPrice: { type: [number, 'null'] }
+        shortWindow: { type: [integer, 'null'] }
+        longWindow: { type: [integer, 'null'] }
+        bandWidth: { type: [number, 'null'] }
+        lastState: { type: [string, 'null'] }
+        lastCheckedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        createdOn: { type: string, format: date-time }

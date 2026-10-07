@@ -13,11 +13,11 @@ export interface ErrorCatalogueEntry {
   appliesTo: 'trade' | 'auth' | 'both';
 }
 
-export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
+export const TRADE_API_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'COND-422', 'COND-429', 'INTERNAL-500'] as const;
 
 export const AUTH_API_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
-export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'INTERNAL-500'] as const;
+export const ALL_ERROR_CODES = ['ACC-404', 'ACC-403', 'INS-404', 'ORD-400', 'ORD-409', 'VAL-422', 'AUTH-401', 'AUTH-409', 'AUTH-410', 'TRF-400', 'TRF-409', 'PRF-404', 'PRF-422', 'WLT-404', 'WLT-409', 'WLT-422', 'WLT-429', 'COND-422', 'COND-429', 'INTERNAL-500'] as const;
 
 export const AUTH_SIGNIN_ERROR_CODES = ['AUTH-401', 'AUTH-409', 'VAL-422'] as const;
 
@@ -37,6 +37,8 @@ export const tradeErrorMessageByCode: Readonly<Record<string, string>> = {
   'WLT-409': 'You already have a watchlist with that name.',
   'WLT-422': 'That symbol is not one that can be watched.',
   'WLT-429': 'You have reached the limit: 10 watchlists, 50 instruments in a watchlist, or 25 alerts. Remove one first.',
+  'COND-422': 'That condition cannot be used. Check the trigger price, the windows or the band width.',
+  'COND-429': 'You already have 25 conditional orders waiting. Cancel one first.',
   'INTERNAL-500': 'An unexpected error occurred. Please try again shortly.'
 };
 

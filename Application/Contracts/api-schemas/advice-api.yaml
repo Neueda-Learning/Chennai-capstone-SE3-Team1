@@ -1,0 +1,177 @@
+openapi: 3.1.0
+
+info:
+  title: Trade Advice and Signals API
+  version: 2.0.0
+  summary: The ETL analysis service's BUY, SELL or HOLD view and next-session prediction for what a customer holds and watches.
+  description: |
+    Served by the Trade REST API (`com.team1.trading.api.advice`), which only reads what the ETL analysis
+    job (`Application/ETL/etl-live/analysis.py`) publishes to `market_analysis` and `daily_predictions`
+    (`decision-log/0011`). Nothing is computed per request.
+
+    ## The suggestion
+
+    A score from three rules over daily closes: trend (+40 when the 20-day average is above the 50-day and the
+    close above the 20-day, -40 for the reverse), momentum (the 20-session return doubled, capped at +/-30) and
+    RSI(14) (-20 above 70, +20 below 30). 30 or more is `BUY`, -30 or less `SELL`, otherwise `HOLD`;
+    `confidence` is `HIGH` from |60|, `MEDIUM` from |30|. `reasons` holds one sentence per rule, with the numbers.
+
+    ## No suggestion
+
+    `status: INSUFFICIENT_DATA` with `suggestion` null when the job had fewer than 60 sessions, or when nothing
+    has been published for the instrument yet. `summary` always says why.
+
+    ## Prediction
+
+    The next session's expected close and the ranges about two sessions in three (`low68`-`high68`) and nine in
+    ten (`low90`-`high90`) fall inside, from recent drift and volatility. `probUp` is held between 0.40 and 0.60.
+
+    ## Freshness
+
+    `asOf` is the last session in the data; `stale` is true when it is more than four days old.
+
+    ## Authentication and access
+
+    Every route requires a valid JWT (`AUTH-401`). A token whose `accountId` differs from the path is `ACC-403`,
+    with no administrator exception.
+
+servers:
+  - url: http://localhost:8080
+    description: The Trade REST API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/accounts/{accountId}/advice:
+    get:
+      operationId: getAdvice
+      summary: Signals for what the customer holds and watches, and the market's strongest ideas
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: The advice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advice'
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /api/v1/accounts/{accountId}/advice/{symbol}:
+    get:
+      operationId: getAdviceForSymbol
+      summary: The signal for one active instrument, held or not
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: symbol
+          in: path
+          required: true
+          schema: { type: string, maxLength: 20 }
+      responses:
+        '200':
+          description: The signal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+        '403': { $ref: '#/components/responses/Error' }
+        '404':
+          description: '`INS-404`: not an active instrument'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  responses:
+    Error:
+      description: The error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Advice:
+      type: object
+      required: [accountId, methodology, disclaimer, stale, signals, ideas]
+      properties:
+        accountId: { type: integer, format: int64 }
+        model: { type: [string, 'null'] }
+        methodology: { type: string }
+        disclaimer: { type: string }
+        generatedAt: { type: [string, 'null'], format: date-time, description: When the job last published }
+        dataAsOf: { type: [string, 'null'], format: date }
+        stale: { type: boolean }
+        signals:
+          type: array
+          items: { $ref: '#/components/schemas/Signal' }
+        ideas:
+          type: object
+          properties:
+            buy: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/Signal' } }
+            sell: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/Signal' } }
+
+    Signal:
+      type: object
+      required: [symbol, sources, status, summary, reasons, stale]
+      properties:
+        symbol: { type: string }
+        name: { type: [string, 'null'] }
+        sources: { type: array, items: { type: string, enum: [HOLDING, WATCHLIST] } }
+        heldQuantity: { type: [integer, 'null'] }
+        averageCost: { type: [number, 'null'] }
+        status: { type: string, enum: [OK, INSUFFICIENT_DATA] }
+        suggestion: { type: [string, 'null'], enum: [BUY, SELL, HOLD, null] }
+        confidence: { type: [string, 'null'], enum: [LOW, MEDIUM, HIGH, null] }
+        score: { type: [number, 'null'] }
+        summary: { type: string }
+        reasons: { type: array, items: { type: string } }
+        indicators:
+          type: [object, 'null']
+          properties:
+            close: { type: [number, 'null'] }
+            sma20: { type: [number, 'null'] }
+            sma50: { type: [number, 'null'] }
+            rsi14: { type: [number, 'null'] }
+            return20dPct: { type: [number, 'null'] }
+            volatilityPct: { type: [number, 'null'] }
+            maxDrawdownPct: { type: [number, 'null'] }
+            trend: { type: [string, 'null'], enum: [UP, DOWN, FLAT, null] }
+        asOf: { type: [string, 'null'], format: date }
+        stale: { type: boolean }
+        prediction:
+          type: [object, 'null']
+          properties:
+            forDate: { type: string, format: date }
+            asOf: { type: string, format: date }
+            lastClose: { type: number }
+            predictedClose: { type: number }
+            low68: { type: number }
+            high68: { type: number }
+            low90: { type: number }
+            high90: { type: number }
+            probUp: { type: number, minimum: 0.4, maximum: 0.6 }
+            expectedReturnPct: { type: number }
+
+    Error:
+      type: object
+      required: [errorCode, message]
+      properties:
+        errorCode: { type: string }
+        message: { type: string }

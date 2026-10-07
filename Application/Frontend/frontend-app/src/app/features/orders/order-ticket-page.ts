@@ -25,7 +25,9 @@ import { formatMoney, formatSignedPercent, roundToPaise } from '../../core/forma
 import { NotificationStore } from '../../core/notifications/notification.store';
 import { WatchlistStore } from '../../core/watchlists/watchlist.store';
 import { AlertComposer } from '../../shared/alert-composer/alert-composer';
+import { ConditionalOrderService, PendingOrder, PlacedOrder } from '../../core/services/conditional-order.service';
 import { Candle, MarketQuote, MarketService } from '../../core/services/market.service';
+import { sma } from '../../core/charts/indicators';
 import { Portfolio, PortfolioService } from '../../core/services/portfolio.service';
 import {
   AccountResponse,
@@ -37,7 +39,8 @@ import {
   OrdersService
 } from '../../generated/trade-client';
 import { OrderErrorMessages } from './order-error-messages';
-import { PriceChart } from './price-chart';
+import { OrderLevel, PriceChart } from './price-chart';
+import { ScheduleMode, ScheduledOrderComposer } from './scheduled-order-composer';
 import { wholeQuantity } from './order-validators';
 
 export const PRICE_PROTECTION = 0.02;
@@ -72,7 +75,7 @@ const FIELD_MESSAGES: Record<string, string> = {
 
 @Component({
   selector: 'tui-order-ticket-page',
-  imports: [ReactiveFormsModule, PriceChart, AlertComposer],
+  imports: [ReactiveFormsModule, PriceChart, AlertComposer, ScheduledOrderComposer],
   templateUrl: './order-ticket-page.html',
   styleUrl: './order-ticket-page.css'
 })
@@ -85,6 +88,7 @@ export class OrderTicketPage implements OnDestroy {
   private readonly session = inject(SessionStore);
   private readonly errorMessages = inject(OrderErrorMessages);
   private readonly notifications = inject(NotificationStore);
+  private readonly conditionalOrders = inject(ConditionalOrderService);
   protected readonly alertStore = inject(WatchlistStore);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router, { optional: true });
@@ -107,6 +111,44 @@ export class OrderTicketPage implements OnDestroy {
   protected readonly pendingAlert = signal<number | null>(null);
   /** Alerts on the stock on show: drawn on the chart and counted on the Set alert button. */
   protected readonly selectedAlerts = computed(() => this.alertStore.alertsFor(this.selectedSymbol()));
+
+  /**
+   * Scheduling a conditional order from the chart (ADR 0016). The button pressed decides what it waits for: a price
+   * level marked on the chart, or the moving-average line. Null while the chart is showing alerts.
+   */
+  protected readonly scheduleMode = signal<ScheduleMode | null>(null);
+  protected readonly pendingLevel = signal<number | null>(null);
+  protected readonly averageWindow = signal(20);
+  protected readonly fastWindow = signal<number | null>(null);
+  /** Every conditional order waiting on the account, listed under the ticket with a cancel button. */
+  protected readonly scheduled = signal<PendingOrder[]>([]);
+  protected readonly scheduledState = signal<Load>('idle');
+  protected readonly scheduledForSelected = computed(() =>
+    this.scheduled().filter((order) => order.symbol === this.selectedSymbol())
+  );
+  /** The waiting price-level orders on the stock on show, drawn on its chart. */
+  protected readonly orderLevels = computed<OrderLevel[]>(() =>
+    this.scheduledForSelected()
+      .filter((order) => order.triggerPrice !== null)
+      .map((order) => ({
+        price: order.triggerPrice as number,
+        side: order.side,
+        label: `${order.side} ${order.quantity} ${order.conditionType === 'PRICE_AT_OR_ABOVE' ? '\u2265' : '\u2264'} ${formatMoney(order.triggerPrice)}`
+      }))
+  );
+  /** The average lines the chart draws while scheduling on the moving average. */
+  protected readonly averageLines = computed(() => {
+    if (this.scheduleMode() !== 'AVERAGE') {
+      return [];
+    }
+    const fast = this.fastWindow();
+    return fast === null ? [this.averageWindow()] : [this.averageWindow(), fast];
+  });
+  protected readonly averageNow = computed(() => lastOf(sma(this.candles().map((c) => c.close), this.averageWindow())));
+  protected readonly fastNow = computed(() => {
+    const fast = this.fastWindow();
+    return fast === null ? null : lastOf(sma(this.candles().map((c) => c.close), fast));
+  });
   protected readonly armedAlertCount = computed(() => this.selectedAlerts().filter((a) => a.state === 'ARMED').length);
 
   protected readonly ranges = RANGES;
@@ -209,6 +251,8 @@ export class OrderTicketPage implements OnDestroy {
 
   private quotesSubscription: Subscription | null = null;
   private preferredSymbol: string | null = this.route?.snapshot?.queryParamMap?.get('symbol') ?? null;
+  /** ?schedule=level|average (from the Advice page): open the chart ready to schedule, once the stock is on show. */
+  private preferredSchedule: ScheduleMode | null = scheduleFrom(this.route?.snapshot?.queryParamMap?.get('schedule') ?? null);
   private candleRequest: Subscription | null = null;
 
   constructor() {
@@ -219,10 +263,12 @@ export class OrderTicketPage implements OnDestroy {
         return;
       }
       this.preferredSymbol = wanted;
+      this.preferredSchedule = scheduleFrom(params.get('schedule')) ?? this.preferredSchedule;
       this.applyPrefill(params.get('side'), params.get('quantity'));
       if (this.quotes().some((quote) => quote.symbol === wanted)) {
         this.select(wanted);
         this.bringTicketIntoView();
+        this.openPreferredSchedule();
       }
     });
 
@@ -331,6 +377,84 @@ export class OrderTicketPage implements OnDestroy {
     this.chartOpen.set(false);
     this.markerMode.set(false);
     this.pendingAlert.set(null);
+    this.scheduleMode.set(null);
+    this.pendingLevel.set(null);
+  }
+
+  /**
+   * Opens this stock's chart ready to schedule an order. On the moving average the chart shows one-minute candles
+   * over the day, because the condition is checked on the live quotes, which arrive about once a minute.
+   */
+  protected openSchedule(mode: ScheduleMode): void {
+    if (this.selected() === null) {
+      return;
+    }
+    this.markerMode.set(false);
+    this.pendingAlert.set(null);
+    this.pendingLevel.set(null);
+    this.scheduleMode.set(mode);
+    if (mode === 'AVERAGE') {
+      const day = RANGES.find((r) => r.value === '1d');
+      const minute = INTERVALS.find((i) => i.value === '1m');
+      if (day !== undefined && minute !== undefined) {
+        this.range.set(day);
+        this.interval.set(minute);
+      }
+    }
+    this.chartOpen.set(true);
+  }
+
+  protected stopScheduling(): void {
+    this.scheduleMode.set(null);
+    this.pendingLevel.set(null);
+  }
+
+  /** A click on the chart: a scheduled order's level while scheduling at a level, otherwise an alert marker. */
+  protected onChartMarker(price: number): void {
+    if (this.scheduleMode() === 'LEVEL') {
+      this.pendingLevel.set(price);
+    } else {
+      this.placeMarker(price);
+    }
+  }
+
+  protected onScheduled(order: PlacedOrder): void {
+    console.info(`[order] 201 ${order.side} PENDING [${order.symbol}, ${order.quantity}]`);
+    this.loadScheduled(this.accountId());
+  }
+
+  protected cancelScheduled(order: PendingOrder): void {
+    this.conditionalOrders.cancel(order.orderId).subscribe({
+      next: () => this.scheduled.update((list) => list.filter((o) => o.orderId !== order.orderId)),
+      error: () => this.loadScheduled(this.accountId())
+    });
+  }
+
+  private openPreferredSchedule(): void {
+    const mode = this.preferredSchedule;
+    if (mode === null || this.selected() === null) {
+      return;
+    }
+    this.preferredSchedule = null;
+    this.openSchedule(mode);
+    if (this.router !== null) {
+      void this.router.navigate([], { queryParams: { schedule: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    }
+  }
+
+  private loadScheduled(accountId: number | null): void {
+    if (accountId === null) {
+      this.scheduled.set([]);
+      this.scheduledState.set('idle');
+      return;
+    }
+    this.conditionalOrders.pending(accountId).subscribe({
+      next: (list) => {
+        this.scheduled.set(list);
+        this.scheduledState.set('ready');
+      },
+      error: () => this.scheduledState.set(this.scheduled().length > 0 ? 'ready' : 'failed')
+    });
   }
 
   /** The bell beside Trend: the chart, ready to have an alert placed on it. */
@@ -519,6 +643,7 @@ export class OrderTicketPage implements OnDestroy {
         if (current === null || !quotes.some((quote) => quote.symbol === current)) {
           const wanted = quotes.find((quote) => quote.symbol === this.preferredSymbol);
           this.selectedSymbol.set((wanted ?? quotes.find((quote) => quote.price !== null) ?? quotes[0])?.symbol ?? null);
+          this.openPreferredSchedule();
         } else {
           this.loadCandles(current, this.interval(), this.range());
         }
@@ -548,6 +673,7 @@ export class OrderTicketPage implements OnDestroy {
   }
 
   private loadAccountData(accountId: number | null): void {
+    this.loadScheduled(accountId);
     if (accountId === null) {
       this.balance.set(null);
       this.balanceState.set('idle');
@@ -597,4 +723,18 @@ function savePreferences(prefs: ChartPreferences): void {
     localStorage.setItem(CHART_PREFS_KEY, JSON.stringify(prefs));
   } catch {
   }
+}
+
+function scheduleFrom(value: string | null): ScheduleMode | null {
+  return value === 'level' ? 'LEVEL' : value === 'average' ? 'AVERAGE' : null;
+}
+
+function lastOf(series: readonly (number | null)[]): number | null {
+  for (let i = series.length - 1; i >= 0; i--) {
+    const value = series[i];
+    if (value !== null && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
 }

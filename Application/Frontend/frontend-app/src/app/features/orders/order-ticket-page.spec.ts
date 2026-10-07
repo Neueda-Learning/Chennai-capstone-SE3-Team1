@@ -22,6 +22,8 @@ const PORTFOLIO_URL = `${ACCOUNT_URL}/portfolio`;
 const WATCHLISTS_URL = `${ACCOUNT_URL}/watchlists`;
 const ALERTS_URL = `${ACCOUNT_URL}/alerts`;
 const QUOTES_URL = `${BASE}/api/v1/market/quotes`;
+const SCHEDULED_URL = `${ACCOUNT_URL}/conditional-orders`;
+const CONDITIONAL_URL = `${BASE}/api/v1/orders/conditional`;
 
 type TicketFixture = ComponentFixture<OrderTicketPage>;
 
@@ -97,6 +99,9 @@ describe('OrderTicketPage', () => {
   let alerts: object[];
   let candleRequests: string[];
   let alertsCreated: object[];
+  let scheduled: object[];
+  let scheduledPlaced: Record<string, unknown>[];
+  let scheduledCancelled: string[];
 
   function setUp(accountId: number | null = ACCOUNT_ID, symbolInUrl: string | null = null, params?: BehaviorSubject<ParamMap>): void {
     quotes = QUOTES;
@@ -111,6 +116,9 @@ describe('OrderTicketPage', () => {
     alerts = [];
     candleRequests = [];
     alertsCreated = [];
+    scheduled = [];
+    scheduledPlaced = [];
+    scheduledCancelled = [];
 
     TestBed.configureTestingModule({
       imports: [OrderTicketPage],
@@ -149,6 +157,21 @@ describe('OrderTicketPage', () => {
       fail('account') ? refuse() : request.flush(account);
     } else if (url === PORTFOLIO_URL) {
       fail('portfolio') ? refuse() : request.flush(portfolio);
+    } else if (url === SCHEDULED_URL) {
+      fail('scheduled') ? refuse() : request.flush(scheduled);
+    } else if (url === CONDITIONAL_URL && request.request.method === 'POST') {
+      const body = request.request.body as Record<string, unknown>;
+      scheduledPlaced.push(body);
+      if (fail('schedule')) {
+        request.flush({ errorCode: 'COND-429', message: 'You already have 25 conditional orders waiting.' },
+          { status: 429, statusText: 'Too Many Requests' });
+      } else {
+        request.flush({ orderId: 'ORD-77', status: 'PENDING', message: 'Held', symbol: body['symbol'], side: body['side'],
+          quantity: body['quantity'], price: body['price'] }, { status: 201, statusText: 'Created' });
+      }
+    } else if (url.startsWith(`${ORDERS_URL}/`) && request.request.method === 'DELETE') {
+      scheduledCancelled.push(url.substring(ORDERS_URL.length + 1));
+      request.flush({ orderId: url.substring(ORDERS_URL.length + 1), status: 'CANCELLED' });
     } else if (url === WATCHLISTS_URL) {
       request.flush([]);
     } else if (url === ALERTS_URL && request.request.method === 'GET') {
@@ -1068,6 +1091,212 @@ describe('OrderTicketPage', () => {
 
       expect(root(fixture).querySelector('input[name="accountId"]')).toBeNull();
       expect(root(fixture).querySelector('select[name="accountId"]')).toBeNull();
+    });
+  });
+
+  describe('scheduled orders', () => {
+    const GEOMETRY: PlotGeometry = { translateX: 60, translateY: 10, gridWidth: 500, gridHeight: 300, min: 1000, max: 1600 };
+
+    beforeEach(() => {
+      vi.spyOn(PriceChart.prototype as unknown as { geometry: () => PlotGeometry | null }, 'geometry').mockReturnValue(GEOMETRY);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    const shown = (fixture: TicketFixture, testId: string) => root(fixture).querySelector(`[data-testid="${testId}"]`) !== null;
+
+    /** A click on the chart at a price between 1,000 (bottom) and 1,600 (top). */
+    function clickChartAt(fixture: TicketFixture, price: number): void {
+      const y = 10 + ((1600 - price) / 600) * 300;
+      root(fixture).querySelector<HTMLElement>('[data-testid="chart-surface"]')!.dispatchEvent(
+        new MouseEvent('click', { clientX: 200, clientY: y, bubbles: true })
+      );
+      fixture.detectChanges();
+    }
+
+    function type(fixture: TicketFixture, testId: string, value: string): void {
+      const input = root(fixture).querySelector<HTMLInputElement>(`[data-testid="${testId}"]`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    it('offers the two ways to schedule beside the market ticket, with no order-type field', () => {
+      setUp();
+      const fixture = create();
+
+      expect(textOf(fixture, '[data-testid="schedule-level"]')).toContain('At a price level');
+      expect(textOf(fixture, '[data-testid="schedule-average"]')).toContain('On a moving average');
+      expect(shown(fixture, 'order-type')).toBe(false);
+      expect(shown(fixture, 'chart-dialog')).toBe(false);
+    });
+
+    it('At a price level opens the stock\'s chart, marking levels, with the schedule panel in place of the alert panel', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'schedule-level');
+
+      expect(textOf(fixture, '[data-testid="chart-dialog-title"]')).toContain('Schedule an order on RELIANCE');
+      expect(shown(fixture, 'scheduled-composer')).toBe(true);
+      expect(shown(fixture, 'alert-composer')).toBe(false);
+      expect(textOf(fixture, '[data-testid="schedule-hint"]')).toContain('Click the chart');
+      expect(shown(fixture, 'schedule-buy')).toBe(false);
+    });
+
+    it('a level marked below the price waits for a fall; it then asks buy or sell and schedules a buy at the level', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'schedule-level');
+
+      clickChartAt(fixture, 1250);
+      expect(root(fixture).querySelector<HTMLInputElement>('[data-testid="schedule-level-price"]')!.value).toBe('1250.00');
+      expect(textOf(fixture, '[data-testid="schedule-waits-for"]')).toContain('falls to or below');
+      expect(shown(fixture, 'schedule-form')).toBe(false);
+
+      click(fixture, 'schedule-buy');
+      type(fixture, 'schedule-quantity', '2');
+      expect(textOf(fixture, '[data-testid="schedule-sentence"]')).toContain('Buy 2 RELIANCE when the price falls to');
+      click(fixture, 'schedule-confirm');
+
+      expect(scheduledPlaced).toHaveLength(1);
+      expect(scheduledPlaced[0]).toMatchObject({
+        accountId: ACCOUNT_ID, symbol: 'RELIANCE', side: 'BUY', quantity: 2, price: 1275, expiresInDays: 30,
+        condition: { type: 'PRICE_AT_OR_BELOW', triggerPrice: 1250 }
+      });
+      expect(String(scheduledPlaced[0]['idempotencyKey'])).toMatch(/^chart-/);
+      expect(textOf(fixture, '[data-testid="schedule-done"]')).toContain('ORD-77 scheduled');
+      http.expectNone(ORDERS_URL);
+    });
+
+    it('a level above the price waits for a rise; a sell of more than is held is refused before anything is sent', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'schedule-level');
+      clickChartAt(fixture, 1450);
+      expect(textOf(fixture, '[data-testid="schedule-waits-for"]')).toContain('rises to or above');
+
+      click(fixture, 'schedule-sell');
+      type(fixture, 'schedule-quantity', '50');
+      expect(textOf(fixture, '[data-testid="schedule-error"]')).toContain('You hold 7 RELIANCE');
+      expect(root(fixture).querySelector<HTMLButtonElement>('[data-testid="schedule-confirm"]')!.disabled).toBe(true);
+
+      click(fixture, 'schedule-sell-all');
+      click(fixture, 'schedule-confirm');
+      expect(scheduledPlaced[0]).toMatchObject({
+        side: 'SELL', quantity: 7, price: 1421, condition: { type: 'PRICE_AT_OR_ABOVE', triggerPrice: 1450 }
+      });
+    });
+
+    it('will not send a buy whose typed limit is below the level', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'schedule-level');
+      clickChartAt(fixture, 1250);
+      click(fixture, 'schedule-buy');
+      type(fixture, 'schedule-quantity', '1');
+      type(fixture, 'schedule-limit', '1200');
+
+      expect(textOf(fixture, '[data-testid="schedule-error"]')).toContain('at or above the level');
+      expect(root(fixture).querySelector<HTMLButtonElement>('[data-testid="schedule-confirm"]')!.disabled).toBe(true);
+      expect(scheduledPlaced).toHaveLength(0);
+    });
+
+    it('On a moving average shows one-minute candles for the day and draws the line; buy waits for the price to cross above it', () => {
+      setUp();
+      const fixture = create();
+
+      click(fixture, 'schedule-average');
+
+      expect(candleRequests.some((url) => url.includes('/RELIANCE/candles?interval=1m&range=1d'))).toBe(true);
+      expect(shown(fixture, 'schedule-average')).toBe(true);
+      expect(shown(fixture, 'schedule-buy')).toBe(true);
+      const averages = (fixture.componentInstance as unknown as { averageLines: () => number[] }).averageLines();
+      expect(averages).toEqual([20]);
+
+      click(fixture, 'schedule-buy');
+      type(fixture, 'schedule-quantity', '1');
+      expect(textOf(fixture, '[data-testid="schedule-sentence"]')).toContain('when the price crosses above the 20-quote average');
+      click(fixture, 'schedule-confirm');
+
+      expect(scheduledPlaced[0]).toMatchObject({ side: 'BUY', condition: { type: 'MA_CROSS_ABOVE', shortWindow: 1, longWindow: 20 } });
+    });
+
+    it('a sell on the average waits for a cross below; a faster average can stand in for the price', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'schedule-average');
+      type(fixture, 'schedule-average-window', '30');
+      const toggle = root(fixture).querySelector<HTMLInputElement>('[data-testid="schedule-fast-toggle"]')!;
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect((fixture.componentInstance as unknown as { averageLines: () => number[] }).averageLines()).toEqual([30, 5]);
+      click(fixture, 'schedule-sell');
+      type(fixture, 'schedule-quantity', '2');
+      expect(textOf(fixture, '[data-testid="schedule-sentence"]')).toContain('when the 5-quote average crosses below the 30-quote average');
+      click(fixture, 'schedule-confirm');
+
+      expect(scheduledPlaced[0]).toMatchObject({ side: 'SELL', condition: { type: 'MA_CROSS_BELOW', shortWindow: 5, longWindow: 30 } });
+    });
+
+    it('shows the server refusal in the panel', () => {
+      setUp();
+      failing.add('schedule');
+      const fixture = create();
+      click(fixture, 'schedule-level');
+      clickChartAt(fixture, 1250);
+      click(fixture, 'schedule-buy');
+      type(fixture, 'schedule-quantity', '1');
+      click(fixture, 'schedule-confirm');
+
+      expect(textOf(fixture, '[data-testid="schedule-error"]')).toContain('25 conditional orders');
+    });
+
+    it('lists every waiting scheduled order under the ticket, draws this stock\'s on its chart, and cancels one', () => {
+      setUp();
+      scheduled = [
+        { orderId: 'ORD-1', symbol: 'RELIANCE', side: 'BUY', quantity: 2, price: 1275, conditionType: 'PRICE_AT_OR_BELOW',
+          condition: 'when the price falls to 1250.00 or lower', triggerPrice: 1250, shortWindow: null, longWindow: null,
+          bandWidth: null, lastState: null, lastCheckedAt: null, expiresAt: '2026-11-06T09:00:00', createdOn: '2026-10-07T09:00:00' },
+        { orderId: 'ORD-2', symbol: 'TCS', side: 'SELL', quantity: 1, price: 3500, conditionType: 'MA_CROSS_BELOW',
+          condition: 'when the price crosses below the 20-quote average', triggerPrice: null, shortWindow: 1, longWindow: 20,
+          bandWidth: null, lastState: 'ABOVE', lastCheckedAt: null, expiresAt: '2026-11-06T09:00:00', createdOn: '2026-10-07T09:00:00' }
+      ];
+      const fixture = create();
+
+      expect(textOf(fixture, '[data-testid="scheduled-list"]')).toContain('Scheduled orders waiting (2)');
+      expect(textOf(fixture, '[data-testid="scheduled-ORD-2"]')).toContain('crosses below the 20-quote average');
+      const levels = (fixture.componentInstance as unknown as { orderLevels: () => { price: number; side: string }[] }).orderLevels();
+      expect(levels).toEqual([expect.objectContaining({ price: 1250, side: 'BUY' })]);
+
+      root(fixture).querySelector<HTMLButtonElement>('[data-testid="scheduled-ORD-1"] [data-testid="scheduled-cancel"]')!.click();
+      fixture.detectChanges();
+      settle(fixture);
+
+      expect(scheduledCancelled).toEqual(['ORD-1']);
+      expect(shown(fixture, 'scheduled-ORD-1')).toBe(false);
+    });
+
+    it('Back to alerts swaps the panel back without closing the chart', () => {
+      setUp();
+      const fixture = create();
+      click(fixture, 'schedule-level');
+
+      click(fixture, 'schedule-close');
+
+      expect(shown(fixture, 'chart-dialog')).toBe(true);
+      expect(shown(fixture, 'alert-composer')).toBe(true);
+      expect(shown(fixture, 'scheduled-composer')).toBe(false);
+    });
+
+    it('opens ready to schedule from a link (?symbol=&schedule=level)', () => {
+      setUp(ACCOUNT_ID, null, new BehaviorSubject(convertToParamMap({ symbol: 'TCS', schedule: 'level' })));
+      const fixture = create();
+
+      expect(textOf(fixture, '[data-testid="chart-dialog-title"]')).toContain('Schedule an order on TCS');
+      expect(shown(fixture, 'scheduled-composer')).toBe(true);
     });
   });
 

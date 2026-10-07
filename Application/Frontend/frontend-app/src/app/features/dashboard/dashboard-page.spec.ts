@@ -84,6 +84,21 @@ describe('DashboardPage', () => {
   let http: HttpTestingController;
   let api: FakeApi;
 
+  const ADVICE = {
+    accountId: ACCOUNT_ID,
+    model: 'm1',
+    methodology: 'rules',
+    disclaimer: 'Information, not advice',
+    generatedAt: '2026-10-06T18:00:00',
+    dataAsOf: '2026-10-06',
+    stale: false,
+    signals: [],
+    ideas: {
+      buy: [{ symbol: 'TCS', suggestion: 'BUY', confidence: 'HIGH', score: 70, summary: 'BUY (high confidence)', status: 'OK', sources: [], reasons: [] }],
+      sell: []
+    }
+  };
+
   function setUp(accountId: number | null = ACCOUNT_ID): void {
     TestBed.configureTestingModule({
       imports: [DashboardPage],
@@ -105,7 +120,8 @@ describe('DashboardPage', () => {
       .get(`/accounts/${ACCOUNT_ID}/orders`, ORDERS)
       .get(`/accounts/${ACCOUNT_ID}/watchlists`, [])
       .get(`/accounts/${ACCOUNT_ID}/alerts`, [])
-      .get('/market/quotes', QUOTES);
+      .get('/market/quotes', QUOTES)
+      .get(`/accounts/${ACCOUNT_ID}/advice`, ADVICE);
   }
 
   function create(): ComponentFixture<DashboardPage> {

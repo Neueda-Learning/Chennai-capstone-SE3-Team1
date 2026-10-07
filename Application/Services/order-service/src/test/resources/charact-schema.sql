@@ -65,6 +65,16 @@ CREATE TABLE orders (
     external_order_id VARCHAR(100),
     created_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    condition_type    VARCHAR(24),
+    trigger_price     DECIMAL(18,4),
+    short_window      INT,
+    long_window       INT,
+    band_width        DECIMAL(4,2),
+    condition_state   VARCHAR(8),
+    expires_at        TIMESTAMP,
+    last_checked_at   TIMESTAMP,
+    triggered_at      TIMESTAMP,
+    trigger_reason    VARCHAR(300),
     CONSTRAINT uq_orders_idempotency_key UNIQUE (idempotency_key)
 );
 

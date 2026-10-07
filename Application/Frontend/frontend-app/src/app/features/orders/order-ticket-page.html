@@ -222,6 +222,22 @@
         </button>
       </form>
 
+      <div class="schedule-entry" data-testid="schedule-entry">
+        <span class="stat-label">Or schedule an order on {{ selectedSymbol() ?? 'this stock' }}'s chart</span>
+        <div class="d-flex gap-2 mt-1">
+          <button type="button" class="btn-custom btn-custom-outline-primary flex-grow-1" data-testid="schedule-level"
+                  [disabled]="selected() === null" (click)="openSchedule('LEVEL')"
+                  title="Mark a price on the chart; the order is placed when the price gets there">
+            <i class="bi bi-rulers" aria-hidden="true"></i> At a price level
+          </button>
+          <button type="button" class="btn-custom btn-custom-outline-primary flex-grow-1" data-testid="schedule-average"
+                  [disabled]="selected() === null" (click)="openSchedule('AVERAGE')"
+                  title="Placed when the price crosses its moving-average line">
+            <i class="bi bi-activity" aria-hidden="true"></i> On a moving average
+          </button>
+        </div>
+      </div>
+
       @if (outcome(); as result) {
         @if (result.kind === 'accepted') {
           <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status" data-testid="outcome-accepted">
@@ -248,6 +264,24 @@
             </div>
           </div>
         }
+      }
+
+      @if (scheduled().length > 0) {
+        <div class="scheduled-list" data-testid="scheduled-list">
+          <span class="stat-label">Scheduled orders waiting ({{ scheduled().length }})</span>
+          @for (order of scheduled(); track order.orderId) {
+            <div class="scheduled-row" [attr.data-testid]="'scheduled-' + order.orderId" [class.scheduled-current]="order.symbol === selectedSymbol()">
+              <div>
+                <span [class]="'badge-table ' + (order.side === 'BUY' ? 'success' : 'failed')">{{ order.side }}</span>
+                <strong>{{ order.quantity }} {{ order.symbol }}</strong>
+                <span class="text-muted-green"> at {{ formatMoney(order.price) }} or better</span>
+                <div class="small text-muted-green">{{ order.condition }}</div>
+              </div>
+              <button type="button" class="btn-custom btn-custom-sm btn-custom-outline-danger" data-testid="scheduled-cancel"
+                      (click)="cancelScheduled(order)">Cancel</button>
+            </div>
+          }
+        </div>
       }
 
       <hr class="ticket-divider" />
@@ -331,7 +365,12 @@
       >
         <div class="card-header ticket-head">
           <h2 class="card-title" data-testid="chart-dialog-title">
-            {{ quote.symbol }} trend <span class="ticker-name">{{ quote.name }}</span>
+            @if (scheduleMode() !== null) {
+              Schedule an order on {{ quote.symbol }}
+            } @else {
+              {{ quote.symbol }} trend
+            }
+            <span class="ticker-name">{{ quote.name }}</span>
           </h2>
           <button
             type="button"
@@ -432,9 +471,12 @@
                 [indicators]="indicators()"
                 [hasVolume]="hasVolume()"
                 [alerts]="selectedAlerts()"
-                [markerMode]="markerMode()"
-                [pendingPrice]="pendingAlert()"
-                (markerPlaced)="placeMarker($event)"
+                [markerMode]="markerMode() || scheduleMode() === 'LEVEL'"
+                [pendingPrice]="scheduleMode() === 'LEVEL' ? pendingLevel() : pendingAlert()"
+                [pendingLabel]="scheduleMode() === 'LEVEL' ? 'New order level' : 'New alert'"
+                [averages]="averageLines()"
+                [orderLevels]="orderLevels()"
+                (markerPlaced)="onChartMarker($event)"
               />
 
               @switch (candlesState()) {
@@ -454,14 +496,33 @@
                 }
               }
             </div>
-            <tui-alert-composer
-              class="chart-split-panel"
-              data-testid="alert-panel"
-              [symbol]="quote.symbol"
-              [currentPrice]="quote.price"
-              [(markerMode)]="markerMode"
-              [(pendingPrice)]="pendingAlert"
-            />
+            @if (scheduleMode(); as mode) {
+              <tui-scheduled-order-composer
+                class="chart-split-panel"
+                data-testid="schedule-panel"
+                [symbol]="quote.symbol"
+                [mode]="mode"
+                [accountId]="accountId()"
+                [currentPrice]="quote.price"
+                [unitsHeld]="unitsAvailable()"
+                [averageNow]="averageNow()"
+                [fastNow]="fastNow()"
+                [(level)]="pendingLevel"
+                [(averageWindow)]="averageWindow"
+                [(fastWindow)]="fastWindow"
+                (placed)="onScheduled($event)"
+                (closed)="stopScheduling()"
+              />
+            } @else {
+              <tui-alert-composer
+                class="chart-split-panel"
+                data-testid="alert-panel"
+                [symbol]="quote.symbol"
+                [currentPrice]="quote.price"
+                [(markerMode)]="markerMode"
+                [(pendingPrice)]="pendingAlert"
+              />
+            }
           </div>
         </div>
       </div>

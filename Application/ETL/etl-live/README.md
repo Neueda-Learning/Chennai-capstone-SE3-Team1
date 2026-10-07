@@ -710,6 +710,43 @@ inventing the move between them.
 chronologically, printing the year only when the rows actually span more than
 one. A single-year pull still reads "Q1", not "2026 Q1".
 
+## Analysis, suggestions and daily predictions
+
+`analysis.py` turns the stored daily prices into what the trading app shows as advice
+(decision log 0011). It reads `daily_price` read-only, computes per instrument, and with
+`--publish` writes two PostgreSQL tables the Trade API reads:
+
+| Table | Holds | On each run |
+|---|---|---|
+| `market_analysis` | one row per instrument: close, 20/50-day averages, RSI(14), 20-session return, volatility, drawdown, trend, score, BUY/SELL/HOLD, confidence, reasons, summary | replaced |
+| `daily_predictions` | one row per instrument per predicted session: expected close, 68% and 90% ranges, chance of an up session | upserted, kept |
+
+```bash
+python Application/ETL/etl-live/analysis.py                  # compute and print the top ideas
+python Application/ETL/etl-live/analysis.py --json out.json  # and write everything as JSON
+python Application/ETL/etl-live/analysis.py --publish        # and publish to PostgreSQL
+python Application/ETL/etl-live/daily.py --day 2026-10-07    # refresh the warehouse, then publish (what the API runs)
+```
+
+`daily.py` is what the Trade API runs once per analysis day (decision log 0015). It pulls the
+symbol universe through a per-day cache under `.cache/daily/<day>/`, so a second run the same day
+fetches nothing, then publishes the analysis. Exit 0 means both steps worked, 3 that the refresh
+failed and the analysis was published from the stored data, 1 that nothing was published.
+Tests: `tests/test_daily.py`.
+
+The rules, stated once in the module docstring and repeated in every API response: trend
++/-40, momentum (20-session return doubled, capped at +/-30), RSI(14) +/-20 at the extremes;
+30 or more is BUY, -30 or less SELL. Under 60 sessions is `INSUFFICIENT_DATA` and no
+suggestion. The prediction is half the recent mean daily log return, with ranges from the
+last 60 sessions' volatility, and a chance of an up session held between 40% and 60%.
+
+With `--publish`, each series is extended with the daily candles the Trade API has stored in
+PostgreSQL after the warehouse's last date, so the prediction is for the next session rather
+than the day after the last pipeline run (`--warehouse-only` turns that off). Publishing uses
+`scripts/db_config.py`, the resolver `apply_db.py` uses. The Trade API runs it
+once per analysis day through `daily.py`. Tests: `tests/test_analysis.py`
+(the publish SQL runs against DuckDB stand-ins of the two tables).
+
 ## The legacy report
 
 `report.py` still works and is still supported. It writes one self-contained

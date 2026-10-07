@@ -1,3 +1,6 @@
+DROP TABLE IF EXISTS etl_daily_runs;
+DROP TABLE IF EXISTS daily_predictions;
+DROP TABLE IF EXISTS market_analysis;
 DROP TABLE IF EXISTS price_alerts;
 DROP TABLE IF EXISTS watchlist_instruments;
 DROP TABLE IF EXISTS watchlists;
@@ -71,6 +74,16 @@ CREATE TABLE orders (
     external_order_id VARCHAR(100),
     created_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    condition_type    VARCHAR(24),
+    trigger_price     DECIMAL(18,4),
+    short_window      INT,
+    long_window       INT,
+    band_width        DECIMAL(4,2),
+    condition_state   VARCHAR(8),
+    expires_at        TIMESTAMP,
+    last_checked_at   TIMESTAMP,
+    triggered_at      TIMESTAMP,
+    trigger_reason    VARCHAR(300),
     CONSTRAINT uq_orders_idempotency_key UNIQUE (idempotency_key)
 );
 
@@ -239,3 +252,55 @@ CREATE TABLE price_alerts (
                OR delivery_state IN ('QUEUED', 'PENDING_CHANNEL', 'REJECTED', 'DELIVERY_FAILED'))
 );
 CREATE INDEX idx_price_alerts_symbol_state ON price_alerts (instrument_id, state);
+
+CREATE TABLE market_analysis (
+    instrument_id    VARCHAR(20)    PRIMARY KEY,
+    as_of            DATE,
+    status           VARCHAR(20)    NOT NULL,
+    observations     INT            NOT NULL,
+    close_price      DECIMAL(18,4),
+    sma_20           DECIMAL(18,4),
+    sma_50           DECIMAL(18,4),
+    rsi_14           DECIMAL(6,2),
+    return_20d_pct   DECIMAL(10,4),
+    volatility_pct   DECIMAL(10,4),
+    max_drawdown_pct DECIMAL(10,4),
+    trend            VARCHAR(8),
+    score            DECIMAL(6,2),
+    suggestion       VARCHAR(4),
+    confidence       VARCHAR(8),
+    reasons          TEXT           NOT NULL,
+    summary          VARCHAR(400)   NOT NULL,
+    model            VARCHAR(60)    NOT NULL,
+    run_id           VARCHAR(40)    NOT NULL,
+    generated_at     TIMESTAMP      NOT NULL
+);
+
+CREATE TABLE daily_predictions (
+    instrument_id       VARCHAR(20)    NOT NULL,
+    for_date            DATE           NOT NULL,
+    as_of               DATE           NOT NULL,
+    last_close          DECIMAL(18,4)  NOT NULL,
+    predicted_close     DECIMAL(18,4)  NOT NULL,
+    low_68              DECIMAL(18,4)  NOT NULL,
+    high_68             DECIMAL(18,4)  NOT NULL,
+    low_90              DECIMAL(18,4)  NOT NULL,
+    high_90             DECIMAL(18,4)  NOT NULL,
+    prob_up             DECIMAL(6,4)   NOT NULL,
+    expected_return_pct DECIMAL(10,4)  NOT NULL,
+    model               VARCHAR(60)    NOT NULL,
+    run_id              VARCHAR(40)    NOT NULL,
+    generated_at        TIMESTAMP      NOT NULL,
+    PRIMARY KEY (instrument_id, for_date)
+);
+
+CREATE TABLE etl_daily_runs (
+    run_day        DATE          PRIMARY KEY,
+    status         VARCHAR(10)   NOT NULL,
+    trigger_source VARCHAR(20)   NOT NULL,
+    attempts       INT           NOT NULL DEFAULT 1,
+    started_at     TIMESTAMP     NOT NULL,
+    finished_at    TIMESTAMP,
+    exit_code      INT,
+    message        VARCHAR(500)
+);

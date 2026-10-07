@@ -97,3 +97,28 @@
     align-items: start;
   }
 }
+
+.schedule-entry {
+  margin-top: 1rem;
+}
+
+.scheduled-list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scheduled-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+
+.scheduled-row.scheduled-current {
+  border-color: var(--brand-lime);
+}

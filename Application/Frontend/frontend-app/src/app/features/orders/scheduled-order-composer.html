@@ -1,0 +1,155 @@
+<div class="composer" data-testid="scheduled-composer" [attr.data-mode]="mode()">
+  <div class="composer-head schedule-head">
+    <strong>
+      <i class="bi" [class.bi-rulers]="mode() === 'LEVEL'" [class.bi-activity]="mode() === 'AVERAGE'" aria-hidden="true"></i>
+      {{ mode() === 'LEVEL' ? 'Scheduled order at a price level' : 'Scheduled order on the moving average' }}
+    </strong>
+    <button type="button" class="btn-link-inline" data-testid="schedule-close" (click)="close()">Back to alerts</button>
+  </div>
+
+  <!-- 1. What it waits for -->
+  @if (mode() === 'LEVEL') {
+    @if (level() === null) {
+      <p class="composer-hint" data-testid="schedule-hint">
+        Click the chart at the price you want to trade at. A level above the current price waits for a rise to it;
+        a level below waits for a fall.
+      </p>
+    }
+    <div class="composer-row mt-2">
+      <span class="composer-rupee" aria-hidden="true">&#8377;</span>
+      <input
+        type="number"
+        class="form-control-custom composer-price"
+        aria-label="Level"
+        min="0"
+        step="0.05"
+        inputmode="decimal"
+        placeholder="or type a price"
+        data-testid="schedule-level-price"
+        [value]="levelText()"
+        (input)="onLevelType($event)"
+      />
+      @if (distance(); as d) {
+        <span class="composer-distance" data-testid="schedule-distance" [class.composer-up]="d > 0" [class.composer-down]="d < 0">
+          {{ formatPercent(d) }} from now
+        </span>
+      }
+    </div>
+    @if (currentPrice() !== null) {
+      <div class="composer-quick" role="group" aria-label="Quick levels">
+        @for (percent of quickLevels; track percent) {
+          <button type="button" class="composer-chip" [attr.data-testid]="'schedule-quick-' + percent" (click)="quick(percent)">
+            {{ percent > 0 ? '+' : '' }}{{ percent }}%
+          </button>
+        }
+      </div>
+    }
+    @if (direction(); as d) {
+      <div class="composer-sentence mt-2" data-testid="schedule-waits-for">
+        Waits until {{ symbol() }}
+        <span class="composer-direction" [attr.data-direction]="d">{{ d === 'ABOVE' ? 'rises to or above' : 'falls to or below' }}</span>
+        {{ formatMoney(level()) }}
+      </div>
+    }
+  } @else {
+    <div class="schedule-average mt-2" data-testid="schedule-average">
+      <label class="schedule-field">
+        <span>Average line</span>
+        <input type="number" class="form-control-custom" min="2" max="200" step="1" data-testid="schedule-average-window"
+               [value]="averageWindow()" (input)="setAverage($event)" />
+        <span>quotes</span>
+      </label>
+      <label class="form-check-custom schedule-fast">
+        <input type="checkbox" class="form-check-input-custom" data-testid="schedule-fast-toggle"
+               [checked]="fastWindow() !== null" (change)="toggleFast($event)" />
+        <span>Compare a faster average instead of the price</span>
+      </label>
+      @if (fastWindow() !== null) {
+        <label class="schedule-field">
+          <span>Faster average</span>
+          <input type="number" class="form-control-custom" min="2" max="199" step="1" data-testid="schedule-fast-window"
+                 [value]="fastWindow()" (input)="setFast($event)" />
+          <span>quotes</span>
+        </label>
+      }
+      <p class="composer-hint" data-testid="schedule-average-hint">
+        A quote arrives about once a minute, so the chart shows one-minute candles. A buy is placed when {{ mover() }}
+        crosses above the line; a sell when it crosses below.
+      </p>
+      @if (relationNow(); as now) {
+        <p class="composer-hint" data-testid="schedule-relation">{{ now }}</p>
+      }
+    </div>
+  }
+
+  <!-- 2. Buy or sell -->
+  @if (mode() === 'AVERAGE' || level() !== null) {
+    <div class="schedule-sides" role="group" aria-label="Buy or sell">
+      <button type="button" class="btn-custom flex-grow-1" data-testid="schedule-buy"
+              [class.btn-custom-primary]="side() === 'BUY'" [class.btn-custom-outline-primary]="side() !== 'BUY'"
+              [attr.aria-pressed]="side() === 'BUY'" (click)="chooseSide('BUY')">
+        <i class="bi bi-arrow-up-circle"></i> Buy
+      </button>
+      <button type="button" class="btn-custom flex-grow-1" data-testid="schedule-sell"
+              [class.btn-custom-danger]="side() === 'SELL'" [class.btn-custom-outline-danger]="side() !== 'SELL'"
+              [attr.aria-pressed]="side() === 'SELL'" (click)="chooseSide('SELL')">
+        <i class="bi bi-arrow-down-circle"></i> Sell
+      </button>
+    </div>
+  }
+
+  <!-- 3. How much, and confirm -->
+  @if (side() !== null) {
+    <div class="composer-form" data-testid="schedule-form">
+      <div class="schedule-grid">
+        <label class="schedule-field-stack">
+          <span>Quantity</span>
+          <input type="number" class="form-control-custom" min="1" step="1" placeholder="10" data-testid="schedule-quantity"
+                 [value]="quantityText()" (input)="setText('quantity', $event)" />
+          @if (side() === 'SELL') {
+            <small>You hold {{ unitsHeld() }}
+              @if (unitsHeld() > 0) {
+                · <button type="button" class="btn-link-inline" data-testid="schedule-sell-all" (click)="sellAll()">all</button>
+              }
+            </small>
+          }
+        </label>
+        <label class="schedule-field-stack">
+          <span>Limit price</span>
+          <input type="number" class="form-control-custom" min="0.01" step="0.05" data-testid="schedule-limit"
+                 [placeholder]="limit() ?? ''" [value]="limitText()" (input)="setText('limit', $event)" />
+          <small>Blank: {{ protectionPercent }}% past {{ mode() === 'LEVEL' ? 'the level' : 'the price' }}</small>
+        </label>
+        <label class="schedule-field-stack">
+          <span>Wait up to</span>
+          <input type="number" class="form-control-custom" min="1" max="90" step="1" data-testid="schedule-expiry"
+                 [value]="expiryText()" (input)="setText('expiry', $event)" />
+          <small>days</small>
+        </label>
+      </div>
+      <p class="composer-sentence mt-2 mb-1" data-testid="schedule-sentence">
+        <strong>{{ sentence() }}</strong>@if (limit() !== null) {, at {{ formatMoney(limit()) }} or better}.
+      </p>
+      @if (total() !== null) {
+        <p class="small text-muted-green mb-2" data-testid="schedule-total">
+          {{ side() === 'BUY' ? 'Most it can cost' : 'Least it can raise' }}: {{ formatMoney(total()) }}.
+          Checked against the live price every minute; cash and holdings are checked now and again when it is placed.
+        </p>
+      }
+      <div class="composer-actions">
+        <button type="button" class="btn-custom" data-testid="schedule-confirm"
+                [class.btn-custom-primary]="side() === 'BUY'" [class.btn-custom-danger]="side() === 'SELL'"
+                [disabled]="saving() || problem() !== null" (click)="confirm()">
+          {{ saving() ? 'Scheduling...' : 'Schedule ' + (side() === 'BUY' ? 'buy' : 'sell') }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (error() ?? (side() !== null && quantity() !== null ? problem() : null); as message) {
+    <p class="composer-error" role="alert" data-testid="schedule-error">{{ message }}</p>
+  }
+  @if (done(); as message) {
+    <p class="composer-done" role="status" data-testid="schedule-done"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> {{ message }}</p>
+  }
+</div>

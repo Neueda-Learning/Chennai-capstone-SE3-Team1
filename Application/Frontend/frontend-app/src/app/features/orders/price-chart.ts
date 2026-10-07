@@ -29,6 +29,16 @@ type Pane = 'main' | 'volume' | 'rsi' | 'macd';
 
 const ALERT_COLORS = { quiet: '#94A3B8', pending: '#3B82F6' };
 
+/** The moving-average lines a scheduled order is drawn against: the slowest is the line, a faster one is optional. */
+const AVERAGE_COLORS = ['#10B981', '#EC4899'];
+
+/** A scheduled (conditional) order waiting at a price level, drawn as a line on the chart. */
+export interface OrderLevel {
+  price: number;
+  side: 'BUY' | 'SELL';
+  label: string;
+}
+
 /** The marker the customer is placing, drawn on the chart before it becomes an alert. */
 export interface GuideLine {
   top: number;
@@ -53,6 +63,12 @@ export class PriceChart implements OnDestroy {
   readonly markerMode = input(false);
   /** The marker being placed, drawn until it is confirmed or cancelled. */
   readonly pendingPrice = input<number | null>(null);
+  /** The pending marker's label: a new alert, or the level of a new scheduled order. */
+  readonly pendingLabel = input('New alert');
+  /** Simple moving averages to draw, by window in candles: the scheduled-order panel's average lines. */
+  readonly averages = input<readonly number[]>([]);
+  /** Scheduled orders waiting at a price level for the stock on show. */
+  readonly orderLevels = input<readonly OrderLevel[]>([]);
   readonly markerPlaced = output<number>();
 
   protected readonly guide = signal<GuideLine | null>(null);
@@ -85,6 +101,9 @@ export class PriceChart implements OnDestroy {
       this.style();
       this.alerts();
       this.pendingPrice();
+      this.pendingLabel();
+      this.averages();
+      this.orderLevels();
       this.markerMode();
 
       this.sync('main', this.mainEl().nativeElement, true, () => this.mainOptions(candles, indicators, palette));
@@ -238,9 +257,13 @@ export class PriceChart implements OnDestroy {
       line('BB middle', b.middle, COLORS.bollinger, 1);
       line('BB lower', b.lower, COLORS.bollinger, 1);
     }
+    [...this.averages()].sort((a, b) => b - a).forEach((window, i) =>
+      line(`Avg ${window}`, sma(closes, window), AVERAGE_COLORS[i % AVERAGE_COLORS.length], i === 0 ? 2.5 : 2)
+    );
 
     const drawn: number[] = candles.flatMap((c) => [c.low, c.high]);
     const levels = this.alerts().filter((a) => a.state !== 'DISABLED').map((a) => a.threshold);
+    levels.push(...this.orderLevels().map((o) => o.price));
     const pending = this.pendingPrice();
     if (pending !== null) {
       levels.push(pending);
@@ -298,6 +321,23 @@ export class PriceChart implements OnDestroy {
         }
       };
     });
+    for (const level of this.orderLevels()) {
+      const color = level.side === 'BUY' ? palette.up : palette.down;
+      lines.push({
+        y: level.price,
+        borderColor: color,
+        strokeDashArray: 8,
+        borderWidth: 2,
+        label: {
+          text: level.label,
+          borderColor: color,
+          position: 'right',
+          textAnchor: 'end',
+          offsetX: -6,
+          style: { color: '#ffffff', background: color, fontSize: '11px', fontWeight: 600, padding: { left: 5, right: 5, top: 2, bottom: 2 } }
+        }
+      });
+    }
     const pending = this.pendingPrice();
     if (pending !== null) {
       lines.push({
@@ -306,7 +346,7 @@ export class PriceChart implements OnDestroy {
         strokeDashArray: 0,
         borderWidth: 2,
         label: {
-          text: `New alert ${formatMoney(pending)}`,
+          text: `${this.pendingLabel()} ${formatMoney(pending)}`,
           borderColor: ALERT_COLORS.pending,
           position: 'right',
           textAnchor: 'end',
