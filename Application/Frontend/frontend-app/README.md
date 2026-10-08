@@ -25,7 +25,7 @@ Angular workspace for the trading platform's front end: login, dashboard, order
 npm ci              # install; also regenerates src/app/generated/ (needs Java)
 npm run build        # production build, output in dist/trading-ui
 npm test             # Vitest, headless, single run in CI: npm test -- --watch=false
-npm start            # dev server at localhost:4200
+npm start            # dev server, on FRONTEND_HOST:FRONTEND_PORT from Application/Config/services.env
 ```
 
 All three of `npm ci`, `npm run build` and `npm test` are verified to pass
@@ -123,8 +123,8 @@ npm run test:e2e:debug          # Playwright Inspector
 npx playwright show-report      # open the HTML report
 ```
 
-Playwright starts `npm start` itself and waits for `http://localhost:4200`, so the dev server
-does not need to be running first.
+Playwright starts `npm start` itself and waits for the frontend's address from
+`Application/Config/services.env`, so the dev server does not need to be running first.
 
 ### What is covered (51 tests, `e2e/`)
 
@@ -143,15 +143,24 @@ between runs — the assertions compare a before/after read rather than fixed va
 ### Configuration
 
 `playwright.config.ts` reads the repository's one `.env` (copy the root `.env.example`; `.env`
-is ignored by git, as is `e2e/.auth/`). Every variable has a default, and one already set in the
-environment wins:
+is ignored by git, as is `e2e/.auth/`). The addresses of the UI, the auth service and the Trade API are
+not set here: they come from `Application/Config/services.env` (`scripts/service-config.mjs`). One
+already set in the environment wins:
 
 | Variable | Meaning |
 |---|---|
-| `BASE_URL` | UI under test, default `http://localhost:4200` |
-| `AUTH_API_BASE` | Auth service, read directly to confirm a session was refused |
-| `TRADE_API_BASE` | Trade API base, without the `/api/v1` prefix |
+| `BASE_URL` | Override for the UI under test (default: `FRONTEND_HOST:FRONTEND_PORT`) |
+| `AUTH_API_BASE` | Override for the auth service, read directly to confirm a session was refused |
+| `TRADE_API_BASE` | Override for the Trade API base, without the `/api/v1` prefix |
 | `TEST_USERNAME` / `TEST_PASSWORD` | An existing account on the local auth service |
+
+### Where the app finds the backend
+
+The app does not know any address at build time. `npm start` and `npm run build` first run
+`scripts/generate-config.mjs`, which writes `public/config.json` (git-ignored) from
+`Application/Config/services.env`; `src/main.ts` loads it before the app starts and the generated API
+clients get their base paths from it (`src/app/core/config/runtime-config.ts`). Run `npm run config` to
+regenerate it by hand, and `npm run test:config` for the script's own tests.
 
 The Trade API account id is not configured: `e2e/api.ts` reads it out of the session token the
 UI itself is holding, so the API cross-checks cannot drift from the account on screen.

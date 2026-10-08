@@ -1,3 +1,6 @@
+# Every port below comes from Application/Config/services.env. up.sh exports them; to run compose by
+# hand, pass the file:  docker compose --env-file ../../Config/services.env up -d
+# KAFKA_ADVERTISED_HOST (this box's reachable address) is the one value that is not in the shared file.
 services:
   kafka:
     image: apache/kafka:3.8.0
@@ -6,11 +9,11 @@ services:
     environment:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:${KAFKA_CONTROLLER_PORT:?set in Application/Config/services.env}
       # The PLAINTEXT port is KAFKA_PORT everywhere (listener, advertised address, published port,
       # healthcheck), so clients are always sent back to the port they reached. up.sh --port sets it.
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_PORT:-29092},INTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-localhost}:${KAFKA_PORT:-29092},INTERNAL://kafka:19092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_PORT:?set in Application/Config/services.env},INTERNAL://0.0.0.0:${KAFKA_INTERNAL_PORT:?set in Application/Config/services.env},CONTROLLER://0.0.0.0:${KAFKA_CONTROLLER_PORT:?set in Application/Config/services.env}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-localhost}:${KAFKA_PORT:?set in Application/Config/services.env},INTERNAL://kafka:${KAFKA_INTERNAL_PORT:?set in Application/Config/services.env}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -20,11 +23,11 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     ports:
-      - "${KAFKA_PORT:-29092}:${KAFKA_PORT:-29092}"
+      - "${KAFKA_PORT:?set in Application/Config/services.env}:${KAFKA_PORT:?set in Application/Config/services.env}"
     healthcheck:
       test:
         - CMD-SHELL
-        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT:-29092} --list >/dev/null 2>&1 || exit 1
+        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT:?set in Application/Config/services.env} --list >/dev/null 2>&1 || exit 1
       interval: 10s
       timeout: 10s
       retries: 30

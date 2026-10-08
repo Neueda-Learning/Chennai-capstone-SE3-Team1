@@ -34,9 +34,9 @@ SEED_DIR = _first_existing(
     REPO_ROOT / "seed",
 )
 
+# The host and port come from Application/Config/services.env (POSTGRES_HOST, POSTGRES_PORT) via
+# vault_env.secret(); only the names below are defaults here.
 DEFAULTS = {
-    "host": "localhost",
-    "port": "5432",
     "dbname": "trading_platform",
     "user": "postgres",
 }
@@ -213,8 +213,8 @@ def quote_ident(value):
 
 def add_connection_args(parser):
     g = parser.add_argument_group("connection (TrustMe vault, then POSTGRES_* in the environment or .env, unless given here)")
-    g.add_argument("--host", help="database host (default " + DEFAULTS["host"] + ",)")
-    g.add_argument("--port", help="database port (default " + DEFAULTS["port"] + ",)")
+    g.add_argument("--host", help="database host (default: POSTGRES_HOST in Application/Config/services.env)")
+    g.add_argument("--port", help="database port (default: POSTGRES_PORT in Application/Config/services.env)")
     g.add_argument("--dbname", help="database name (default " + DEFAULTS["dbname"] + ",)")
     g.add_argument("--user", help="database user (default " + DEFAULTS["user"] + ",)")
     g.add_argument("--password", help="database password (default: the vault's PostGres secret, or POSTGRES_PASSWORD)")

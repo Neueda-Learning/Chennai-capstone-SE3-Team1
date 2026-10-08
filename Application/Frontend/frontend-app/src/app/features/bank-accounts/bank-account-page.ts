@@ -270,7 +270,7 @@ export class BankAccountPage {
         },
         error: (error) => {
           this.linkState.set('failed');
-          this.linkError.set(describeLinkError(error));
+          this.linkError.set(describeLinkError(error, this.tradeBasePath));
           console.error('[bank] link failed', {
             status: error.status,
             statusText: error.statusText,
@@ -374,7 +374,7 @@ export class BankAccountPage {
         },
         error: (error) => {
           this.transferState.set('failed');
-          this.transferError.set(describeTransferError(error));
+          this.transferError.set(describeTransferError(error, this.tradeBasePath));
           console.error('[bank] transfer failed', {
             status: error.status,
             statusText: error.statusText,
@@ -426,7 +426,7 @@ function newIdempotencyKey(): string {
   return `ui-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function describeLinkError(error: HttpErrorResponse): string {
+function describeLinkError(error: HttpErrorResponse, tradeApiUrl: string | undefined): string {
   const code = error.error?.errorCode;
   if (code === 'ACC-409') {
     return 'That account number cannot be claimed. Either you already have a bank account, ' +
@@ -439,12 +439,12 @@ function describeLinkError(error: HttpErrorResponse): string {
     return 'This session is not allowed to claim that account. Sign out and sign in again.';
   }
   if (error.status === 0) {
-    return 'Could not reach the Trade API. Check that it is running on port 8081.';
+    return `Could not reach the Trade API${tradeApiUrl ? ' at ' + tradeApiUrl : ''}. Check that it is running.`;
   }
   return error.error?.message ?? 'The bank account could not be linked.';
 }
 
-function describeTransferError(error: HttpErrorResponse): string {
+function describeTransferError(error: HttpErrorResponse, tradeApiUrl: string | undefined): string {
   const code = error.error?.errorCode;
   if (code === 'FUND-402' || code === 'ACC-402') {
     return 'One of the two accounts cannot cover that amount.';
@@ -456,7 +456,7 @@ function describeTransferError(error: HttpErrorResponse): string {
     return 'This session cannot move money. Sign out and sign in again.';
   }
   if (error.status === 0) {
-    return 'Could not reach the Trade API. Check that it is running on port 8081.';
+    return `Could not reach the Trade API${tradeApiUrl ? ' at ' + tradeApiUrl : ''}. Check that it is running.`;
   }
   return error.error?.message ?? 'The money could not be transferred.';
 }

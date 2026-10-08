@@ -8,7 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('app.port', 3000);
+  const port = configService.getOrThrow<number>('app.port');
+  const baseUrl = configService.getOrThrow<string>('app.baseUrl');
 
   app.enableCors();
 
@@ -27,10 +28,10 @@ async function bootstrap() {
   });
 
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Health check available at: http://localhost:${port}/health`);
-  console.log(`OpenAPI docs at: http://localhost:${port}/docs`);
-  console.log(`OpenAPI JSON at: http://localhost:${port}/docs/json`);
+  console.log(`Application is running on: ${baseUrl}`);
+  console.log(`Health check available at: ${baseUrl}/health`);
+  console.log(`OpenAPI docs at: ${baseUrl}/docs`);
+  console.log(`OpenAPI JSON at: ${baseUrl}/docs/json`);
 }
 
 bootstrap();

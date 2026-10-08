@@ -76,3 +76,18 @@ def test_no_password_means_no_vault_and_no_prompt(monkeypatch):
     monkeypatch.setattr(sys, "_xoptions", {})
 
     assert vault_env.vault() is None
+
+
+def test_the_database_address_falls_back_to_services_env_below_the_environment_and_dotenv(no_vault, monkeypatch):
+    monkeypatch.setattr(vault_env.service_config, "_file_values",
+                        {"POSTGRES_HOST": "db.config.test", "POSTGRES_PORT": "6543", "FAUXNANCE_BASE_URL": "https://api.config.test"})
+
+    assert vault_env.secret("PostGres_Host") == "db.config.test"
+    assert vault_env.secret("Postgres_Port") == "6543"
+    assert vault_env.secret("Fauxnance_Endpoint") == "https://api.config.test"
+
+    monkeypatch.setattr(vault_env, "_dotenv", {"POSTGRES_HOST": "db.dotenv.test"})
+    assert vault_env.secret("PostGres_Host") == "db.dotenv.test"
+
+    monkeypatch.setenv("POSTGRES_HOST", "db.env.test")
+    assert vault_env.secret("PostGres_Host") == "db.env.test"

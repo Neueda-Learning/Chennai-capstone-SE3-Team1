@@ -8,9 +8,13 @@
 #   4. Creates the six contracted topics (scripts/create-topics.sh).
 #   5. Runs every check below and exits 1 if any fails, printing the broker log.
 #
+# Every port and URL comes from Application/Config/services.env (the repo-root .env, then the
+# environment, override it); none is written in this script.
+#
 # Run it as:  bash Application/Infrastructure/Kafka/up.sh [--port PORT]
 #   --port PORT  the port Kafka listens on, publishes and advertises to clients. Default: KAFKA_PORT
-#                in .env, else 29092. The choice is saved to .env, so a later run keeps it.
+#                in services.env. A different port is saved to .env as an override, so a later run
+#                keeps it.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,10 +26,6 @@ die() { printf '[kafka] ERROR: %s\n' "$*" >&2; exit 1; }
 
 CONTAINER="team1_kafka"          # container_name in docker-compose.yml
 KAFKA_BIN="/opt/kafka/bin"
-EXTERNAL_PORT=29092              # PLAINTEXT listener: published to the host and advertised to clients (set below)
-INTERNAL_PORT=19092              # INTERNAL listener: reachable only inside the container network
-CONTROLLER_PORT=29093            # KRaft controller listener, also container-internal
-INTERNAL_ADDR="kafka:$INTERNAL_PORT"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-240}"
 
 usage() {
@@ -35,8 +35,9 @@ Usage: bash Application/Infrastructure/Kafka/up.sh [--port PORT]
 Restarts Kafka from scratch, creates the topics and checks that it works.
 
   --port PORT   The port Kafka listens on, is published on and advertises to clients,
-                1024-65535. Default: KAFKA_PORT in the repository's .env, else 29092.
-                The choice is saved to .env, so a later run without --port keeps it.
+                1024-65535. Default: KAFKA_PORT in Application/Config/services.env.
+                A different port is saved to the repository's .env as an override, so a
+                later run without --port keeps it.
   -h, --help    Show this help.
 EOF
 }
@@ -51,6 +52,32 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# ------------------------------------------------------------------ where the services live
+# Application/Config/services.env is the one place a port or URL is written. A value is the
+# environment variable, else the repository's .env (once it exists), else services.env.
+CONFIG_FILE="${SERVICES_CONFIG_FILE:-$REPO_ROOT/Application/Config/services.env}"
+[ -f "$CONFIG_FILE" ] || die "$CONFIG_FILE not found"
+ENV_FILE="${ENV_FILE:-$REPO_ROOT/.env}"
+
+config_value() { { grep -E "^$1=" "$CONFIG_FILE" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r'; }
+env_value() { [ -f "$ENV_FILE" ] || return 0; { grep -E "^$1=" "$ENV_FILE" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r'; }
+setting() {
+    local value="${!1:-}"
+    [ -n "$value" ] || value="$(env_value "$1")"
+    [ -n "$value" ] || value="$(config_value "$1")"
+    printf '%s' "$value"
+}
+require_setting() {
+    local value
+    value="$(setting "$1")"
+    [ -n "$value" ] || die "$1 is not set; it belongs in $CONFIG_FILE"
+    printf '%s' "$value"
+}
+
+INTERNAL_PORT="$(require_setting KAFKA_INTERNAL_PORT)"      # INTERNAL listener: only inside the container network
+CONTROLLER_PORT="$(require_setting KAFKA_CONTROLLER_PORT)"  # KRaft controller listener, also container-internal
+INTERNAL_ADDR="kafka:$INTERNAL_PORT"
+
 valid_port() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]; }
 if [ -n "$REQUESTED_PORT" ]; then
     valid_port "$REQUESTED_PORT" || die "--port must be a number from 1024 to 65535 (got '$REQUESTED_PORT')"
@@ -61,17 +88,14 @@ fi
 
 # ------------------------------------------------------------------ 1. environment
 # The repository's one .env, at its root (ENV_FILE overrides the location).
-ENV_FILE="${ENV_FILE:-$REPO_ROOT/.env}"
 if [ ! -f "$ENV_FILE" ]; then
     cp "$REPO_ROOT/.env.example" "$ENV_FILE"
     log "$ENV_FILE created from .env.example"
 fi
 
-env_value() { { grep -E "^$1=" "$ENV_FILE" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r'; }
-
 if ! grep -q '^KAFKA_ADVERTISED_HOST=' "$ENV_FILE" || grep -q '^KAFKA_ADVERTISED_HOST=localhost$' "$ENV_FILE"; then
     ip=""
-    ip=$(curl -fsS --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null) || ip=""
+    ip=$(curl -fsS --max-time 2 "$(require_setting INSTANCE_METADATA_URL)" 2>/dev/null) || ip=""
     if [ -z "$ip" ]; then
         ip=$(hostname -I 2>/dev/null | awk '{print $1}') || ip=""
     fi
@@ -92,28 +116,36 @@ fi
 ADVERTISED_HOST="$(env_value KAFKA_ADVERTISED_HOST)"
 ADVERTISED_HOST="${ADVERTISED_HOST:-localhost}"
 
-# The port: --port, else KAFKA_PORT from .env, else the default. The compose file uses this one
-# number for the listener, the advertised address, the published port and the healthcheck.
+# The port: --port, else KAFKA_PORT (environment, .env, then services.env). The compose file uses this
+# one number for the listener, the advertised address, the published port and the healthcheck.
+DEFAULT_PORT="$(config_value KAFKA_PORT)"
 if [ -n "$REQUESTED_PORT" ]; then
     EXTERNAL_PORT="$REQUESTED_PORT"
 else
-    EXTERNAL_PORT="$(env_value KAFKA_PORT)"
-    EXTERNAL_PORT="${EXTERNAL_PORT:-29092}"
-    valid_port "$EXTERNAL_PORT" || die "KAFKA_PORT in $ENV_FILE is '$EXTERNAL_PORT', which is not a port number from 1024 to 65535"
+    EXTERNAL_PORT="$(require_setting KAFKA_PORT)"
+    valid_port "$EXTERNAL_PORT" || die "KAFKA_PORT is '$EXTERNAL_PORT' (environment, $ENV_FILE or $CONFIG_FILE), which is not a port number from 1024 to 65535"
 fi
 case "$EXTERNAL_PORT" in
     "$INTERNAL_PORT"|"$CONTROLLER_PORT") die "port $EXTERNAL_PORT is used by Kafka's own internal/controller listeners; choose another with --port" ;;
 esac
-if [ "$(env_value KAFKA_PORT)" != "$EXTERNAL_PORT" ]; then
+# services.env holds the default; .env only ever carries an override for this box.
+if [ "$EXTERNAL_PORT" = "$DEFAULT_PORT" ]; then
+    if [ -n "$(env_value KAFKA_PORT)" ]; then
+        sed -i.bak '/^KAFKA_PORT=/d' "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+        log "KAFKA_PORT override removed from $ENV_FILE (the default in services.env is $DEFAULT_PORT)"
+    fi
+elif [ "$(env_value KAFKA_PORT)" != "$EXTERNAL_PORT" ]; then
     if grep -q '^KAFKA_PORT=' "$ENV_FILE"; then
         sed -i.bak "s|^KAFKA_PORT=.*|KAFKA_PORT=${EXTERNAL_PORT}|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
     else
         printf 'KAFKA_PORT=%s\n' "$EXTERNAL_PORT" >> "$ENV_FILE"
     fi
-    log "KAFKA_PORT set to $EXTERNAL_PORT in $ENV_FILE"
+    log "KAFKA_PORT=$EXTERNAL_PORT saved to $ENV_FILE as an override of $CONFIG_FILE"
 fi
-# Compose lets an exported variable override --env-file, so make sure a stale one cannot.
+# Compose lets an exported variable override --env-file, so export the values it needs (a stale
+# variable in the caller's shell cannot win).
 export KAFKA_PORT="$EXTERNAL_PORT" KAFKA_ADVERTISED_HOST="$ADVERTISED_HOST"
+export KAFKA_INTERNAL_PORT="$INTERNAL_PORT" KAFKA_CONTROLLER_PORT="$CONTROLLER_PORT"
 
 # ------------------------------------------------------------------ 2. docker
 command -v docker >/dev/null 2>&1 || die "docker is not on PATH"
@@ -286,8 +318,11 @@ log "all $PASSED checks passed - Kafka is ready at ${ADVERTISED_HOST}:${EXTERNAL
 if [ "$ADVERTISED_HOST" = "localhost" ]; then
     log "WARNING: it advertises 'localhost', so only clients on this machine can use it; set KAFKA_ADVERTISED_HOST in $ENV_FILE and re-run"
 else
-    # run-local.ps1 probes 29092 then 9092 by itself; any other port has to be given.
-    case "$EXTERNAL_PORT" in 29092|9092) port_arg="" ;; *) port_arg=" -KafkaPort $EXTERNAL_PORT" ;; esac
+    # run-local.ps1 tries KAFKA_PORT and then KAFKA_LEGACY_PORT by itself; any other port has to be given.
+    case "$EXTERNAL_PORT" in
+        "$DEFAULT_PORT"|"$(config_value KAFKA_LEGACY_PORT)") port_arg="" ;;
+        *) port_arg=" -KafkaPort $EXTERNAL_PORT" ;;
+    esac
     log "open TCP $EXTERNAL_PORT in the security group / firewall for the Windows machines if it is not already"
     log "from each Windows machine:  Test-NetConnection $ADVERTISED_HOST -Port $EXTERNAL_PORT"
     log "then:                       .\\run-local.ps1 -KafkaHosted -KafkaHost $ADVERTISED_HOST$port_arg"

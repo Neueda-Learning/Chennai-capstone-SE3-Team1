@@ -13,10 +13,10 @@ try:
 except ImportError:
     requests = None
 
-DEFAULT_BASE_URL = "https://y4t9nq2bqf.execute-api.eu-west-2.amazonaws.com/v1"
 CACHE_DIR = Path(__file__).parent / ".cache"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import service_config  # noqa: E402
 from vault_env import dotenv, env_name_for, secret, vault_secret  # noqa: E402
 
 KEY_VAR = "Fauxnance"
@@ -54,7 +54,9 @@ def _read_env_file() -> dict:
 
 
 def base_url() -> str:
-    return (secret(BASE_URL_VAR) or DEFAULT_BASE_URL).rstrip("/")
+    # The vault's Fauxnance_Endpoint, else FAUXNANCE_BASE_URL (environment, .env, then
+    # Application/Config/services.env, which holds the default).
+    return (secret(BASE_URL_VAR) or service_config.require(env_name_for(BASE_URL_VAR))).rstrip("/")
 
 
 def _api_key() -> str:

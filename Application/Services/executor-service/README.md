@@ -22,9 +22,10 @@ never prompts for a password.
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Database connection |
 | `JWT_SECRET` | `JWT_SECRET` | Shared token-signing key |
 
-The poll interval (60s; 50 symbols are two batches of 25 per cycle), symbol suffix (`.NS`) and port (8082) are fixed in `application.yml`. The one
-environment variable is `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:29092`), because where Kafka is
-differs between machines.
+The poll interval (60s; 50 symbols are two batches of 25 per cycle) and symbol suffix (`.NS`) are fixed in `application.yml`.
+The port it listens on (`EXECUTOR_PORT`) and Kafka (`KAFKA_HOST:KAFKA_PORT`) come from
+`Application/Config/services.env`; `KAFKA_BOOTSTRAP_SERVERS` overrides the Kafka address alone, because where
+Kafka is differs between machines.
 
 ## Prerequisites
 

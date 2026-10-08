@@ -11,8 +11,8 @@ export class KafkaHealthIndicator {
     private readonly configService: ConfigService,
     @Inject('MULTI_FILE_LOGGER') private readonly logger: MultiFileLogger,
   ) {
-    this.broker =
-      this.configService.get<string>('app.kafka.broker') ?? 'localhost:29092';
+    // app.kafka.broker is filled in by configuration.ts from Application/Config/services.env.
+    this.broker = this.configService.getOrThrow<string>('app.kafka.broker');
   }
 
   async isHealthy(key: string): Promise<HealthIndicatorResult> {

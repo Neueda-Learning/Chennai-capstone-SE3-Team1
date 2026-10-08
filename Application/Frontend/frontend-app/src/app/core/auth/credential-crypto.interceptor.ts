@@ -15,7 +15,7 @@ import {
   sealRequest
 } from './credential-envelope';
 
-/** Every POST the auth service takes, e.g. http://host:3000/auth/login. */
+/** Every POST the auth service takes: <auth service URL>/auth/login, /auth/register, and so on. */
 const AUTH_POST = /^(.*\/auth)\/(?!crypto-params$)[a-z-]+$/;
 
 /**

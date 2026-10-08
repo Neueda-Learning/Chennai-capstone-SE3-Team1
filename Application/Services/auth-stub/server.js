@@ -31,7 +31,9 @@ app.post('/login', (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: 'up' }));
 
-const PORT = 4000;
+// Where this stub listens comes from AUTH_STUB_HOST / AUTH_STUB_PORT in Application/Config/services.env.
+let HOST;
+let PORT;
 
 function findUp(name) {
   let dir = process.cwd();
@@ -43,6 +45,24 @@ function findUp(name) {
     dir = parent;
   }
   return null;
+}
+
+// Application/Config/services.env (SERVICES_CONFIG_FILE points elsewhere, e.g. in Docker).
+function servicesConfig() {
+  const override = (process.env.SERVICES_CONFIG_FILE || '').trim();
+  const file = override
+    ? (fs.existsSync(override) ? override : null)
+    : findUp(path.join('Application', 'Config', 'services.env')) || findUp(path.join('Config', 'services.env'));
+  return file ? util.parseEnv(fs.readFileSync(file, 'utf8')) : {};
+}
+
+// A host/port/URL setting: the environment (where .env lands), else services.env. No default here.
+function setting(name, fileValues) {
+  const value = process.env[name] || fileValues[name];
+  if (!value) {
+    throw new Error(`${name} is not set. It belongs in Application/Config/services.env (or the environment / .env as an override).`);
+  }
+  return value;
 }
 
 // The repository's .env, without overriding a variable that is already set.
@@ -81,13 +101,16 @@ async function vaultSecret(name) {
 
 async function main() {
   loadDotEnv();
+  const fileValues = servicesConfig();
+  HOST = setting('AUTH_STUB_HOST', fileValues);
+  PORT = Number(setting('AUTH_STUB_PORT', fileValues));
   SECRET = (await vaultSecret('JWT_SECRET')) || process.env.JWT_SECRET;
   if (!SECRET || SECRET.length < 32) {
     throw new Error('JWT_SECRET is missing or shorter than 32 characters (TrustMe vault, environment or .env)');
   }
   app.listen(PORT, () => {
-    console.log(`trading-auth-stub listening on http://localhost:${PORT}`);
-    console.log(`Try: curl -X POST http://localhost:${PORT}/login -H "Content-Type: application/json" -d '{"username":"alice","password":"mission123"}'`);
+    console.log(`trading-auth-stub listening on http://${HOST}:${PORT}`);
+    console.log(`Try: curl -X POST http://${HOST}:${PORT}/login -H "Content-Type: application/json" -d '{"username":"alice","password":"mission123"}'`);
   });
 }
 

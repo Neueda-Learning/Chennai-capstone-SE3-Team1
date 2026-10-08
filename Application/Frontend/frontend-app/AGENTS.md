@@ -124,5 +124,5 @@ since both clients export a same-named `provideApi`/`Configuration`.
 npm ci              # clean install from committed lock file
 npm run build         # production build → dist/trading-ui
 npm test              # Vitest, single run: npm test -- --watch=false
-npm start             # dev server, http://localhost:4200
+npm start             # dev server on FRONTEND_HOST:FRONTEND_PORT (Application/Config/services.env); also writes public/config.json
 ```

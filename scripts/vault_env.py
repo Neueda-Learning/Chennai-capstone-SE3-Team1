@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import service_config  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KEY_FILE = REPO_ROOT / "leapcapstoneteam1-720d03.TM"
 DOTENV = REPO_ROOT / ".env"
@@ -39,24 +42,7 @@ def env_name_for(secret_name: str) -> str:
     return ENV_NAMES.get(secret_name, secret_name.upper())
 
 
-def parse_dotenv(text: str) -> dict:
-    values = {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export "):].strip()
-        key, sep, value = line.partition("=")
-        if not sep or not key.strip():
-            continue
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] == '"':
-            value = value[1:-1].replace("\\n", "\n")
-        elif len(value) >= 2 and value[0] == value[-1] == "'":
-            value = value[1:-1]
-        values[key.strip()] = value
-    return values
+parse_dotenv = service_config.parse_env
 
 
 def dotenv() -> dict:
@@ -68,11 +54,12 @@ def dotenv() -> dict:
 
 
 def setting(name: str, default: Optional[str] = None) -> Optional[str]:
-    """A plain setting: the environment variable, then .env, then the default."""
+    """A plain setting: the environment variable, then .env, then Application/Config/services.env
+    (where the default hosts, ports and URLs live), then ``default``."""
     value = os.environ.get(name)
     if value:
         return value
-    return dotenv().get(name) or default
+    return dotenv().get(name) or service_config.config_file_values().get(name) or default
 
 
 def _option(name: str) -> Optional[str]:

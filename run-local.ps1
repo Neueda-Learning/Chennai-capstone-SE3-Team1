@@ -14,17 +14,18 @@
       1. Checks java, mvn, python, node, npm, psql and Application\Services\auth-service, and
          decides where secrets come from: the TrustMe vault (key file present, password typed
          or passed) or, with -NoVault, a blank password or no key file, the repository's .env.
-      2. Kafka 3.8.0 CLI tools: downloads to -KafkaHome if absent. Without -KafkaHosted,
-         uses a broker already listening on localhost:29092 (then :9092), or else formats
-         KRaft storage once and starts a local broker on 29092. With -KafkaHosted, instead
-         looks for the remote broker at -KafkaHost on port 29092 and then 9092 (or only
-         -KafkaPort). Either way, creates the six contracted topics against whichever broker
-         is in play.
+      2. Kafka CLI tools (the version in KAFKA_VERSION): downloads to -KafkaHome if absent.
+         Without -KafkaHosted, uses a broker already listening on this machine at KAFKA_PORT
+         (then KAFKA_LEGACY_PORT), or else formats KRaft storage once and starts a local broker on
+         KAFKA_PORT. With -KafkaHosted, instead looks for the remote broker at -KafkaHost on
+         KAFKA_PORT and then KAFKA_LEGACY_PORT (or only -KafkaPort). Either way, creates the six
+         contracted topics against whichever broker is in play.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
       4. Builds libs/domain-engine, libs/eventbus, order-service and executor-service, and the auth service
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
          and dist\ when they are there.
-      5. Starts the auth service (:3000), the API (:8081) and the executor (:8082), waits for
+      5. Starts the auth service, the API and the executor on the ports in
+         Application\Config\services.env, waits for
          health on all three. All three read their database settings and JWT_SECRET from the
          same place apply_db.py does - the vault, or POSTGRES_* and JWT_SECRET in .env - so the
          auth service and the API/executor always sign and verify with the same key.
@@ -39,7 +40,7 @@
 .PARAMETER NoVault           Don't use the TrustMe vault at all: every secret comes from the repository's .env (copy .env.example).
 .PARAMETER KafkaHosted       Connect to a Kafka broker running elsewhere instead of starting one locally. Prompts for -KafkaHost if it isn't passed. No broker is started or stopped on this machine in this mode - only the CLI tools run here, to create topics and let you inspect it.
 .PARAMETER KafkaHost         Address of the remote broker, used only with -KafkaHosted. Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
-.PARAMETER KafkaPort         Kafka's port. Without it, 29092 is tried first and then 9092, and the first one that answers is used (a local broker this script has to start itself uses 29092). Give it when the broker is on some other port, e.g. after `bash Application/Infrastructure/Kafka/up.sh --port 39092` on the Kafka box.
+.PARAMETER KafkaPort         Kafka's port. Without it, KAFKA_PORT is tried first and then KAFKA_LEGACY_PORT (both in Application\Config\services.env), and the first one that answers is used (a local broker this script has to start itself uses KAFKA_PORT). Give it when the broker is on some other port, e.g. after `bash Application/Infrastructure/Kafka/up.sh --port <port>` on the Kafka box.
 .PARAMETER KafkaHome         Where Kafka lives / gets installed - the broker files in local mode, just the CLI tools with -KafkaHosted. Default C:\kafka.
 .PARAMETER SkipBuild         Reuse the jars already in target\.
 .PARAMETER ResetDb           Drop and recreate trading_platform before migrating.
@@ -83,15 +84,6 @@ $RepoRoot   = $PSScriptRoot
 $KeyFile    = Join-Path $RepoRoot "leapcapstoneteam1-720d03.TM"
 $LogDir     = Join-Path $RepoRoot "logs\local"
 $PidFile    = Join-Path $LogDir "pids.json"
-$KafkaVer   = "3.8.0"
-$KafkaUrl   = "https://archive.apache.org/dist/kafka/$KafkaVer/kafka_2.13-$KafkaVer.tgz"
-$ApiPort    = 8081
-$ExecPort   = 8082
-# Kafka's PLAINTEXT port: 29092 first and then 9092, unless -KafkaPort names one. $KafkaPort is
-# settled to the port actually in use once the broker has been found (or started) in step 2.
-$KafkaPortList = if ($KafkaPort) { @($KafkaPort) } else { @(29092, 9092) }
-$KafkaPort     = $KafkaPortList[0]
-$AuthPort   = 3000
 $AuthDir    = Join-Path $RepoRoot "Application\Services\auth-service"
 $AuthMain   = Join-Path $AuthDir "dist\main.js"
 $Topics     = @{ "orders"=3; "trade-events"=3; "market-data"=6; "orders.DLT"=3; "trade-events.DLT"=3; "market-data.DLT"=6 }
@@ -116,13 +108,61 @@ function Test-Port($port, $hostName = "127.0.0.1") {
 }
 
 # Kafka's port on $hostName: the first of $ports that accepts a connection, or $null. The default
-# list is 29092 and then 9092, so the new port wins and the old one still works.
+# list is KAFKA_PORT and then KAFKA_LEGACY_PORT, so the new port wins and the old one still works.
 function Find-KafkaPort($hostName, $ports) {
     foreach ($p in $ports) {
         if (Test-Port $p $hostName) { return $p }
     }
     return $null
 }
+
+# ---------------------------------------------------------------- where the services live
+# Application\Config\services.env is the one place a service host, port or URL is written. The
+# repo-root .env overrides it, and a real environment variable overrides both. Nothing below
+# repeats a value: it all comes from $Svc.
+function Read-EnvFile($path) {
+    $values = @{}
+    if (-not (Test-Path $path)) { return $values }
+    foreach ($line in Get-Content $path) {
+        $text = $line.Trim()
+        if (-not $text -or $text.StartsWith("#")) { continue }
+        $eq = $text.IndexOf("=")
+        if ($eq -lt 1) { continue }
+        $key = $text.Substring(0, $eq).Trim()
+        $value = $text.Substring($eq + 1).Trim()
+        if ($value.Length -ge 2 -and ($value[0] -eq '"' -or $value[0] -eq "'") -and $value[$value.Length - 1] -eq $value[0]) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        $values[$key] = $value
+    }
+    return $values
+}
+$Svc = Read-EnvFile (Join-Path $RepoRoot "Application\Config\services.env")
+$dotenvValues = Read-EnvFile (Join-Path $RepoRoot ".env")
+foreach ($key in @($Svc.Keys)) {
+    if ($dotenvValues.ContainsKey($key) -and $dotenvValues[$key]) { $Svc[$key] = $dotenvValues[$key] }
+    $fromEnvironment = [Environment]::GetEnvironmentVariable($key)
+    if ($fromEnvironment) { $Svc[$key] = $fromEnvironment }
+}
+function Get-Svc($name) {
+    if (-not $Svc[$name]) { Fail "$name is not set. It belongs in Application\Config\services.env (the environment or .env can override it)." }
+    return $Svc[$name]
+}
+
+$KafkaVer      = Get-Svc "KAFKA_VERSION"
+$KafkaUrl      = "$(Get-Svc 'KAFKA_DOWNLOAD_BASE_URL')/$KafkaVer/kafka_2.13-$KafkaVer.tgz"
+$ApiHost       = Get-Svc "TRADE_API_HOST"
+$ApiPort       = [int](Get-Svc "TRADE_API_PORT")
+$ExecHost      = Get-Svc "EXECUTOR_HOST"
+$ExecPort      = [int](Get-Svc "EXECUTOR_PORT")
+$AuthHost      = Get-Svc "AUTH_SERVICE_HOST"
+$AuthPort      = [int](Get-Svc "AUTH_SERVICE_PORT")
+$PostgresPort  = [int](Get-Svc "POSTGRES_PORT")
+$KafkaControllerPort = [int](Get-Svc "KAFKA_CONTROLLER_PORT")
+# Kafka's PLAINTEXT port: KAFKA_PORT first and then KAFKA_LEGACY_PORT, unless -KafkaPort names one.
+# $KafkaPort is settled to the port actually in use once the broker has been found (or started).
+$KafkaPortList = if ($KafkaPort) { @($KafkaPort) } else { @([int](Get-Svc "KAFKA_PORT"), [int](Get-Svc "KAFKA_LEGACY_PORT")) }
+$KafkaPort     = $KafkaPortList[0]
 
 function Wait-Until($label, [scriptblock]$test, $seconds = 120) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -133,14 +173,14 @@ function Wait-Until($label, [scriptblock]$test, $seconds = 120) {
     Write-Host "    $label NOT ready after ${seconds}s" -ForegroundColor Red; return $false
 }
 
-function Get-Health($port) {
-    try { (Invoke-RestMethod -Uri "http://localhost:$port/actuator/health" -TimeoutSec 5).status -eq "UP" } catch { $false }
+function Get-Health($hostName, $port) {
+    try { (Invoke-RestMethod -Uri "http://${hostName}:$port/actuator/health" -TimeoutSec 5).status -eq "UP" } catch { $false }
 }
 
 # The auth service is NestJS (terminus), not Spring: /health answers {"status":"ok"} with a 200,
 # and a 503 - which Invoke-RestMethod throws on - when it is not healthy.
 function Get-AuthHealth {
-    try { (Invoke-RestMethod -Uri "http://localhost:$AuthPort/health" -TimeoutSec 5).status -eq "ok" } catch { $false }
+    try { (Invoke-RestMethod -Uri "http://${AuthHost}:$AuthPort/health" -TimeoutSec 5).status -eq "ok" } catch { $false }
 }
 
 function Read-Pids {
@@ -185,7 +225,7 @@ if (-not $psql) {
     if ($cand) { $env:PSQL_BIN = $cand.FullName; $env:PATH = "$($cand.DirectoryName);$env:PATH" } else { Fail "psql not found; install PostgreSQL" }
 }
 if (-not (Test-Path (Join-Path $AuthDir "package.json"))) { Fail "auth service missing: $AuthDir" }
-if (-not (Test-Port 5432)) { Fail "Postgres is not listening on 5432 (start the postgresql service)" }
+if (-not (Test-Port $PostgresPort)) { Fail "Postgres is not listening on $PostgresPort (start the postgresql service)" }
 
 # Secrets: the TrustMe vault when its key file is here and a password is given, otherwise the
 # repository's .env. Each service would fall back secret by secret on its own, but run-local picks
@@ -260,7 +300,7 @@ if (-not (Test-Path $kafkaCfg)) {
 if ($KafkaHosted) {
     # No broker runs on this machine; -KafkaHost is expected to already be running one
     # (bash Application/Infrastructure/Kafka/up.sh on the Linux box). Nothing here is tracked in
-    # pids.json / -Stop. The port is the first of 29092, 9092 (or -KafkaPort) that answers.
+    # pids.json / -Stop. The port is the first of KAFKA_PORT, KAFKA_LEGACY_PORT (or -KafkaPort) that answers.
     $kafkaPid = $null
     $found = $null
     $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -283,7 +323,7 @@ if ($KafkaHosted) {
     # broker and tools are launched straight from the jars instead.
     $kafkaDataDir = "C:\tmp\kraft-combined-logs"      # log.dirs default in server.properties
     $existing = Read-Pids
-    # A broker already answering on a Kafka port (29092 first, then 9092) is used as it is.
+    # A broker already answering on a Kafka port (KAFKA_PORT first, then KAFKA_LEGACY_PORT) is used as it is.
     $listening = Find-KafkaPort "127.0.0.1" $KafkaPortList
     # pids.json has no kafka entry when the broker was started outside this script (or was already
     # running when it ran); Get-Process -Id $null throws and PowerShell then skips this whole block.
@@ -320,12 +360,12 @@ if ($KafkaHosted) {
         }
         $kp = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir "kafka.log") -RedirectStandardError (Join-Path $LogDir "kafka.err") `
-            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg, "--override", "log.cleaner.enable=false", "--override", "log.retention.hours=876000", "--override", "listeners=PLAINTEXT://:$KafkaPort,CONTROLLER://:9093", "--override", "advertised.listeners=PLAINTEXT://localhost:$KafkaPort")
+            -ArgumentList @("-Xms256m", "-Xmx512m", "-Dlog4j.configuration=$kafkaLog4j", "-Dkafka.logs.dir=$LogDir", "-cp", $kafkaLibs, "kafka.Kafka", $kafkaCfg, "--override", "log.cleaner.enable=false", "--override", "log.retention.hours=876000", "--override", "listeners=PLAINTEXT://:$KafkaPort,CONTROLLER://:$KafkaControllerPort", "--override", "controller.quorum.voters=1@localhost:$KafkaControllerPort", "--override", "advertised.listeners=PLAINTEXT://localhost:$KafkaPort")
         $kafkaPid = $kp.Id
         Write-Host "    broker starting (pid $kafkaPid)"
         if (-not (Wait-Until "kafka :$KafkaPort" { Test-Port $KafkaPort } 90)) { Fail "see $LogDir\kafka.log" }
     }
-    $KafkaBootstrap = "localhost:$KafkaPort"
+    $KafkaBootstrap = "$(Get-Svc 'KAFKA_HOST'):$KafkaPort"
 }
 
 Write-Host "    ensuring topics"
@@ -413,7 +453,7 @@ $jvmCommon = if ($UseVault) { @("-Xmx512m", "-Dtrustme.password=$TrustMePassword
 # Kafka producer (trade-api publishes ORDER_PLACED, the executor publishes/consumes everything
 # else), and Spring only reads env vars present at JVM startup - setting it after the API was
 # already launched (an earlier version of this script did exactly that) meant the API silently
-# fell back to its localhost:29092 default, which happened to work only because Kafka used to
+# fell back to its built-in Kafka address, which happened to work only because Kafka used to
 # run on this same machine.
 $env:KAFKA_BOOTSTRAP_SERVERS = $KafkaBootstrap
 
@@ -460,23 +500,23 @@ if ($authStubProc -and $authStubProc.ProcessName -ne "node") {
         Write-Host "    auth       node on PATH is a shim ($($authStubProc.ProcessName)) and no node.exe child appeared within 5s; tracking the shim's own pid, which -Stop may not actually kill" -ForegroundColor Yellow
     }
 }
-Write-Host "    auth       pid $authStubId  -> http://localhost:$AuthPort  (OpenAPI docs: /docs)"
+Write-Host "    auth       pid $authStubId  -> http://${AuthHost}:$AuthPort  (OpenAPI docs: /docs)"
 
 $api = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "api.log") -RedirectStandardError (Join-Path $LogDir "api.err") `
     -ArgumentList ($jvmCommon + @("-jar", $apiJar))
-Write-Host "    trade-api  pid $($api.Id)  -> http://localhost:$ApiPort"
+Write-Host "    trade-api  pid $($api.Id)  -> http://${ApiHost}:$ApiPort"
 
 $exe = Start-Process -FilePath java -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $LogDir "executor.log") -RedirectStandardError (Join-Path $LogDir "executor.err") `
     -ArgumentList ($jvmCommon + @("-jar", $execJar))
-Write-Host "    executor   pid $($exe.Id)  -> http://localhost:$ExecPort"
+Write-Host "    executor   pid $($exe.Id)  -> http://${ExecHost}:$ExecPort"
 
 @{ kafka = $kafkaPid; api = $api.Id; executor = $exe.Id; auth = $authStubId; started = (Get-Date).ToString("s") } | ConvertTo-Json | Set-Content $PidFile
 
 $authStubUp = Wait-Until "auth      /health"        { Get-AuthHealth } 60
-$apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiPort } 150
-$execUp = Wait-Until "executor  /actuator/health" { Get-Health $ExecPort } 150
+$apiUp  = Wait-Until "trade-api /actuator/health" { Get-Health $ApiHost $ApiPort } 150
+$execUp = Wait-Until "executor  /actuator/health" { Get-Health $ExecHost $ExecPort } 150
 if (-not ($apiUp -and $execUp -and $authStubUp)) { Write-Host "    check $LogDir\*.log for the failure" -ForegroundColor Red }
 
 # ------------------------------------------------------------------ 6. token + cheat sheet
@@ -495,24 +535,24 @@ Set-Content (Join-Path $LogDir "token.txt") $token
 $logsList = if ($KafkaHosted) { "api,executor,auth" } else { "api,executor,auth,kafka" }
 Say "Ready" Green
 Write-Host @"
-  Trade API   http://localhost:$ApiPort      Executor  http://localhost:$ExecPort      Kafka $KafkaBootstrap$(if ($KafkaHosted) { " (remote)" })
-  Auth        http://localhost:$AuthPort      (OpenAPI docs http://localhost:$AuthPort/docs)
+  Trade API   http://${ApiHost}:$ApiPort      Executor  http://${ExecHost}:$ExecPort      Kafka $KafkaBootstrap$(if ($KafkaHosted) { " (remote)" })
+  Auth        http://${AuthHost}:$AuthPort      (OpenAPI docs http://${AuthHost}:$AuthPort/docs)
   Logs        $LogDir\{$logsList}.log        PIDs  $PidFile
   JWT (acct 1, 1h)  saved to $LogDir\token.txt
 
   # place an order (PowerShell; the -replace escapes quotes for curl.exe, which PS 5.1 otherwise strips)
   `$T = Get-Content '$LogDir\token.txt'
   `$body = '{"accountId":1,"symbol":"RELIANCE","side":"BUY","quantity":1,"price":1300.00,"idempotencyKey":"k-' + [DateTimeOffset]::Now.ToUnixTimeSeconds() + '"}'
-  curl.exe -s -X POST localhost:$ApiPort/api/v1/orders -H "Authorization: Bearer `$T" -H "Content-Type: application/json" -d (`$body -replace '"','\"')
-  curl.exe -s localhost:$ApiPort/api/v1/accounts/1/orders  -H "Authorization: Bearer `$T"
-  curl.exe -s localhost:$ApiPort/api/v1/accounts/1/balance -H "Authorization: Bearer `$T"
+  curl.exe -s -X POST ${ApiHost}:$ApiPort/api/v1/orders -H "Authorization: Bearer `$T" -H "Content-Type: application/json" -d (`$body -replace '"','\"')
+  curl.exe -s ${ApiHost}:$ApiPort/api/v1/accounts/1/orders  -H "Authorization: Bearer `$T"
+  curl.exe -s ${ApiHost}:$ApiPort/api/v1/accounts/1/balance -H "Authorization: Bearer `$T"
 
     # onboard a new user end to end through the auth service (PowerShell): register, log in, claim
   # one of the seeded unclaimed bank accounts, refresh, fund the wallet. To run it again, change the
   # username and email and claim another unclaimed account: IN45ICIC0000008901234,
   # IN45SBIN0000009012345, IN45AXIS0000010123456, IN45KKBK0000011234567, IN45YESB0000012345678.
   # Seeded users can't log in: their password hashes are placeholders.
-  `$A = 'http://localhost:$AuthPort'; `$API = 'http://localhost:$ApiPort'
+  `$A = 'http://${AuthHost}:$AuthPort'; `$API = 'http://${ApiHost}:$ApiPort'
   # POSTs under /auth are encrypted, so Invoke-RestMethod/curl are refused (422): scripts\auth_post.py does the encrypting.
   python scripts\auth_post.py --% register "{\"username\":\"priya.menon\",\"email\":\"priya.menon@example.com\",\"password\":\"Correct-Horse-Battery-9\"}"
   `$S = python scripts\auth_post.py --% login "{\"username\":\"priya.menon\",\"password\":\"Correct-Horse-Battery-9\"}" | ConvertFrom-Json

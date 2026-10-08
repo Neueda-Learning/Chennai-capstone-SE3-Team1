@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { loadServiceConfig, serviceUrl } from './scripts/service-config.mjs';
+
 // The repository's one .env (copied from the root .env.example). Missing is fine: every value has
 // a default, and a variable already set in the environment is not overridden.
 try {
@@ -7,7 +9,8 @@ try {
 } catch {
 }
 
-const baseURL = process.env['BASE_URL'] ?? 'http://localhost:4200';
+// The UI under test is FRONTEND_HOST:FRONTEND_PORT in Application/Config/services.env (BASE_URL still overrides).
+const baseURL = process.env['BASE_URL'] ?? serviceUrl(loadServiceConfig(), 'FRONTEND');
 
 export default defineConfig({
   testDir: './e2e',

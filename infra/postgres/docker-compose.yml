@@ -1,5 +1,11 @@
-# Variables come from the repository's one .env:  docker compose --env-file ../../.env up -d
-# Inside a container there is no TrustMe vault, so every service uses its environment fallbacks.
+# Postgres, the Trade API and the auth service in containers. Every host and port comes from
+# Application/Config/services.env; the repository's one .env overrides it and holds the secrets.
+# Start with BOTH files, the shared config first (needs docker compose 2.24 or newer):
+#
+#   docker compose --env-file ../../Application/Config/services.env --env-file ../../.env up -d --build
+#
+# Inside a container there is no TrustMe vault, so every service uses its environment fallbacks, and
+# there is no repository tree, so services.env reaches each container through env_file below.
 services:
   postgres:
     image: postgres:17
@@ -11,7 +17,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:?set in Application/Config/services.env}:${POSTGRES_CONTAINER_PORT:?set in Application/Config/services.env}"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../../Application/Databases/PostgreSQL/migrations:/migrations:ro
@@ -33,17 +39,23 @@ services:
 
   trade-api:
     build:
-      context: ../../Application/Services/order-service
-      dockerfile: Dockerfile
+      # The Dockerfile copies paths from the repository root, so that is the build context.
+      context: ../..
+      dockerfile: Application/Services/order-service/Dockerfile
+      target: trade-api
+      args:
+        TRADE_API_CONTAINER_PORT: ${TRADE_API_CONTAINER_PORT:?set in Application/Config/services.env}
     container_name: team1_trade_api
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ../../Application/Config/services.env
     environment:
       # Postgres is reached by service name; localhost inside a container is the container.
       POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
+      POSTGRES_PORT: ${POSTGRES_CONTAINER_PORT:?set in Application/Config/services.env}
       POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -51,14 +63,18 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-auth-service}
       FAUXNANCE_API_KEY: ${FAUXNANCE_API_KEY:-}
-      FAUXNANCE_BASE_URL: ${FAUXNANCE_BASE_URL:-}
+      FAUXNANCE_BASE_URL: ${FAUXNANCE_BASE_URL:?set in Application/Config/services.env}
+      # Where Kafka is, as the shared config (or your .env) says.
+      KAFKA_HOST: ${KAFKA_HOST:?set in Application/Config/services.env}
+      KAFKA_PORT: ${KAFKA_PORT:?set in Application/Config/services.env}
       TRADE_CURRENCY: ${TRADE_CURRENCY:-INR}
     ports:
-      - "${TRADE_API_PORT:-8080}:8080"
+      - "${TRADE_API_PORT:?set in Application/Config/services.env}:${TRADE_API_CONTAINER_PORT:?set in Application/Config/services.env}"
     networks:
       - trading_net
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      # SERVER_PORT is baked into the image from TRADE_API_CONTAINER_PORT.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:$$SERVER_PORT/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -68,26 +84,31 @@ services:
     build:
       context: ../../Application/Services/auth-service
       dockerfile: Dockerfile
+      args:
+        AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:?set in Application/Config/services.env}
     container_name: team1_auth_service
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ../../Application/Config/services.env
     environment:
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
+      POSTGRES_PORT: ${POSTGRES_CONTAINER_PORT:?set in Application/Config/services.env}
       POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       AUTH_PRIVATE_KEY: ${AUTH_PRIVATE_KEY:-}
-      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:29092}
+      KAFKA_HOST: ${KAFKA_HOST:?set in Application/Config/services.env}
+      KAFKA_PORT: ${KAFKA_PORT:?set in Application/Config/services.env}
     ports:
-      - "${AUTH_PORT:-3000}:3000"
+      - "${AUTH_SERVICE_PORT:?set in Application/Config/services.env}:${AUTH_SERVICE_PORT:?set in Application/Config/services.env}"
     networks:
       - trading_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$AUTH_SERVICE_PORT/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

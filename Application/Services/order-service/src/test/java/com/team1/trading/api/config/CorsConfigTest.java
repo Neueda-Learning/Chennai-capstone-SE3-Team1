@@ -28,7 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("CORS preflight handling")
 class CorsConfigTest {
 
-    private static final String ALLOWED_ORIGIN = "http://localhost:4200";
+    /** The UI's origin from Application/Config/services.env (FRONTEND_HOST, FRONTEND_PORT). */
+    @org.springframework.beans.factory.annotation.Value("http://${FRONTEND_HOST}:${FRONTEND_PORT}")
+    private String allowedOrigin;
 
     @Autowired
     private MockMvc mockMvc;
@@ -40,7 +42,7 @@ class CorsConfigTest {
         @Test
         void preflight_is_not_rejected_as_unauthorized() throws Exception {
             mockMvc.perform(options("/api/v1/accounts/1/balance")
-                            .header("Origin", ALLOWED_ORIGIN)
+                            .header("Origin", allowedOrigin)
                             .header("Access-Control-Request-Method", "GET")
                             .header("Access-Control-Request-Headers", "authorization"))
                     .andExpect(status().is2xxSuccessful());
@@ -49,15 +51,15 @@ class CorsConfigTest {
         @Test
         void preflight_advertises_the_requesting_origin() throws Exception {
             mockMvc.perform(options("/api/v1/accounts/1/balance")
-                            .header("Origin", ALLOWED_ORIGIN)
+                            .header("Origin", allowedOrigin)
                             .header("Access-Control-Request-Method", "GET"))
-                    .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));
+                    .andExpect(header().string("Access-Control-Allow-Origin", allowedOrigin));
         }
 
         @Test
         void preflight_advertises_the_methods_the_api_exposes() throws Exception {
             String allowed = mockMvc.perform(options("/api/v1/accounts/1/balance")
-                            .header("Origin", ALLOWED_ORIGIN)
+                            .header("Origin", allowedOrigin)
                             .header("Access-Control-Request-Method", "GET"))
                     .andReturn().getResponse().getHeader("Access-Control-Allow-Methods");
 
@@ -71,7 +73,7 @@ class CorsConfigTest {
         @Test
         void preflight_advertises_authorization_as_an_allowed_header() throws Exception {
             String allowed = mockMvc.perform(options("/api/v1/accounts/1/balance")
-                            .header("Origin", ALLOWED_ORIGIN)
+                            .header("Origin", allowedOrigin)
                             .header("Access-Control-Request-Method", "GET")
                             .header("Access-Control-Request-Headers", "authorization"))
                     .andReturn().getResponse().getHeader("Access-Control-Allow-Headers");
@@ -90,17 +92,17 @@ class CorsConfigTest {
         @Test
         void a_valid_get_carries_the_allow_origin_header() throws Exception {
             mockMvc.perform(get("/api/v1/accounts/1/balance")
-                            .header("Origin", ALLOWED_ORIGIN)
+                            .header("Origin", allowedOrigin)
                             .header("Authorization", TestJwtBuilder.forAccount(1L)
                                     .withSub("user-123").withRoles("CUSTOMER").buildWithTestSecret()))
-                    .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));
+                    .andExpect(header().string("Access-Control-Allow-Origin", allowedOrigin));
         }
 
         @Test
         void an_unauthorised_get_still_carries_the_allow_origin_header() throws Exception {
-            mockMvc.perform(get("/api/v1/accounts/1/balance").header("Origin", ALLOWED_ORIGIN))
+            mockMvc.perform(get("/api/v1/accounts/1/balance").header("Origin", allowedOrigin))
                     .andExpect(status().isUnauthorized())
-                    .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));
+                    .andExpect(header().string("Access-Control-Allow-Origin", allowedOrigin));
         }
     }
 

@@ -67,7 +67,8 @@ derived artifacts came as separate follow-up commits on the same branch.)
 never edited), `warehouse.duckdb`, `docs/`, `design/`, `legacy/`.
 
 ## Invariants held through the move
-* **Ports frozen:** 4200 / 3000 / 8081 / 8082 / 29092 / 5432 — including the Docker `8080` mapping.
+* **Ports:** 4200 / 3000 / 8081 / 8082 / 29092 / 5432 — including the Docker `8080` mapping. They are
+  written once, in `Config/services.env` (see `Config/README.md`); nothing else repeats them.
 * **Secrets frozen:** everything still resolves from the TrustMe vault; only
   *relative* `trustme.key-file` defaults were re-pointed (`../` → `../../../`).
 * **Maven coordinates frozen:** `artifactId`s, jar names and the Docker build

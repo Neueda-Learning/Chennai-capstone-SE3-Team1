@@ -27,13 +27,15 @@ follow [Diagnosis](#diagnosis) before changing anything.
 or any time something looks off):
 
 ```bash
-bash Application/Infrastructure/Kafka/up.sh              # port 29092 (or the one saved in .env)
+bash Application/Infrastructure/Kafka/up.sh              # KAFKA_PORT from Application/Config/services.env
 bash Application/Infrastructure/Kafka/up.sh --port 9092  # any port from 1024 to 65535
 ```
 
-`--port` is the one port Kafka listens on, publishes and advertises to clients. It is saved as
-`KAFKA_PORT` in the repo-root `.env`, so the next run without `--port` keeps it. (19092 and 29093
-are Kafka's own internal/controller listeners and can't be chosen.) That's it - no `.env` to
+`--port` is the one port Kafka listens on, publishes and advertises to clients. A port other than the
+one in `Application/Config/services.env` is saved as `KAFKA_PORT` in the repo-root `.env`, so the next
+run without `--port` keeps it; asking for the default again removes that override. (`KAFKA_INTERNAL_PORT`
+and `KAFKA_CONTROLLER_PORT` are Kafka's own internal listeners and can't be chosen.) Every port and URL
+the script uses is read from that file. That's it - no `.env` to
 hand-edit. Every run does the same thing, start to finish:
 
 1. Uses the repository's one `.env` at the repo root (creating it from `.env.example` on first

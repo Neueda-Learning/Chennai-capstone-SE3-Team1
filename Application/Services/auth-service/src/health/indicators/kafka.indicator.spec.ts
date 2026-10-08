@@ -2,6 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { KafkaHealthIndicator } from './kafka.indicator';
 import { ConfigService } from '@nestjs/config';
 
+// A made-up broker: the real address comes from Application/Config/services.env via configuration.ts.
+const BROKER_HOST = 'broker.test';
+const BROKER_PORT = 4242;
+const BROKER = `${BROKER_HOST}:${BROKER_PORT}`;
+
 const mockSocket = {
   setTimeout: jest.fn(),
   on: jest.fn(),
@@ -22,11 +27,13 @@ describe('KafkaHealthIndicator', () => {
   let configService: ConfigService;
 
   beforeEach(async () => {
+    const values: Record<string, any> = { 'app.kafka.broker': BROKER };
     configService = {
-      get: jest.fn((key: string) => {
-        const values: Record<string, any> = {
-          'app.kafka.broker': 'localhost:29092',
-        };
+      get: jest.fn((key: string) => values[key]),
+      getOrThrow: jest.fn((key: string) => {
+        if (!(key in values)) {
+          throw new Error(`${key} is not configured`);
+        }
         return values[key];
       }),
     } as any;
@@ -68,16 +75,16 @@ describe('KafkaHealthIndicator', () => {
         kafka: {
           status: 'up',
           message: 'Kafka broker reachable',
-          broker: 'localhost:29092',
+          broker: BROKER,
         },
       });
-      expect(mockSocket.connect).toHaveBeenCalledWith(29092, 'localhost');
+      expect(mockSocket.connect).toHaveBeenCalledWith(BROKER_PORT, BROKER_HOST);
       expect(mockLogger.logFromSource).toHaveBeenCalledWith(
         'kafka',
         'log',
         'Health check passed',
         'kafka',
-        { broker: 'localhost:29092' },
+        { broker: BROKER },
       );
     });
 
@@ -99,7 +106,7 @@ describe('KafkaHealthIndicator', () => {
         'error',
         'Health check failed',
         'kafka',
-        { broker: 'localhost:29092' },
+        { broker: BROKER },
         expect.any(String),
       );
     });
@@ -122,7 +129,7 @@ describe('KafkaHealthIndicator', () => {
         'error',
         'Health check failed',
         'kafka',
-        { broker: 'localhost:29092' },
+        { broker: BROKER },
         expect.any(String),
       );
     });

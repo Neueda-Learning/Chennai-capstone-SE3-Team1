@@ -1,3 +1,6 @@
+# A Kafka for running the auth service on its own. Every host and port comes from
+# Application/Config/services.env; start it with
+#   docker compose --env-file ../../Config/services.env up -d
 version: '3.8'
 
 services:
@@ -6,9 +9,9 @@ services:
     container_name: team1-kafka
     environment:
       - KAFKA_PROCESS_ROLES=broker,controller
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:29092
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:${KAFKA_CONTROLLER_PORT:?set it in Application/Config/services.env}
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:${KAFKA_PORT:?set it in Application/Config/services.env},CONTROLLER://0.0.0.0:${KAFKA_CONTROLLER_PORT:?set it in Application/Config/services.env}
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${KAFKA_HOST:?set it in Application/Config/services.env}:${KAFKA_PORT:?set it in Application/Config/services.env}
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
@@ -23,12 +26,12 @@ services:
       - KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=300000
       - CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
     ports:
-      - "29092:29092"
-      - "9093:9093"
+      - "${KAFKA_PORT:?set it in Application/Config/services.env}:${KAFKA_PORT:?set it in Application/Config/services.env}"
+      - "${KAFKA_CONTROLLER_PORT:?set it in Application/Config/services.env}:${KAFKA_CONTROLLER_PORT:?set it in Application/Config/services.env}"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:${KAFKA_PORT:?set it in Application/Config/services.env}"]
       interval: 10s
       timeout: 10s
       retries: 5

@@ -43,3 +43,6 @@ __screenshots__/
 
 .DS_Store
 Thumbs.db
+
+# Written by scripts/generate-config.mjs from Application/Config/services.env
+/public/config.json

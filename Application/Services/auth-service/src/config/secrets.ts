@@ -2,9 +2,11 @@ import { existsSync, readFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { parseEnv } from 'util';
 import trustme, { TrustMeClient } from 'trustme-secrets';
+import { findUp, servicesConfig } from './service-config';
+
+export { findUp };
 
 const KEY_FILE_NAME = 'leapcapstoneteam1-720d03.TM';
-const SEARCH_DEPTH = 5;
 
 /** Vault secret name to the environment variable that stands in for it. */
 export const ENV_NAMES: Readonly<Record<string, string>> = {
@@ -31,23 +33,6 @@ function argOption(name: string): string | undefined {
 
 function nonBlank(value: string | undefined): string | undefined {
   return value !== undefined && value.trim() !== '' ? value : undefined;
-}
-
-/** The nearest file called `name`, walking up from `start`. */
-export function findUp(name: string, start = process.cwd()): string | null {
-  let dir = resolve(start);
-  for (let i = 0; i <= SEARCH_DEPTH; i++) {
-    const candidate = join(dir, name);
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      break;
-    }
-    dir = parent;
-  }
-  return null;
 }
 
 /**
@@ -107,7 +92,11 @@ export async function openVault(): Promise<TrustMeClient | null> {
   }
 }
 
-/** A secret from the vault, else from its environment variable (or `.env`), else ''. */
+/**
+ * A secret from the vault, else from its environment variable (or `.env`), else from
+ * Application/Config/services.env (which holds the non-secret ones, such as the database host and
+ * port and the market-data URL), else ''.
+ */
 export async function readSecret(vault: TrustMeClient | null, name: string): Promise<string> {
   if (vault !== null) {
     try {
@@ -119,5 +108,6 @@ export async function readSecret(vault: TrustMeClient | null, name: string): Pro
       // fall back to the environment below
     }
   }
-  return process.env[envNameFor(name)] ?? '';
+  const envName = envNameFor(name);
+  return process.env[envName] || servicesConfig()[envName] || '';
 }

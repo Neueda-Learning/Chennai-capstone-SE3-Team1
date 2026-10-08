@@ -29,7 +29,14 @@ If `psql` is not on `PATH` the scripts look in
 
 ## Configuration and secrets
 
-Every secret is looked up in the same order, by every service and script:
+**Where the services live.** Every host, port and URL of a service is written once, in
+[`Application/Config/services.env`](Application/Config/services.env), and read from there by the
+frontend, the services, the scripts, `run-local.ps1`, Docker and Kafka (see
+[`Application/Config/README.md`](Application/Config/README.md)). Nothing else repeats them:
+`python scripts/check_config.py` (also `tests/test_config_rule.py`) fails if one does. To point one
+machine elsewhere, put the same key in your `.env`.
+
+**Secrets.** Every secret is looked up in the same order, by every service and script:
 
 1. **The TrustMe vault** (`leapcapstoneteam1-720d03.TM`), when its key file exists and a password
    is supplied: `run-local.ps1` asks for it, or pass `-Dtrustme.password` (Java),
@@ -55,12 +62,12 @@ The resolvers are `VaultEnvironmentPostProcessor` (Trade API and executor, behin
 `${trustme.secret.NAME}`), `src/config/secrets.ts` (auth service) and `scripts/vault_env.py`
 (Python). In the Spring test profile (`trustme.enabled=false`) neither the vault nor `.env` is read.
 
-Everything else is a plain value in code or in `application.properties` / `application.yml`
-(ports, the JWT issuer, the currency, the `.NS` symbol suffix, the poll interval). The other
-settings read from the environment or `.env` are `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_BROKER`
-(where Kafka is: `localhost` on a laptop, another host with `run-local.ps1 -KafkaHosted`),
-`NODE_ENV` (set by the runtime), `PSQL_BIN` (where `psql` is), the Kafka box's `KAFKA_PORT` and
-`KAFKA_ADVERTISED_HOST`, and the Playwright settings (`BASE_URL`, `TEST_USERNAME`, ...).
+Everything else that is not an address is a plain value in code or in `application.properties` /
+`application.yml` (the JWT issuer, the currency, the `.NS` symbol suffix, the poll interval). The
+other settings read from the environment or `.env` are `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_BROKER`
+(to point a service at a Kafka other than `KAFKA_HOST:KAFKA_PORT`), `NODE_ENV` (set by the runtime),
+`PSQL_BIN` (where `psql` is), the Kafka box's `KAFKA_ADVERTISED_HOST`, and the Playwright login
+(`TEST_USERNAME`, `TEST_PASSWORD`).
 
 To add a secret, add it to TrustMe and give it a fallback line in `.env.example`.
 

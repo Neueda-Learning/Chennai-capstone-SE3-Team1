@@ -57,9 +57,11 @@ prompts for a password. See `src/config/secrets.ts` and `src/config/configuratio
 | `AUTH_PRIVATE_KEY` | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
 | `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | Market-data API key and base URL. Optional |
 
-Fixed in code: port `3000`, JWT issuer `auth-service`. Registration creates the account `ACTIVE`: there is no email verification and no password-reset route.
-Read from the environment: `NODE_ENV` (default `development`) and `KAFKA_BROKER` (default
-`localhost:29092`, used only by the health check).
+Fixed in code: the JWT issuer `auth-service`. Registration creates the account `ACTIVE`: there is no email verification and no password-reset route.
+The port it listens on (`AUTH_SERVICE_PORT`) and the Kafka it health-checks (`KAFKA_HOST:KAFKA_PORT`) come
+from `Application/Config/services.env`, read by `src/config/service-config.ts`; an environment variable
+or `.env` entry of the same name overrides them. `KAFKA_BROKER` overrides the Kafka address alone, and
+`NODE_ENV` defaults to `development`.
 
 ## Docker
 

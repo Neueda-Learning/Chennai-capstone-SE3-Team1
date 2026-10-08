@@ -1,9 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 
+import { loadServiceConfig, serviceUrl } from '../scripts/service-config.mjs';
 import { SESSION_KEY } from './test-user';
 
-export const AUTH_API = process.env['AUTH_API_BASE'] ?? 'http://localhost:3000';
-export const TRADE_API = process.env['TRADE_API_BASE'] ?? 'http://localhost:8081';
+// Where the services are comes from Application/Config/services.env (AUTH_API_BASE / TRADE_API_BASE still override).
+const services = loadServiceConfig();
+export const AUTH_API = process.env['AUTH_API_BASE'] ?? serviceUrl(services, 'AUTH_SERVICE');
+export const TRADE_API = process.env['TRADE_API_BASE'] ?? serviceUrl(services, 'TRADE_API');
 
 export const rupees = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
 

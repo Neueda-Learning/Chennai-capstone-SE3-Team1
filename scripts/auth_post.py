@@ -8,7 +8,9 @@ Every POST under /auth takes an encrypted envelope (see Application/Services/aut
     python scripts/auth_post.py refresh '{"refreshToken":"..."}'
     python scripts/auth_post.py logout '{"refreshToken":"..."}' --token <ACCESS_TOKEN>
 
-Or from Python:  from auth_post import post;  status, body = post("http://localhost:3000", "login", {...})
+Or from Python:  from auth_post import post;  status, body = post(base_url, "login", {...})
+
+The auth service address comes from AUTH_SERVICE_HOST / AUTH_SERVICE_PORT in Application/Config/services.env.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import sys
 import urllib.error
 import urllib.request
 
+import service_config
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -74,7 +77,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("path", help="route under /auth, e.g. login, register, refresh")
     parser.add_argument("body", help="JSON request body")
-    parser.add_argument("--base", default="http://localhost:3000", help="auth service URL")
+    parser.add_argument("--base", default=service_config.url("AUTH_SERVICE"), help="auth service URL")
     parser.add_argument("--token", help="access token, for routes that need one (logout)")
     args = parser.parse_args()
 

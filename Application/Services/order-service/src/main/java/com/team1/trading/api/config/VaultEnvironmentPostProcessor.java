@@ -22,6 +22,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
+ * Also makes the keys of {@code Application/Config/services.env} (service hosts, ports and URLs)
+ * available to {@code ${...}} placeholders, below the environment and {@code .env}.
+ *
  * Resolves {@code ${trustme.secret.NAME}}: the TrustMe vault first, then an environment variable,
  * then the repository's {@code .env} file. The vault is opened only when its key file exists and a
  * password is supplied ({@code -Dtrustme.password}, {@code -Dtrustme.password-file}, {@code TRUSTME_PASSWORD}
@@ -67,6 +70,16 @@ public class VaultEnvironmentPostProcessor implements EnvironmentPostProcessor, 
                 environment.getPropertySources().addLast(new MapPropertySource("dotenv", readDotEnv(dotenv)));
                 log.info("Read fallback settings from " + dotenv);
             }
+        }
+        // Every host, port and URL is written once, in Application/Config/services.env. It is the
+        // lowest source, so the environment and .env override it, and it is read in every profile
+        // (the test profile included) because it holds no secrets.
+        Path services = findServicesConfig(Paths.get("").toAbsolutePath(), environment.getProperty("SERVICES_CONFIG_FILE"));
+        if (services != null) {
+            environment.getPropertySources().addLast(new MapPropertySource("services-config", readDotEnv(services)));
+            log.info("Read service addresses from " + services);
+        } else {
+            log.info("Application/Config/services.env not found; service addresses must come from the environment");
         }
         TrustMe vault = enabled ? openVault(environment) : null;
         environment.getPropertySources().addLast(new SecretSource(vault, environment, log));
@@ -122,6 +135,28 @@ public class VaultEnvironmentPostProcessor implements EnvironmentPostProcessor, 
                 System.setProperty("trustme.password-file", previous);
             }
         }
+    }
+
+    /**
+     * Application/Config/services.env: {@code override} when given (the Docker images have no
+     * repository tree, so they are pointed at a copy), else the nearest one found walking up from
+     * {@code start}.
+     */
+    public static Path findServicesConfig(Path start, String override) {
+        if (override != null && !override.isBlank()) {
+            Path explicit = Paths.get(override.trim());
+            return Files.isRegularFile(explicit) ? explicit : null;
+        }
+        Path dir = start;
+        for (int i = 0; dir != null && i <= DOTENV_SEARCH_DEPTH; i++, dir = dir.getParent()) {
+            for (String relative : new String[]{"Application/Config/services.env", "Config/services.env"}) {
+                Path candidate = dir.resolve(relative);
+                if (Files.isRegularFile(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     public static Path findDotEnv(Path start) {

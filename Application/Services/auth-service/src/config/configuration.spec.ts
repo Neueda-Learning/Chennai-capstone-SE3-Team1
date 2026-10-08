@@ -24,6 +24,7 @@ jest.mock('trustme-secrets', () => ({
 
 import { configuration, validationSchema } from './configuration';
 import { ENV_NAMES } from './secrets';
+import { serviceAddress, servicePort, servicesConfig, serviceUrl } from './service-config';
 
 const VAULT = {
   JWT_SECRET: 'a-vault-jwt-secret-of-at-least-32-chars',
@@ -96,18 +97,23 @@ describe('configuration', () => {
     expect(config.fauxnance).toEqual({ apiKey: 'vault-fauxnance-key', baseUrl: 'https://fauxnance.vault.test/v1' });
   });
 
-  it('still starts with no market-data secrets at all', async () => {
+  it('still starts with no market-data secrets at all: no key, and the endpoint from services.env', async () => {
     for (const name of ['Fauxnance', 'Fauxnance_Endpoint']) {
       delete secrets[name];
     }
+    delete process.env.FAUXNANCE_BASE_URL;
 
     const config = await load();
 
-    expect(config.fauxnance).toEqual({ apiKey: '', baseUrl: '' });
+    expect(config.fauxnance).toEqual({
+      apiKey: '',
+      baseUrl: (servicesConfig().FAUXNANCE_BASE_URL as string).replace(/\/+$/, ''),
+    });
     expect(config.jwt.secret).toBe(VAULT.JWT_SECRET);
   });
 
-  it.each(['JWT_SECRET', 'PostGres_Host', 'Postgres_Port', 'Postgres_DB', 'PostGres_User', 'PostGres'])(
+  // The database host and port are not listed: they default from services.env (tested above).
+  it.each(['JWT_SECRET', 'Postgres_DB', 'PostGres_User', 'PostGres'])(
     'refuses to start without %s, naming it',
     async (name) => {
       delete secrets[name];
@@ -158,6 +164,22 @@ describe('configuration', () => {
     expect(config.fauxnance).toEqual({ apiKey: 'env-key', baseUrl: 'https://fauxnance.env.test' });
   });
 
+  it('takes the database host and port, and the market-data URL, from services.env when nothing else has them', async () => {
+    delete secrets['PostGres_Host'];
+    delete secrets['Postgres_Port'];
+    delete secrets['Fauxnance_Endpoint'];
+    for (const name of ['POSTGRES_HOST', 'POSTGRES_PORT', 'FAUXNANCE_BASE_URL']) {
+      delete process.env[name];
+    }
+
+    const config = await load();
+
+    expect(config.database.host).toBe(servicesConfig().POSTGRES_HOST);
+    expect(config.database.port).toBe(Number(servicesConfig().POSTGRES_PORT));
+    expect(config.fauxnance.baseUrl).toBe((servicesConfig().FAUXNANCE_BASE_URL as string).replace(/\/+$/, ''));
+    expect(config.database.password).toBe('vault-password');
+  });
+
   it('skips the vault when there is no key file, without prompting', async () => {
     process.env.TRUSTME_KEY_FILE = 'no-such-key-file.TM';
     delete secrets['JWT_SECRET'];
@@ -182,7 +204,33 @@ describe('configuration', () => {
     expect(config.database.host).toBe('db.vault.test');
     expect(config.database.password).toBe('vault-password');
     expect(config.fauxnance.apiKey).toBe('vault-fauxnance-key');
-    expect(config.port).toBe(3000);
+    expect(config.port).toBe(servicePort('AUTH_SERVICE'));
+  });
+
+  it('listens where services.env says, and reports its own base URL from the same place', async () => {
+    delete process.env.AUTH_SERVICE_PORT;
+
+    const config = await load();
+
+    expect(config.port).toBe(servicePort('AUTH_SERVICE'));
+    expect(config.baseUrl).toBe(serviceUrl('AUTH_SERVICE'));
+  });
+
+  it('lets an environment variable override the port in services.env', async () => {
+    process.env.AUTH_SERVICE_PORT = '4321';
+
+    const config = await load();
+
+    expect(config.port).toBe(4321);
+    expect(config.baseUrl.endsWith(':4321')).toBe(true);
+  });
+
+  it('reaches Kafka at the address in services.env when KAFKA_BROKER is not set', async () => {
+    delete process.env.KAFKA_BROKER;
+
+    const config = await load();
+
+    expect(config.kafka.broker).toBe(serviceAddress('KAFKA'));
   });
 
   it('still honours NODE_ENV and KAFKA_BROKER, the two things the runtime and the deployment set', async () => {
@@ -201,7 +249,7 @@ describe('validationSchema', () => {
     const { error, value } = validationSchema.validate({});
 
     expect(error).toBeUndefined();
-    expect(value).toEqual({ NODE_ENV: 'development', KAFKA_BROKER: 'localhost:29092' });
+    expect(value).toEqual({ NODE_ENV: 'development' });
   });
 
   it('rejects an unknown NODE_ENV', () => {

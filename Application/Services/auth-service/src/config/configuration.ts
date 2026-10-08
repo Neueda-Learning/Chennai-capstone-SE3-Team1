@@ -2,8 +2,8 @@ import { registerAs } from '@nestjs/config';
 import * as Joi from 'joi';
 import { TrustMeClient } from 'trustme-secrets';
 import { envNameFor, openVault, readSecret } from './secrets';
+import { serviceAddress, serviceHost, servicePort, serviceUrl } from './service-config';
 
-const SERVICE_PORT = 3000;
 const JWT_ISSUER = 'auth-service';
 
 async function required(vault: TrustMeClient | null, name: string): Promise<string> {
@@ -34,7 +34,11 @@ export const configuration = registerAs('app', async () => {
 
   return {
     nodeEnv: process.env.NODE_ENV || 'development',
-    port: SERVICE_PORT,
+    // Where this service listens, and where it is reached: AUTH_SERVICE_HOST / AUTH_SERVICE_PORT in
+    // Application/Config/services.env.
+    host: serviceHost('AUTH_SERVICE'),
+    port: servicePort('AUTH_SERVICE'),
+    baseUrl: serviceUrl('AUTH_SERVICE'),
 
     jwt: {
       secret: jwtSecret,
@@ -56,7 +60,8 @@ export const configuration = registerAs('app', async () => {
     },
 
     kafka: {
-      broker: process.env.KAFKA_BROKER ?? 'localhost:29092',
+      // KAFKA_BROKER overrides; otherwise KAFKA_HOST:KAFKA_PORT from Application/Config/services.env.
+      broker: process.env.KAFKA_BROKER ?? serviceAddress('KAFKA'),
     },
 
     fauxnance: {
@@ -70,5 +75,5 @@ export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
-  KAFKA_BROKER: Joi.string().default('localhost:29092'),
+  KAFKA_BROKER: Joi.string(),
 }).unknown(true);

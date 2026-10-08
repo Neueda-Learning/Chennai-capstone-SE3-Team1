@@ -7,13 +7,19 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KAFKA_CONTAINER="${KAFKA_CONTAINER:-team1_kafka}"
 
-# Unless told otherwise, use the port up.sh last started Kafka on (KAFKA_PORT in the repo-root .env).
+# Unless told otherwise, use the Kafka port in Application/Config/services.env, or the override that
+# up.sh --port saved in the repo-root .env. The environment variable KAFKA_PORT wins over both.
 if [ -z "${KAFKA_BOOTSTRAP_SERVERS:-}" ]; then
-    port=""
-    if [ -f "$SCRIPT_DIR/../../../../.env" ]; then
-        port="$({ grep -E '^KAFKA_PORT=' "$SCRIPT_DIR/../../../../.env" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r')"
-    fi
-    KAFKA_BOOTSTRAP_SERVERS="localhost:${port:-29092}"
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+    CONFIG_FILE="${SERVICES_CONFIG_FILE:-$REPO_ROOT/Application/Config/services.env}"
+    port="${KAFKA_PORT:-}"
+    for file in "$REPO_ROOT/.env" "$CONFIG_FILE"; do
+        [ -n "$port" ] && break
+        [ -f "$file" ] || continue
+        port="$({ grep -E '^KAFKA_PORT=' "$file" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+    done
+    [ -n "$port" ] || { echo "KAFKA_PORT is not set; it belongs in $CONFIG_FILE" >&2; exit 1; }
+    KAFKA_BOOTSTRAP_SERVERS="localhost:$port"
 fi
 
 if ! command -v docker >/dev/null 2>&1; then

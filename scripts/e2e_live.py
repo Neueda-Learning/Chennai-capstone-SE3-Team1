@@ -42,6 +42,7 @@ from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import service_config
 from auth_post import post as auth_post  # POSTs under /auth are encrypted
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -381,12 +382,12 @@ class Run:
 def parse(argv=None):
     on_windows = os.name == "nt"
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--api", default="http://localhost:8081")
-    p.add_argument("--auth", default="http://localhost:3000")
+    p.add_argument("--api", default=service_config.url("TRADE_API"))
+    p.add_argument("--auth", default=service_config.url("AUTH_SERVICE"))
     p.add_argument("--token-file", default=str(REPO_ROOT / "logs" / "local" / "token.txt"))
     p.add_argument("--username", help="sign in through the auth service instead of reading the token file")
     p.add_argument("--password", default=os.environ.get("E2E_PASSWORD", ""))
-    p.add_argument("--bootstrap", default="localhost:29092")
+    p.add_argument("--bootstrap", default=service_config.address("KAFKA"))
     p.add_argument("--kafka-home", default="C:\\kafka" if on_windows else "/opt/kafka")
     p.add_argument("--channel", choices=["PUSH", "EMAIL"], default="PUSH")
     p.add_argument("--symbol", help="trade and alert on this symbol (default: the first live quote)")
