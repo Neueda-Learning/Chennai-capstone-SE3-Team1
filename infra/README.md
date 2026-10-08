@@ -27,26 +27,30 @@ follow [Diagnosis](#diagnosis) before changing anything.
 or any time something looks off):
 
 ```bash
-bash Application/Infrastructure/Kafka/up.sh
+bash Application/Infrastructure/Kafka/up.sh              # port 29092 (or the one saved in .env)
+bash Application/Infrastructure/Kafka/up.sh --port 9092  # any port from 1024 to 65535
 ```
 
-That's it - no `.env` to hand-edit. Every run does the same thing, start to finish:
+`--port` is the one port Kafka listens on, publishes and advertises to clients. It is saved as
+`KAFKA_PORT` in the repo-root `.env`, so the next run without `--port` keeps it. (19092 and 29093
+are Kafka's own internal/controller listeners and can't be chosen.) That's it - no `.env` to
+hand-edit. Every run does the same thing, start to finish:
 
 1. Uses the repository's one `.env` at the repo root (creating it from `.env.example` on first
    run, and passing it to Compose with `--env-file`), and auto-detects this box's own reachable
    address (EC2 metadata endpoint, falling back to `hostname -I`) for `KAFKA_ADVERTISED_HOST`.
    It leaves `KAFKA_ADVERTISED_HOST` alone once it's been set to something other than the
-   `localhost` default, so a manual override always wins. It refuses to run if `KAFKA_PORT` is
-   not `29092`, because the broker advertises that port.
+   `localhost` default, so a manual override always wins. It refuses an invalid `--port`
+   straight away, and a port that another process on the box is already using.
 2. **Always restarts Kafka entirely**: `down -v --remove-orphans`, then a fresh container. Every
    topic and offset is discarded.
 3. Waits for the container to be healthy (up to 240 s, `HEALTH_TIMEOUT` to change it).
 4. Creates the six topics (`scripts/create-topics.sh`).
 5. Runs seven checks and prints PASS/FAIL for each: the broker answers on the external
-   (`localhost:29092`) and internal (`kafka:19092`) listeners; all six topics exist with the
+   (`localhost:<port>`) and internal (`kafka:19092`) listeners; all six topics exist with the
    contracted partitions, retention and in-sync leaders; automatic topic creation is off; a
-   message produced to a scratch topic is consumed back; port 29092 is open on the box; and the
-   advertised address `KAFKA_ADVERTISED_HOST:29092` accepts connections from the box itself.
+   message produced to a scratch topic is consumed back; the port is open on the box; and the
+   advertised address `KAFKA_ADVERTISED_HOST:<port>` accepts connections from the box itself.
 
 It exits `0` only when every check passes, and otherwise exits `1` after printing the broker's
 last log lines. Because it wipes the topics each time, don't run it while the Windows services
@@ -68,7 +72,9 @@ that looks unrelated to the real cause.
 
 It prompts for the TrustMe password (Enter, or `-NoVault`, uses the repo-root `.env` instead) and
 for the Kafka host's address (the same value you
-just put in the Linux box's `.env`), then builds, creates the six topics on that remote
+just put in the Linux box's `.env`). It looks for Kafka on that host on port **29092 first and
+then 9092**, and uses whichever answers; if you started Kafka with `up.sh --port <other>`, pass
+`-KafkaPort <other>`. Then it builds, creates the six topics on that remote
 broker, starts the auth stub + API + executor locally, and tails their logs. `-KafkaHost` /
 `-TrustMePassword` skip the prompts if you'd rather script it; `-Stop` shuts down the local
 processes without touching Kafka (that's stopped separately, on Linux).

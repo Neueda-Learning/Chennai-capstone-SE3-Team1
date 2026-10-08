@@ -8,16 +8,18 @@
     Run from anywhere; the script cd's to the repo root it lives in. Windows PowerShell 5.1
     compatible. No Docker. By default Kafka runs as a plain local broker started by this
     script; pass -KafkaHosted to instead connect to a broker already running elsewhere
-    (e.g. docker-compose in infra/kafka on a Linux box) - you'll be prompted for its address.
+    (e.g. Application/Infrastructure/Kafka/up.sh on a Linux box) - you'll be prompted for its address.
 
     What it does, in order:
       1. Checks java, mvn, python, node, npm, psql and Application\Services\auth-service, and
          decides where secrets come from: the TrustMe vault (key file present, password typed
          or passed) or, with -NoVault, a blank password or no key file, the repository's .env.
       2. Kafka 3.8.0 CLI tools: downloads to -KafkaHome if absent. Without -KafkaHosted,
-         also formats KRaft storage once and starts a local broker, waiting for :29092. With
-         -KafkaHosted, instead verifies the remote broker at -KafkaHost:29092 is reachable.
-         Either way, creates the six contracted topics against whichever broker is in play.
+         uses a broker already listening on localhost:29092 (then :9092), or else formats
+         KRaft storage once and starts a local broker on 29092. With -KafkaHosted, instead
+         looks for the remote broker at -KafkaHost on port 29092 and then 9092 (or only
+         -KafkaPort). Either way, creates the six contracted topics against whichever broker
+         is in play.
       3. Applies migrations + seed to local Postgres via scripts\apply_db.py (-ResetDb rebuilds).
       4. Builds libs/domain-engine, libs/eventbus, order-service and executor-service, and the auth service
          (npm ci if node_modules is missing, then npm run build). -SkipBuild reuses the jars
@@ -37,6 +39,7 @@
 .PARAMETER NoVault           Don't use the TrustMe vault at all: every secret comes from the repository's .env (copy .env.example).
 .PARAMETER KafkaHosted       Connect to a Kafka broker running elsewhere instead of starting one locally. Prompts for -KafkaHost if it isn't passed. No broker is started or stopped on this machine in this mode - only the CLI tools run here, to create topics and let you inspect it.
 .PARAMETER KafkaHost         Address of the remote broker, used only with -KafkaHosted. Prompted for if omitted - always asked fresh, never cached, since it can change between sessions.
+.PARAMETER KafkaPort         Kafka's port. Without it, 29092 is tried first and then 9092, and the first one that answers is used (a local broker this script has to start itself uses 29092). Give it when the broker is on some other port, e.g. after `bash Application/Infrastructure/Kafka/up.sh --port 39092` on the Kafka box.
 .PARAMETER KafkaHome         Where Kafka lives / gets installed - the broker files in local mode, just the CLI tools with -KafkaHosted. Default C:\kafka.
 .PARAMETER SkipBuild         Reuse the jars already in target\.
 .PARAMETER ResetDb           Drop and recreate trading_platform before migrating.
@@ -63,6 +66,7 @@ param(
     [switch]$NoVault,
     [switch]$KafkaHosted,
     [string]$KafkaHost,
+    [ValidateRange(0, 65535)][int]$KafkaPort = 0,
     [string]$KafkaHome = "C:\kafka",
     [switch]$SkipBuild,
     [switch]$ResetDb,
@@ -83,7 +87,10 @@ $KafkaVer   = "3.8.0"
 $KafkaUrl   = "https://archive.apache.org/dist/kafka/$KafkaVer/kafka_2.13-$KafkaVer.tgz"
 $ApiPort    = 8081
 $ExecPort   = 8082
-$KafkaPort  = 29092
+# Kafka's PLAINTEXT port: 29092 first and then 9092, unless -KafkaPort names one. $KafkaPort is
+# settled to the port actually in use once the broker has been found (or started) in step 2.
+$KafkaPortList = if ($KafkaPort) { @($KafkaPort) } else { @(29092, 9092) }
+$KafkaPort     = $KafkaPortList[0]
 $AuthPort   = 3000
 $AuthDir    = Join-Path $RepoRoot "Application\Services\auth-service"
 $AuthMain   = Join-Path $AuthDir "dist\main.js"
@@ -106,6 +113,15 @@ function Test-Port($port, $hostName = "127.0.0.1") {
         if ($ok) { $c.EndConnect($r) }
         $c.Close(); return $ok
     } catch { return $false }
+}
+
+# Kafka's port on $hostName: the first of $ports that accepts a connection, or $null. The default
+# list is 29092 and then 9092, so the new port wins and the old one still works.
+function Find-KafkaPort($hostName, $ports) {
+    foreach ($p in $ports) {
+        if (Test-Port $p $hostName) { return $p }
+    }
+    return $null
 }
 
 function Wait-Until($label, [scriptblock]$test, $seconds = 120) {
@@ -195,7 +211,7 @@ if ($UseVault) {
     $SecretSource = ".env"
 }
 if ($KafkaHosted -and -not $KafkaHost) {
-    $KafkaHost = Read-Host "Kafka host (the box running docker-compose in infra/kafka)"
+    $KafkaHost = Read-Host "Kafka host (the box running Application/Infrastructure/Kafka/up.sh)"
 }
 if ($KafkaHosted -and -not $KafkaHost) { Fail "Kafka host is required with -KafkaHosted (pass -KafkaHost or enter it when prompted)" }
 Write-Host "    java: $((cmd /c "java -version 2>&1" | Select-Object -First 1))"
@@ -222,7 +238,7 @@ if ($LASTEXITCODE -ne 0 -or -not $JwtSecret) { Fail "could not read JWT_SECRET f
 if ($JwtSecret.Length -lt 32) { Fail "JWT_SECRET ($SecretSource) must be at least 32 characters (the auth service refuses a shorter one)" }
 
 # ------------------------------------------------------------------ 2. kafka
-if ($KafkaHosted) { Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}:${KafkaPort}" }
+if ($KafkaHosted) { Say "Kafka CLI tools ($KafkaVer, cached at $KafkaHome) -> broker at ${KafkaHost}, port $($KafkaPortList -join ' or ')" }
 else { Say "Kafka $KafkaVer at $KafkaHome" }
 $kafkaLibs = Join-Path $KafkaHome "libs\*"
 $kafkaCfg  = Join-Path $KafkaHome "config\kraft\server.properties"
@@ -243,10 +259,23 @@ if (-not (Test-Path $kafkaCfg)) {
 
 if ($KafkaHosted) {
     # No broker runs on this machine; -KafkaHost is expected to already be running one
-    # (docker-compose up in infra/kafka). Nothing here is tracked in pids.json / -Stop.
+    # (bash Application/Infrastructure/Kafka/up.sh on the Linux box). Nothing here is tracked in
+    # pids.json / -Stop. The port is the first of 29092, 9092 (or -KafkaPort) that answers.
     $kafkaPid = $null
-    if (-not (Wait-Until "kafka ${KafkaHost}:${KafkaPort}" { Test-Port $KafkaPort $KafkaHost } 30)) {
-        Fail "Can't reach Kafka at ${KafkaHost}:${KafkaPort}. Is 'docker-compose up' running there (infra/kafka/docker-compose.yml)? Is a firewall/security group blocking port $KafkaPort?"
+    $found = $null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $found -and $sw.Elapsed.TotalSeconds -lt 30) {
+        $found = Find-KafkaPort $KafkaHost $KafkaPortList
+        if (-not $found) { Start-Sleep 2 }
+    }
+    if (-not $found) {
+        Write-Host "    kafka ${KafkaHost}: nothing answered on port $($KafkaPortList -join ' or ')" -ForegroundColor Red
+        Fail "Can't reach Kafka at ${KafkaHost} on port $($KafkaPortList -join ' or '). Is it running there (bash Application/Infrastructure/Kafka/up.sh)? Is a firewall/security group blocking the port?"
+    }
+    $KafkaPort = $found
+    Write-Host "    kafka ${KafkaHost}:${KafkaPort} ready ($([int]$sw.Elapsed.TotalSeconds)s)" -ForegroundColor Green
+    if ($KafkaPortList.Count -gt 1 -and $KafkaPort -ne $KafkaPortList[0]) {
+        Write-Host "    (nothing answered on port $($KafkaPortList[0]); using $KafkaPort)" -ForegroundColor Yellow
     }
     $KafkaBootstrap = "${KafkaHost}:$KafkaPort"
 } else {
@@ -254,12 +283,16 @@ if ($KafkaHosted) {
     # broker and tools are launched straight from the jars instead.
     $kafkaDataDir = "C:\tmp\kraft-combined-logs"      # log.dirs default in server.properties
     $existing = Read-Pids
+    # A broker already answering on a Kafka port (29092 first, then 9092) is used as it is.
+    $listening = Find-KafkaPort "127.0.0.1" $KafkaPortList
     # pids.json has no kafka entry when the broker was started outside this script (or was already
     # running when it ran); Get-Process -Id $null throws and PowerShell then skips this whole block.
-    if ($existing -and $existing.kafka -and (Get-Process -Id $existing.kafka -ErrorAction SilentlyContinue) -and (Test-Port $KafkaPort)) {
-        Write-Host "    broker already running (pid $($existing.kafka))"
+    if ($existing -and $existing.kafka -and (Get-Process -Id $existing.kafka -ErrorAction SilentlyContinue) -and $listening) {
+        $KafkaPort = $listening
+        Write-Host "    broker already running (pid $($existing.kafka)) on $KafkaPort"
         $kafkaPid = $existing.kafka
-    } elseif (Test-Port $KafkaPort) {
+    } elseif ($listening) {
+        $KafkaPort = $listening
         Write-Host "    something else already listens on $KafkaPort; using it" -ForegroundColor Yellow
         $kafkaPid = $null
     } else {

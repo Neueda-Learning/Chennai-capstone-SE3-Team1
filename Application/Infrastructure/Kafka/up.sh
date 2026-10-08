@@ -8,7 +8,9 @@
 #   4. Creates the six contracted topics (scripts/create-topics.sh).
 #   5. Runs every check below and exits 1 if any fails, printing the broker log.
 #
-# Run it as:  bash Application/Infrastructure/Kafka/up.sh
+# Run it as:  bash Application/Infrastructure/Kafka/up.sh [--port PORT]
+#   --port PORT  the port Kafka listens on, publishes and advertises to clients. Default: KAFKA_PORT
+#                in .env, else 29092. The choice is saved to .env, so a later run keeps it.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +22,42 @@ die() { printf '[kafka] ERROR: %s\n' "$*" >&2; exit 1; }
 
 CONTAINER="team1_kafka"          # container_name in docker-compose.yml
 KAFKA_BIN="/opt/kafka/bin"
-EXTERNAL_PORT=29092              # PLAINTEXT listener: published to the host and advertised to clients
-INTERNAL_ADDR="kafka:19092"      # INTERNAL listener: reachable only inside the container network
+EXTERNAL_PORT=29092              # PLAINTEXT listener: published to the host and advertised to clients (set below)
+INTERNAL_PORT=19092              # INTERNAL listener: reachable only inside the container network
+CONTROLLER_PORT=29093            # KRaft controller listener, also container-internal
+INTERNAL_ADDR="kafka:$INTERNAL_PORT"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-240}"
+
+usage() {
+    cat <<'EOF'
+Usage: bash Application/Infrastructure/Kafka/up.sh [--port PORT]
+
+Restarts Kafka from scratch, creates the topics and checks that it works.
+
+  --port PORT   The port Kafka listens on, is published on and advertises to clients,
+                1024-65535. Default: KAFKA_PORT in the repository's .env, else 29092.
+                The choice is saved to .env, so a later run without --port keeps it.
+  -h, --help    Show this help.
+EOF
+}
+
+REQUESTED_PORT=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --port)   [ $# -ge 2 ] || die "--port needs a value"; REQUESTED_PORT="$2"; shift 2 ;;
+        --port=*) REQUESTED_PORT="${1#--port=}"; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; die "unknown argument: $1" ;;
+    esac
+done
+
+valid_port() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]; }
+if [ -n "$REQUESTED_PORT" ]; then
+    valid_port "$REQUESTED_PORT" || die "--port must be a number from 1024 to 65535 (got '$REQUESTED_PORT')"
+    case "$REQUESTED_PORT" in
+        "$INTERNAL_PORT"|"$CONTROLLER_PORT") die "port $REQUESTED_PORT is used by Kafka's own internal/controller listeners; choose another with --port" ;;
+    esac
+fi
 
 # ------------------------------------------------------------------ 1. environment
 # The repository's one .env, at its root (ENV_FILE overrides the location).
@@ -56,11 +91,29 @@ fi
 
 ADVERTISED_HOST="$(env_value KAFKA_ADVERTISED_HOST)"
 ADVERTISED_HOST="${ADVERTISED_HOST:-localhost}"
-HOST_PORT="$(env_value KAFKA_PORT)"
-HOST_PORT="${HOST_PORT:-$EXTERNAL_PORT}"
-# The broker advertises $EXTERNAL_PORT, and run-local.ps1 connects to it, so the published host
-# port has to be the same number or clients are bounced to a port nothing listens on.
-[ "$HOST_PORT" = "$EXTERNAL_PORT" ] || die "KAFKA_PORT is $HOST_PORT in $ENV_FILE but the broker advertises $EXTERNAL_PORT; set KAFKA_PORT=$EXTERNAL_PORT"
+
+# The port: --port, else KAFKA_PORT from .env, else the default. The compose file uses this one
+# number for the listener, the advertised address, the published port and the healthcheck.
+if [ -n "$REQUESTED_PORT" ]; then
+    EXTERNAL_PORT="$REQUESTED_PORT"
+else
+    EXTERNAL_PORT="$(env_value KAFKA_PORT)"
+    EXTERNAL_PORT="${EXTERNAL_PORT:-29092}"
+    valid_port "$EXTERNAL_PORT" || die "KAFKA_PORT in $ENV_FILE is '$EXTERNAL_PORT', which is not a port number from 1024 to 65535"
+fi
+case "$EXTERNAL_PORT" in
+    "$INTERNAL_PORT"|"$CONTROLLER_PORT") die "port $EXTERNAL_PORT is used by Kafka's own internal/controller listeners; choose another with --port" ;;
+esac
+if [ "$(env_value KAFKA_PORT)" != "$EXTERNAL_PORT" ]; then
+    if grep -q '^KAFKA_PORT=' "$ENV_FILE"; then
+        sed -i.bak "s|^KAFKA_PORT=.*|KAFKA_PORT=${EXTERNAL_PORT}|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    else
+        printf 'KAFKA_PORT=%s\n' "$EXTERNAL_PORT" >> "$ENV_FILE"
+    fi
+    log "KAFKA_PORT set to $EXTERNAL_PORT in $ENV_FILE"
+fi
+# Compose lets an exported variable override --env-file, so make sure a stale one cannot.
+export KAFKA_PORT="$EXTERNAL_PORT" KAFKA_ADVERTISED_HOST="$ADVERTISED_HOST"
 
 # ------------------------------------------------------------------ 2. docker
 command -v docker >/dev/null 2>&1 || die "docker is not on PATH"
@@ -77,6 +130,11 @@ docker info >/dev/null 2>&1 || die "cannot reach the Docker daemon (is it runnin
 log "stopping Kafka and discarding its data"
 compose down -v --remove-orphans
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+
+# This Kafka was just removed, so anything still answering on the port is somebody else's.
+if timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$EXTERNAL_PORT" 2>/dev/null; then
+    die "port $EXTERNAL_PORT on this machine is already in use by another process; stop it, or pick another port with --port"
+fi
 
 log "starting a fresh Kafka (advertising ${ADVERTISED_HOST}:${EXTERNAL_PORT})"
 compose up -d
@@ -109,7 +167,7 @@ log "container is healthy after about ${waited}s"
 
 # ------------------------------------------------------------------ 4. topics
 log "creating the contracted topics"
-if ! topics_out="$(KAFKA_CONTAINER="$CONTAINER" bash "$SCRIPT_DIR/scripts/create-topics.sh" 2>&1)"; then
+if ! topics_out="$(KAFKA_CONTAINER="$CONTAINER" KAFKA_BOOTSTRAP_SERVERS="localhost:$EXTERNAL_PORT" bash "$SCRIPT_DIR/scripts/create-topics.sh" 2>&1)"; then
     printf '%s\n' "$topics_out" >&2
     broker_log
     die "topic creation failed; a timeout here usually means KAFKA_ADVERTISED_HOST ($ADVERTISED_HOST) is wrong or unreachable from inside the container - check $ENV_FILE"
@@ -228,6 +286,9 @@ log "all $PASSED checks passed - Kafka is ready at ${ADVERTISED_HOST}:${EXTERNAL
 if [ "$ADVERTISED_HOST" = "localhost" ]; then
     log "WARNING: it advertises 'localhost', so only clients on this machine can use it; set KAFKA_ADVERTISED_HOST in $ENV_FILE and re-run"
 else
+    # run-local.ps1 probes 29092 then 9092 by itself; any other port has to be given.
+    case "$EXTERNAL_PORT" in 29092|9092) port_arg="" ;; *) port_arg=" -KafkaPort $EXTERNAL_PORT" ;; esac
+    log "open TCP $EXTERNAL_PORT in the security group / firewall for the Windows machines if it is not already"
     log "from each Windows machine:  Test-NetConnection $ADVERTISED_HOST -Port $EXTERNAL_PORT"
-    log "then:                       .\\run-local.ps1 -KafkaHosted -KafkaHost $ADVERTISED_HOST"
+    log "then:                       .\\run-local.ps1 -KafkaHosted -KafkaHost $ADVERTISED_HOST$port_arg"
 fi

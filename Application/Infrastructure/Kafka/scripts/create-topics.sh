@@ -4,8 +4,17 @@
 # below as the definition it verifies, so keep them in the form: create_topic <name> <partitions> <retention-ms>
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KAFKA_CONTAINER="${KAFKA_CONTAINER:-team1_kafka}"
-KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:29092}"
+
+# Unless told otherwise, use the port up.sh last started Kafka on (KAFKA_PORT in the repo-root .env).
+if [ -z "${KAFKA_BOOTSTRAP_SERVERS:-}" ]; then
+    port=""
+    if [ -f "$SCRIPT_DIR/../../../../.env" ]; then
+        port="$({ grep -E '^KAFKA_PORT=' "$SCRIPT_DIR/../../../../.env" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+    fi
+    KAFKA_BOOTSTRAP_SERVERS="localhost:${port:-29092}"
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "docker is not on PATH" >&2
