@@ -23,18 +23,34 @@ follow [Diagnosis](#diagnosis) before changing anything.
 
 ## Starting the stack
 
-**On the Linux box**, once per boot (or after any `down`):
+**On the Linux box**, whenever you want a fresh, verified Kafka (first start, after a reboot,
+or any time something looks off):
 
 ```bash
-bash infra/kafka/up.sh
+bash Application/Infrastructure/Kafka/up.sh
 ```
 
-That's it - no `.env` to hand-edit. It uses the repository's one `.env` at the repo root
-(creating it from `.env.example` on first run, and passing it to Compose with `--env-file`),
-auto-detects this box's own reachable address (EC2 metadata endpoint, falling back to
-`hostname -I`) for `KAFKA_ADVERTISED_HOST`, and brings Kafka up. Safe to re-run - it leaves
-`KAFKA_ADVERTISED_HOST` alone once it's been set to something other than the `localhost`
-default, so a manual override always wins.
+That's it - no `.env` to hand-edit. Every run does the same thing, start to finish:
+
+1. Uses the repository's one `.env` at the repo root (creating it from `.env.example` on first
+   run, and passing it to Compose with `--env-file`), and auto-detects this box's own reachable
+   address (EC2 metadata endpoint, falling back to `hostname -I`) for `KAFKA_ADVERTISED_HOST`.
+   It leaves `KAFKA_ADVERTISED_HOST` alone once it's been set to something other than the
+   `localhost` default, so a manual override always wins. It refuses to run if `KAFKA_PORT` is
+   not `29092`, because the broker advertises that port.
+2. **Always restarts Kafka entirely**: `down -v --remove-orphans`, then a fresh container. Every
+   topic and offset is discarded.
+3. Waits for the container to be healthy (up to 240 s, `HEALTH_TIMEOUT` to change it).
+4. Creates the six topics (`scripts/create-topics.sh`).
+5. Runs seven checks and prints PASS/FAIL for each: the broker answers on the external
+   (`localhost:29092`) and internal (`kafka:19092`) listeners; all six topics exist with the
+   contracted partitions, retention and in-sync leaders; automatic topic creation is off; a
+   message produced to a scratch topic is consumed back; port 29092 is open on the box; and the
+   advertised address `KAFKA_ADVERTISED_HOST:29092` accepts connections from the box itself.
+
+It exits `0` only when every check passes, and otherwise exits `1` after printing the broker's
+last log lines. Because it wipes the topics each time, don't run it while the Windows services
+are using this Kafka; restart them (`run-local.ps1`) afterwards.
 
 `KAFKA_ADVERTISED_HOST` has to be this box's own reachable address, not `localhost` (which
 only means something to a process running on the box itself) - if auto-detection ever fails
@@ -62,32 +78,34 @@ processes without touching Kafka (that's stopped separately, on Linux).
 | Action | Where | Command |
 |---|---|---|
 | Stop local services | Windows | `.\run-local.ps1 -Stop` |
-| Stop Kafka | Linux | `docker-compose -f infra/kafka/docker-compose.yml down` |
-| Reset Kafka to empty (deletes topics/offsets - there's no volume, so this is also what a plain restart does) | Linux | `docker-compose -f infra/kafka/docker-compose.yml down`, then `bash infra/kafka/up.sh`, then re-run `run-local.ps1` (or `infra/kafka/create-topics.sh`) to recreate topics |
+| Stop Kafka | Linux | `docker compose -f Application/Infrastructure/Kafka/docker-compose.yml down -v` |
+| Restart Kafka from scratch, recreate the topics and verify it (deletes topics/offsets) | Linux | `bash Application/Infrastructure/Kafka/up.sh` |
 | Reset the database to seed state | Windows | `.\run-local.ps1 -ResetDb` |
 
 ## Kafka
 
-- Topics are listed in `contracts/kafka-topics.md`. `run-local.ps1` creates them every run
-  (idempotent - `--if-not-exists`); `infra/kafka/create-topics.sh` does the same thing from
-  the Linux side, for testing Kafka without the rest of the stack running. Auto-creation is
+- Topics are listed in `Application/Contracts/event-schemas/kafka-topics.md`. `up.sh` creates
+  them on every restart, and `run-local.ps1` creates them every run (idempotent -
+  `--if-not-exists`). `Application/Infrastructure/Kafka/scripts/create-topics.sh` is what
+  `up.sh` calls, and can be run on its own against a running container. Auto-creation is
   off, so a topic that was never created fails loudly instead of appearing silently with one
   partition and default retention.
 - Dead-letter topics are named `<topic>.DLT` with the same partition count and retention as
   their source.
-- Kafka has no persistent volume: every `down` + `up` starts it empty. Topics have to be
-  recreated after each one (see above).
+- Kafka has no persistent volume: every restart through `up.sh` starts it empty, and the
+  topics are recreated straight away.
 
 ## Diagnosis
 
 - Is Docker running on the Linux box? `docker info` succeeds.
-- Is Kafka healthy? `docker-compose -f infra/kafka/docker-compose.yml ps` shows `healthy`.
+- Is Kafka healthy? `docker ps --filter name=team1_kafka` shows `(healthy)`. Re-running `up.sh`
+  re-checks everything and says which check fails.
 - Can Windows actually reach it? From a Windows box: `Test-NetConnection <KafkaHost> -Port 29092`.
 - Wrong advertised address is the most common failure and the least obvious from the error:
   if Kafka logs or `run-local.ps1`'s "ensuring topics" step complain about a broker that
   "does not host this topic-partition", check `KAFKA_ADVERTISED_HOST` in the Linux box's
   `.env` first.
-- Look at Kafka's logs: `docker-compose -f infra/kafka/docker-compose.yml logs --tail 200 kafka`.
+- Look at Kafka's logs: `docker logs --tail 200 team1_kafka`.
 - For the Windows-side services, check `logs\local\{api,executor,authstub}.{log,err}`.
 
 ## Notes
