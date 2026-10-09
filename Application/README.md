@@ -43,7 +43,7 @@ derived artifacts came as separate follow-up commits on the same branch.)
 | `migrations/000–024_*.sql` | `Databases/PostgreSQL/migrations/` (untouched — migrations are append-only) |
 | `seed/010–040_*.csv` | `Databases/PostgreSQL/seeds/` (same files) |
 | — (new, derived) | `Databases/PostgreSQL/schema.sql` — `pg_dump --schema-only` of a pristine `apply_db --reset` build, restore-validated |
-| — (new, derived) | `Databases/PostgreSQL/seed-data.sql` — `--data-only` dump of the 4 seeded tables (6/12/6/8 rows, matches the CSVs) |
+| — (new, derived) | `Databases/PostgreSQL/seed_data.sql` — `--data-only` dump of the 4 seeded tables (6/12/6/8 rows, matches the CSVs) |
 | — (new, derived) | `Databases/DuckDB/analytics/schema.sql` — the applied warehouse DDL consolidated in one file: `etl-trades` star schema + `etl-live` price store, each section source-marked |
 
 ### ETL layer
