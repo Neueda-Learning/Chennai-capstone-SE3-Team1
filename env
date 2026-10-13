@@ -5,7 +5,7 @@ PUBLIC_HOST=13.200.215.125
 # database (RDS)
 DB_HOST=database-1.c7e4oykk242a.ap-south-1.rds.amazonaws.com
 DB_PORT=5432
-DB_NAME=postgres
+DB_NAME=trading_platform
 DB_USER=postgres
 DB_PASSWORD=Yrvhere123456
 # Java services: SSL to RDS
