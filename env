@@ -1,0 +1,54 @@
+COMPOSE_PROJECT_NAME=team1
+COMPOSE_PROFILES=kafka,auth-service,order-service,executor-service,frontend
+PUBLIC_HOST=13.200.215.125
+
+# database (RDS)
+DB_HOST=database-1.c7e4oykk242a.ap-south-1.rds.amazonaws.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=Yrvhere123456
+# Java services: SSL to RDS
+JDBC_PARAMS=?sslmode=require
+# auth-service (node pg): SSL to RDS without checking the RDS certificate
+PGSSLMODE=no-verify
+
+JWT_SECRET=mission-control-shared-secret-key-32-bytes-minimum
+FAUXNANCE_API_KEY=fnx_dev_52KrPRXdxfUIavsuPCwEr7lOrb4QPUYv
+
+# auth service
+AUTH_SERVICE_DIR=./Application/Services/auth-service
+AUTH_SERVICE_PORT=3000
+APP_CONFIG_DIR=./Application/Config
+SERVICES_CONFIG_FILE=/config/services.env
+KAFKA_BROKER=kafka:29092
+
+# order service
+ORDER_SERVICE_DIR=./Application/Services
+ORDER_SERVICE_DOCKERFILE=order-service/Dockerfile
+ORDER_SERVICE_APP_DIR=order-service
+ORDER_SERVICE_PRE_INSTALL_DIRS=libs/domain-engine libs/eventbus
+ORDER_SERVICE_PORT=8081
+ORDER_SERVICE_HEALTH_PATH=/actuator/health
+
+# executor service
+EXECUTOR_SERVICE_DIR=./Application/Services
+EXECUTOR_SERVICE_DOCKERFILE=executor-service/Dockerfile
+EXECUTOR_SERVICE_APP_DIR=executor-service
+EXECUTOR_SERVICE_PRE_INSTALL_DIRS=libs/domain-engine libs/eventbus
+EXECUTOR_SERVICE_PORT=8082
+EXECUTOR_SERVICE_HEALTH_PATH=/actuator/health
+
+# frontend
+FRONTEND_DIR=./Application/Frontend/frontend-app
+FRONTEND_PORT=4200
+FRONTEND_BUILD_APK=openjdk21-jre-headless
+FRONTEND_EXTRA_DIR=/tmp/fe-extra
+FRONTEND_EXTRA_DEST=/
+FRONTEND_URL_REWRITES=http://localhost:3000=/_auth http://localhost:8081=/_order
+
+
+KAFKA_TOPICS=orders:3:604800000 trade-events:3:604800000 market-data:6:604800000 orders.DLT:3:604800000 trade-events.DLT:3:604800000 market-data.DLT:6:604800000
+
+AUTH_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDbFea55ORTXklr\nT5S2GHLohVCTapew8j9fdUOn+5GtVDJS1rZogWJ5n4sv5caOFvn3G8N7fD9uO9BS\nMsYkef1Iyg1FoIZEKxGKRfC1PKzY8FrJydgisgnN21uVhPuMyrh/lYTFYETgYzVk\ne+z4aKuEe5+s63WHSANFfmcybsfH2MSQRo2/9DS9iHOpd91Uk4RHjX9FhxK1bYCr\nPTe8b31kcYJrrOpncGspM28f0TSljohYkVolaxaJV0ZSHIA1K3tHICvqpV1oZoAB\ng9KhIThgGPqk+JmQjeX0cpxeybt6xYdlrthpFWDeDeZPmphdD0eejEDQCJnFgxon\nIMSxB1nNAgMBAAECggEAAPAlLPLk5g6v5T19q+qsLMQx/qZWDOTeWgBpyhzayHxF\nkHxOV35EZe2mBBsQrTyXN+mQM0TzB9aJfYmCcbdqZ92zrc0Y51YIKlADnx9awzY/\nLBn7moLVA9YCgSkGXbLJqIngld3PzG2lLBxk1JEw/1sA5S+47sNFRNrPgSDT3VcR\n5UM6cyz8+Z5n0ycuqaUBCA8MFwDOZRpSopx3POeA0n3C62wTqtoWrrHQ+wayk89X\nG8ofnSyT/LuniMl3K4tIAbSSDi0jQIb87h5Z9GV71+EpjSyB8+6uF4f/dxAFpyyv\n9SBvE85fPxIZcknVVaQi8798arRBv7t9EB9j2P5uRwKBgQD3PzCd1lT+bs2nU3yR\npytMGVjNzn6sAVACx+l05LcPK4gD14TWTmVjqxDIwMl/D9R7UiMgm3seZ98yFUHV\nIt8qn8jUHh/BEmhHJbAlTHk8jRLzG4hwd4PjJfJqoRHBdg9K171NjHAwmIUwTL4o\n4nlkHECPhyUqyK4uSLWam+vf/wKBgQDi13v56Dz7ml0qZZ4Kg6s+16VT+IJFAuQm\nGMCxJVj4tgT8SB82T+5uESIXHwxbDmdTw1G8CZh6WHDudOygDcKxOaRjbvlwhgh+\n+iMKgbt7VNh5BT7fnaVYQFZVtLxPhccIz4mxgzxVuk3t8qAYxJRFafYNqaH3NzzH\n+lusHjZGMwKBgHyskYBVrsAp8WvZrmvn5u5VrbEB2mAzvTvZwMAgAKsWoVyGlcZW\n+8tZXHpOtIxs2BFjZrEvldLMQAEKNQsbrXrZ3bQQiKSb+pc9yufT+yJsZMzP6moD\n6i5lWSspk0GBnc54oU10brIihq7HU/Bb2yh/EpMNa9F6JlLSeTjAPR3TAoGBALBd\nrWxt3gwYxlrSSwANwzTG4SnaSx5w0wWztQ2F5hjpHBMx1+KYXt6Av6qOX0Lkff2o\nHIJAS6bD4HnlupvuVvMHyAHvJE0SSMTAokHm/+cx3mSpaWre3NEypG1aahbCAi+d\nfIbhbCWTBkf8nfDj1gvqCH4y51SYQ8+PnXrCupv1AoGACImvlQcW76ijqhuPMN1R\nhsFISiyhLvM8EA/BySuM67NWx41u+G59LWU/2ZKVHQVzjzWc6uyifNysUujnLTL3\nBmfJwQwb/he0qN0WG5eTyjDnbCw/h8BikpT4iXd48dSlJ4VdgM4sb9J5yHC5c2H6\nun38Mr/c14iO20eTw+1SI+c=\n-----END PRIVATE KEY-----\n"
+
