@@ -1,60 +1,130 @@
-FROM maven:3.9.16-eclipse-temurin-21 AS build
-WORKDIR /src
+# ==============================================================================
+# ORDER SERVICE  -  generic Dockerfile for Spring Boot (or any runnable jar), Maven or Gradle wrapper
+#
+# HOW TO USE:  copy this file into your order-service (the one with pom.xml or gradlew) folder as `Dockerfile`.
+#              Do NOT edit it; every setting comes from .env through docker-compose.yml.
+#
+# WHERE TO CHANGE:  nothing in this file. Every value below is a build arg that
+# docker-compose.yml fills from .env (ORDER_SERVICE_* keys):
+#
+#   build arg         .env key                    meaning                               default
+#   JAVA_VERSION      ORDER_SERVICE_JAVA_VERSION       must match the project's java.version 21
+#   MAVEN_VERSION     MAVEN_VERSION               Maven used to build                   3.9.9
+#   APP_PORT          ORDER_SERVICE_PORT               port the app listens on (SERVER_PORT) 8080
+#   RUNTIME_IMAGE     ORDER_SERVICE_RUNTIME_IMAGE      image the jar runs on                 temurin jre-alpine
+#   RUNTIME_APK       ORDER_SERVICE_RUNTIME_APK        extra packages at run time,           ""
+#                                                 e.g. "python3" when the app starts a
+#                                                 Python subprocess
+#   --- only for the three special layouts below ---
+#   APP_DIR           ORDER_SERVICE_APP_DIR            folder of the app's pom, inside *_DIR "."
+#   PRE_INSTALL_DIRS  ORDER_SERVICE_PRE_INSTALL_DIRS   library folders to `mvn install` first ""
+#   MODULE            ORDER_SERVICE_MODULE             module of an aggregator pom to build  ""
+#   EXTRA_DEST        ORDER_SERVICE_EXTRA_DEST         where an outside folder is copied to  ""
+#
+# SPECIAL LAYOUT 1 - the service depends on a LIBRARY in a sibling folder
+#   (pom.xml has a <dependency> on e.g. domain-engine that lives in the repo):
+#       ORDER_SERVICE_DIR              = the folder that contains BOTH (e.g. ./Services)
+#       ORDER_SERVICE_PRE_INSTALL_DIRS = the library folder(s), space-separated, inside it
+#       ORDER_SERVICE_APP_DIR          = the service folder inside it (e.g. order-service)
+#   Put the Dockerfile in ORDER_SERVICE_DIR and name it with ORDER_SERVICE_DOCKERFILE.
+#
+# SPECIAL LAYOUT 2 - an AGGREGATOR pom lists the services as <modules>:
+#       ORDER_SERVICE_DIR    = the folder of the aggregator pom
+#       ORDER_SERVICE_MODULE = the module path as written in <module>
+#
+# SPECIAL LAYOUT 3 - pom.xml reads a folder OUTSIDE the service folder
+#   (e.g. <directory>../../databases/postgresql/liquibase</directory>):
+#       ORDER_SERVICE_EXTRA_DIR  = that folder, relative to the repo root
+#       ORDER_SERVICE_EXTRA_DEST = where the build expects it, counted from /app
+#                             (/app/../../databases/postgresql = /databases/postgresql)
+#
+# Run-time settings (DB, Kafka, JWT ...) are ENVIRONMENT VARIABLES, never baked in.
+# Needs BuildKit.
+# ==============================================================================
 
-COPY Application/Services/libs/domain-engine/pom.xml ./Application/Services/libs/domain-engine/pom.xml
-COPY Application/Services/libs/domain-engine/src ./Application/Services/libs/domain-engine/src
-RUN mvn -B -q -f ./Application/Services/libs/domain-engine/pom.xml clean install
+ARG JAVA_VERSION=21
+ARG MAVEN_VERSION=3.9.9
+ARG RUNTIME_IMAGE=eclipse-temurin:${JAVA_VERSION}-jre-alpine
 
-COPY Application/Services/libs/eventbus/pom.xml ./Application/Services/libs/eventbus/pom.xml
-COPY Application/Services/libs/eventbus/src ./Application/Services/libs/eventbus/src
-RUN mvn -B -q -f ./Application/Services/libs/eventbus/pom.xml clean install
+# Empty stand-in so a plain `docker build` works; docker-compose replaces it with
+# the folder named by *_EXTRA_DIR (additional_contexts: extra).
+FROM scratch AS extra
 
-COPY Application/Services/order-service/pom.xml ./Application/Services/order-service/pom.xml
-RUN mvn -B -q -f ./Application/Services/order-service/pom.xml dependency:go-offline
-COPY Application/Services/order-service/src ./Application/Services/order-service/src
-RUN mvn -B -q -f ./Application/Services/order-service/pom.xml clean package -DskipTests
-
-COPY Application/Services/executor-service/pom.xml ./Application/Services/executor-service/pom.xml
-RUN mvn -B -q -f ./Application/Services/executor-service/pom.xml dependency:go-offline
-COPY Application/Services/executor-service/src ./Application/Services/executor-service/src
-RUN mvn -B -q -f ./Application/Services/executor-service/pom.xml clean package -DskipTests
-
-FROM eclipse-temurin:21-jre AS trade-api
+# ---------- Stage 1: compile --------------------------------------------------
+FROM maven:${MAVEN_VERSION}-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /app
 
-RUN useradd --system --uid 10001 --shell /usr/sbin/nologin app
-USER app
+COPY . .
 
-COPY --from=build /src/Application/Services/order-service/target/sprint-06-api-0.0.1-SNAPSHOT.jar /app/app.jar
+ARG EXTRA_DEST=""
+RUN --mount=type=bind,from=extra,target=/mnt/extra \
+    if [ -n "$EXTRA_DEST" ]; then mkdir -p "$EXTRA_DEST" && cp -a /mnt/extra/. "$EXTRA_DEST"/; fi
 
-# The port this service listens on inside the container is TRADE_API_CONTAINER_PORT in Application/Config/services.env.
-# docker-compose passes it as a build argument; a bare "docker build" must be given it too.
-ARG TRADE_API_CONTAINER_PORT
-RUN test -n "$TRADE_API_CONTAINER_PORT" || { echo "build with --build-arg TRADE_API_CONTAINER_PORT=<the value in Application/Config/services.env>" >&2; exit 1; }
-ENV SERVER_PORT=$TRADE_API_CONTAINER_PORT
-EXPOSE $TRADE_API_CONTAINER_PORT
+ARG PRE_INSTALL_DIRS=""
+ARG APP_DIR="."
+ARG MODULE=""
+RUN --mount=type=cache,target=/root/.m2 --mount=type=cache,target=/root/.gradle \
+    set -eu; \
+    for d in $PRE_INSTALL_DIRS; do \
+        echo ">>> installing library $d"; (cd "$d" && mvn -B -q install -DskipTests); \
+    done; \
+    cd "$APP_DIR"; \
+    if [ -f pom.xml ]; then \
+        mvn -B -q package -DskipTests ${MODULE:+-pl "$MODULE" -am}; \
+    elif [ -f gradlew ]; then \
+        chmod +x gradlew && ./gradlew --no-daemon -q assemble -x test; \
+    else \
+        echo "Neither pom.xml nor gradlew found in $APP_DIR" >&2; exit 1; \
+    fi
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=12 \
-  CMD curl -fsS "http://localhost:${SERVER_PORT}/actuator/health" || exit 1
+# Pick the runnable jar: the biggest one that is not plain/sources/javadoc/original.
+# A Spring Boot project whose pom does not run the repackage goal produces a jar that
+# `java -jar` cannot start; in that case the goal is run here, without a pom change.
+RUN --mount=type=cache,target=/root/.m2 \
+    set -eu; \
+    pick() { find "$APP_DIR/${MODULE:-.}" -maxdepth 6 \( -path '*/target/*.jar' -o -path '*/build/libs/*.jar' \) \
+          ! -name '*-plain.jar' ! -name 'original-*.jar' ! -name '*.jar.original' ! -name '*-sources.jar' \
+          ! -name '*-javadoc.jar' ! -name '*-tests.jar' \
+          -printf '%s %p\n' | sort -rn | head -n 1 | cut -d' ' -f2-; }; \
+    runnable() { rm -rf /tmp/mf && mkdir -p /tmp/mf && (cd /tmp/mf && jar xf "/app/$1" META-INF/MANIFEST.MF) && grep -q '^Main-Class:' /tmp/mf/META-INF/MANIFEST.MF; }; \
+    jar="$(pick)"; [ -n "$jar" ] || { echo "No jar found after the build" >&2; exit 1; }; \
+    if ! runnable "$jar" && [ -f "$APP_DIR/${MODULE:-.}/pom.xml" ]; then \
+        echo ">>> $jar is not runnable; running spring-boot repackage"; \
+        (cd "$APP_DIR/${MODULE:-.}" && mvn -B -q -DskipTests package org.springframework.boot:spring-boot-maven-plugin:repackage) || true; \
+        jar="$(pick)"; \
+    fi; \
+    runnable "$jar" || { echo "NOT RUNNABLE: $jar has no Main-Class. Add spring-boot-maven-plugin (repackage) to the pom." >&2; exit 1; }; \
+    echo "Using $jar"; \
+    mkdir -p /out && cp "$jar" /out/app.jar
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-
-FROM eclipse-temurin:21-jre AS executor
+# ---------- Stage 2: run ------------------------------------------------------
+FROM ${RUNTIME_IMAGE} AS runtime
 WORKDIR /app
 
-RUN useradd --system --uid 10001 --shell /usr/sbin/nologin app
-USER app
+# Extra run-time packages. On a non-Alpine RUNTIME_IMAGE (needed when the app loads
+# glibc native libraries, e.g. onnxruntime) apt is used and the health-check tools
+# (wget, nc) are added.
+ARG RUNTIME_APK=""
+RUN if command -v apk >/dev/null 2>&1; then \
+        if [ -n "$RUNTIME_APK" ]; then apk add --no-cache $RUNTIME_APK; fi; \
+    else \
+        apt-get update && apt-get install -y --no-install-recommends wget netcat-openbsd $RUNTIME_APK \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-COPY --from=build /src/Application/Services/executor-service/target/trade-executor-0.0.1-SNAPSHOT.jar /app/app.jar
+# Numeric uid so Kubernetes can enforce runAsNonRoot. Works on Alpine and Debian/Ubuntu.
+RUN (addgroup -S -g 10001 app && adduser -S -u 10001 -G app app) 2>/dev/null \
+    || (groupadd -r -g 10001 app && useradd -r -u 10001 -g app app)
 
-# The port this service listens on inside the container is EXECUTOR_PORT in Application/Config/services.env.
-# docker-compose passes it as a build argument; a bare "docker build" must be given it too.
-ARG EXECUTOR_PORT
-RUN test -n "$EXECUTOR_PORT" || { echo "build with --build-arg EXECUTOR_PORT=<the value in Application/Config/services.env>" >&2; exit 1; }
-ENV SERVER_PORT=$EXECUTOR_PORT
-EXPOSE $EXECUTOR_PORT
+COPY --from=build --chown=10001:10001 /out/app.jar /app/app.jar
+# The app may write relative to its working folder (logs/app.log is common).
+RUN mkdir -p /app/logs && chown 10001:10001 /app /app/logs
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=12 \
-  CMD curl -fsS "http://localhost:${SERVER_PORT}/actuator/health" || exit 1
+ARG APP_PORT=8080
+# MaxRAMPercentage sizes the heap from the container's memory limit, not the host's.
+ENV SERVER_PORT=${APP_PORT} \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+EXPOSE ${APP_PORT}
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+USER 10001:10001
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
