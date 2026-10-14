@@ -75,7 +75,7 @@ def post(base: str, path: str, body: dict, token: str | None = None) -> tuple[in
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("path", help="route under /auth, e.g. login, register, refresh")
+    parser.add_argument("path", help="route under /auth, e.g. login, register, refresh, verify-otp")
     parser.add_argument("body", help="JSON request body")
     parser.add_argument("--base", default=service_config.url("AUTH_SERVICE"), help="auth service URL")
     parser.add_argument("--token", help="access token, for routes that need one (logout)")

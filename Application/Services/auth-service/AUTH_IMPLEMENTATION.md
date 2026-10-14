@@ -124,6 +124,7 @@ describes all five routes.
 | Port, JWT issuer | fixed in code (`3000`, `auth-service`) | |
 | `JWT_SECRET` | TrustMe, else `JWT_SECRET` | Min 32 chars |
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | TrustMe, else `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | TrustMe, else `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Optional; mail is on only when all four exist |
 | `KAFKA_BROKER` | environment, default `localhost:29092` | Health check only |
 
 A fallback variable is read from the environment, or from the repository's `.env`, which `main.ts`

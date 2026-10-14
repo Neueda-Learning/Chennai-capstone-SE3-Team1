@@ -35,6 +35,10 @@ const VAULT = {
   PostGres: 'vault-password',
   Fauxnance: 'vault-fauxnance-key',
   Fauxnance_Endpoint: 'https://fauxnance.vault.test/v1/',
+  SMTP_HOST: 'smtp.vault.test',
+  SMTP_USER: 'mailer@vault.test',
+  SMTP_PASS: 'vault-smtp-pass',
+  SMTP_FROM: 'noreply@vault.test',
 };
 
 async function load() {
@@ -97,14 +101,41 @@ describe('configuration', () => {
     expect(config.fauxnance).toEqual({ apiKey: 'vault-fauxnance-key', baseUrl: 'https://fauxnance.vault.test/v1' });
   });
 
-  it('still starts with no market-data secrets at all: no key, and the endpoint from services.env', async () => {
-    for (const name of ['Fauxnance', 'Fauxnance_Endpoint']) {
+  it('takes the mail server from the vault, and fixes the port and TLS mode in code', async () => {
+    const config = await load();
+
+    expect(config.smtp).toEqual({
+      enabled: true,
+      host: 'smtp.vault.test',
+      port: 587,
+      secure: false,
+      requireTls: true,
+      user: 'mailer@vault.test',
+      pass: 'vault-smtp-pass',
+      from: 'noreply@vault.test',
+    });
+  });
+
+  it.each(['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'])(
+    'turns mail off, rather than half-configuring it, when %s is not in the vault',
+    async (missing) => {
+      delete secrets[missing];
+
+      const config = await load();
+
+      expect(config.smtp.enabled).toBe(false);
+    },
+  );
+
+  it('still starts with no mail and no market-data secrets at all: no key, and the endpoint from services.env', async () => {
+    for (const name of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'Fauxnance', 'Fauxnance_Endpoint']) {
       delete secrets[name];
     }
     delete process.env.FAUXNANCE_BASE_URL;
 
     const config = await load();
 
+    expect(config.smtp.enabled).toBe(false);
     expect(config.fauxnance).toEqual({
       apiKey: '',
       baseUrl: (servicesConfig().FAUXNANCE_BASE_URL as string).replace(/\/+$/, ''),
@@ -194,6 +225,8 @@ describe('configuration', () => {
       POSTGRES_PASSWORD: 'env-password',
       FAUXNANCE_API_KEY: 'env-key',
       FAUXNANCE_BASE_URL: 'https://env.test',
+      SMTP_HOST: 'env-smtp',
+      SMTP_ENABLED: 'false',
       PORT: '9999',
       JWT_ISSUER: 'env-issuer',
     });
@@ -204,6 +237,8 @@ describe('configuration', () => {
     expect(config.database.host).toBe('db.vault.test');
     expect(config.database.password).toBe('vault-password');
     expect(config.fauxnance.apiKey).toBe('vault-fauxnance-key');
+    expect(config.smtp.host).toBe('smtp.vault.test');
+    expect(config.smtp.enabled).toBe(true);
     expect(config.port).toBe(servicePort('AUTH_SERVICE'));
   });
 

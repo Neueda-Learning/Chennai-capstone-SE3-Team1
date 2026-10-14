@@ -5,6 +5,9 @@ import { envNameFor, openVault, readSecret } from './secrets';
 import { serviceAddress, serviceHost, servicePort, serviceUrl } from './service-config';
 
 const JWT_ISSUER = 'auth-service';
+const SMTP_PORT = 587;
+const SMTP_IMPLICIT_TLS = false;
+const SMTP_REQUIRE_STARTTLS = true;
 
 async function required(vault: TrustMeClient | null, name: string): Promise<string> {
   const value = await readSecret(vault, name);
@@ -26,10 +29,14 @@ export const configuration = registerAs('app', async () => {
     required(vault, 'PostGres_User'),
     required(vault, 'PostGres'),
   ]);
-  const [authPrivateKey, fauxnanceKey, fauxnanceUrl] = await Promise.all([
+  const [authPrivateKey, fauxnanceKey, fauxnanceUrl, smtpHost, smtpUser, smtpPass, smtpFrom] = await Promise.all([
     readSecret(vault, 'AUTH_PRIVATE_KEY'),
     readSecret(vault, 'Fauxnance'),
     readSecret(vault, 'Fauxnance_Endpoint'),
+    readSecret(vault, 'SMTP_HOST'),
+    readSecret(vault, 'SMTP_USER'),
+    readSecret(vault, 'SMTP_PASS'),
+    readSecret(vault, 'SMTP_FROM'),
   ]);
 
   return {
@@ -67,6 +74,17 @@ export const configuration = registerAs('app', async () => {
     fauxnance: {
       baseUrl: fauxnanceUrl.replace(/\/+$/, ''),
       apiKey: fauxnanceKey,
+    },
+
+    smtp: {
+      enabled: [smtpHost, smtpUser, smtpPass, smtpFrom].every((v) => v !== ''),
+      host: smtpHost,
+      port: SMTP_PORT,
+      secure: SMTP_IMPLICIT_TLS,
+      requireTls: SMTP_REQUIRE_STARTTLS,
+      user: smtpUser,
+      pass: smtpPass,
+      from: smtpFrom,
     },
   };
 });

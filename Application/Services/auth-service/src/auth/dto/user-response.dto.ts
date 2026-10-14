@@ -36,7 +36,7 @@ export class UserResponseDto {
   @ApiProperty({
     enum: ['PENDING', 'ACTIVE'],
     description:
-      'Every new account is ACTIVE. PENDING is kept only for rows written before verification was removed.',
+      'PENDING for a registration whose emailed code has not been verified yet; such an account cannot sign in.',
   })
   status: 'PENDING' | 'ACTIVE';
 

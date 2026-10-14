@@ -121,7 +121,7 @@ components:
   schemas:
     ChannelKind:
       type: string
-      enum: [PUSH]
+      enum: [EMAIL, PUSH]
 
     NotificationStatus:
       type: string

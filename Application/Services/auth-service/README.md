@@ -54,10 +54,11 @@ prompts for a password. See `src/config/secrets.ts` and `src/config/configuratio
 |---|---|---|
 | `JWT_SECRET` | `JWT_SECRET` | JWT signing secret (min 32 chars), required |
 | `PostGres_Host`, `Postgres_Port`, `Postgres_DB`, `PostGres_User`, `PostGres` | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | PostgreSQL connection, required |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | the same names | Mail server for OTP emails. Optional: with any of the four missing, codes are logged instead of emailed |
 | `AUTH_PRIVATE_KEY` | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM) that opens encrypted credentials. Optional: if absent, a temporary key is generated at startup and a warning is logged. Set it so every instance and every restart share one key |
 | `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | Market-data API key and base URL. Optional |
 
-Fixed in code: the JWT issuer `auth-service`. Registration creates the account `ACTIVE`: there is no email verification and no password-reset route.
+Fixed in code: the JWT issuer `auth-service`, SMTP port `587` with required STARTTLS. Registration creates the account `PENDING` and sends a one-time code; `POST /auth/verify-otp` activates it, and forgot-password / reset-password reset a password by code. Without SMTP settings the codes are written to the service log as `[otp.outbox] <purpose> email=<address> code=<code>`.
 The port it listens on (`AUTH_SERVICE_PORT`) and the Kafka it health-checks (`KAFKA_HOST:KAFKA_PORT`) come
 from `Application/Config/services.env`, read by `src/config/service-config.ts`; an environment variable
 or `.env` entry of the same name overrides them. `KAFKA_BROKER` overrides the Kafka address alone, and
@@ -99,7 +100,7 @@ protocol is in `Contracts/api-schemas/auth-api.yaml`, "Encrypted POST bodies"; t
 `core/auth/credential-crypto.interceptor.ts`; anything else calling these routes (curl, Postman,
 scripts) has to build the envelope too.
 
-What it does: a passive observer on the network sees ciphertext, not passwords or tokens
+What it does: a passive observer on the network sees ciphertext, not passwords, OTP codes or tokens
 in those requests and replies, and a captured request cannot be replayed (each nonce works once).
 
 What it does not do: protect against anyone who can modify traffic in transit, because over HTTP
@@ -119,6 +120,10 @@ Nonces are held in memory, so run a single instance or put a sticky route in fro
 | `GET` | `/health/ready` | Readiness probe |
 | `GET` | `/health/startup` | Startup probe |
 | `POST` | `/auth/register` | Register a user (no tokens issued) |
+| `POST` | `/auth/verify-otp` | Verify registration email code |
+| `POST` | `/auth/forgot-password` | Request a password-reset OTP by email |
+| `POST` | `/auth/resend-otp` | Re-send registration OTP (for pending account) |
+| `POST` | `/auth/reset-password` | Reset password with emailed OTP |
 | `POST` | `/auth/login` | Log in, receive access + refresh tokens |
 | `POST` | `/auth/refresh` | Rotate a refresh token for a new pair |
 | `GET` | `/auth/me` | Current user (protected by bearer token) |

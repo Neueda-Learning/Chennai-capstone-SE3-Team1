@@ -20,6 +20,10 @@ const PUBLIC = [
   'login',
   'register',
   'refresh',
+  'verify-otp',
+  'forgot-password',
+  'resend-otp',
+  'reset-password',
 ];
 
 describe('bearerInterceptor', () => {

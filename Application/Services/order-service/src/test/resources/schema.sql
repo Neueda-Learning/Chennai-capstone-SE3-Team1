@@ -173,7 +173,7 @@ CREATE TABLE customer_preferences (
     created_at               TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_customer_preferences_channel
-        CHECK (channel IS NULL OR channel IN ('PUSH'))
+        CHECK (channel IS NULL OR channel IN ('EMAIL', 'PUSH'))
 );
 
 CREATE TABLE notifications (
@@ -192,7 +192,7 @@ CREATE TABLE notifications (
     CONSTRAINT chk_notifications_kind
         CHECK (kind IN ('ORDER_FILLED', 'ORDER_REJECTED', 'ORDER_CANCELLED', 'PRICE_ALERT', 'TRANSFER_IN', 'TRANSFER_OUT')),
     CONSTRAINT chk_notifications_channel
-        CHECK (channel IS NULL OR channel IN ('PUSH')),
+        CHECK (channel IS NULL OR channel IN ('EMAIL', 'PUSH')),
     CONSTRAINT chk_notifications_status
         CHECK (status IN ('PENDING_CHANNEL', 'QUEUED', 'SENT', 'FAILED'))
 );

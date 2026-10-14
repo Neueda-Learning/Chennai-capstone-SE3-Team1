@@ -57,6 +57,8 @@ password prompt, runs the whole stack from `.env`.
 | `JWT_SECRET` | `JWT_SECRET` | signing and verifying access tokens (HS256, 32+ characters) | Trade API, executor, auth service, auth stub |
 | `Fauxnance`, `Fauxnance_Endpoint` | `FAUXNANCE_API_KEY`, `FAUXNANCE_BASE_URL` | the market-data API key and base URL | executor (quotes), Trade API (daily candles), `Application/ETL/etl-live`, `scripts/verify_tickers.py` |
 | `AUTH_PRIVATE_KEY` | `AUTH_PRIVATE_KEY` | RSA private key (PKCS#8 PEM, `\n` for line breaks) that opens encrypted login and registration bodies; a temporary key is generated if absent | auth service |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | the same names | the mail server for OTP codes and EMAIL notifications; mail is on only when all four exist | auth service, Trade API |
+| `LLM_API_KEY` | `LLM_API_KEY` | the Gemini API key for the in-app assistant; the assistant is off (503) if absent | Trade API |
 
 The resolvers are `VaultEnvironmentPostProcessor` (Trade API and executor, behind
 `${trustme.secret.NAME}`), `src/config/secrets.ts` (auth service) and `scripts/vault_env.py`
@@ -111,7 +113,7 @@ The number is the order.
 | `019_bank_account_drop_contact.sql` | drops `bank_account.phone` and `.email`: an unclaimed or claimed bank account is never a contact record |
 | `020_bank_account_drop_name.sql` | drops `bank_account.name`: `client_id` is the only identity a bank account needs, joining to `clients` gets the name once one is linked |
 | `021_users_owns_email_and_phone.sql` | adds `users.phone`; drops `clients.email` and `.phone` — `auth_db.users` becomes the single stored copy of both contact fields |
-| `022_otp_verification.sql` | `users.status` (PENDING/ACTIVE) and `auth_db.otp_codes`: one-time codes for registration and password reset; unused since `032` |
+| `022_otp_verification.sql` | `users.status` (PENDING/ACTIVE) and `auth_db.otp_codes`: emailed one-time codes for registration and password reset |
 | `023_market_quotes.sql` | `market_quotes`: a rolling window of the polled quotes the Trade API keeps for the market screen and its charts |
 | `024_daily_candles.sql` | `daily_candles` + `daily_candle_syncs`: a year of end-of-day history per instrument, fetched from Fauxnance once a day, for the long-range charts |
 
@@ -157,8 +159,8 @@ Every seeded user (`aarav.mehta`, `diya.sharma`, ...) signs in with the password
 
 ## scripts/create_test_account.py
 
-Writes a ready-to-sign-in account straight to the database, with a trading account, a linked
-bank account and sample activity. Test data only.
+Writes a ready-to-sign-in account straight to the database, so nothing is emailed and no
+one-time code is needed. Test data only.
 
 ```
 python scripts/create_test_account.py                   # test.trader / TestTrader#2026!

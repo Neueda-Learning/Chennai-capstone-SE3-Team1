@@ -160,7 +160,7 @@ describe('LoginPage', () => {
     const lookup = http.expectOne(PREFERENCES_URL);
     expect(lookup.request.method).toBe('GET');
     expect(navigate).not.toHaveBeenCalled();
-    lookup.flush({ accountId: 42, defaultAccountId: 42, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
+    lookup.flush({ accountId: 42, defaultAccountId: 42, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
 
     expect(select).toHaveBeenCalledWith(42);
     expect(session.accountId()).toBe(42);
@@ -174,7 +174,7 @@ describe('LoginPage', () => {
 
     submit(fixture);
     http.expectOne(AUTH_URL).flush(tokenResponse());
-    http.expectOne(PREFERENCES_URL).flush({ accountId: 42, defaultAccountId: 7, channel: 'PUSH', updatedAt: '2026-10-06T10:15:30' });
+    http.expectOne(PREFERENCES_URL).flush({ accountId: 42, defaultAccountId: 7, channel: 'EMAIL', updatedAt: '2026-10-06T10:15:30' });
 
     expect(session.accountId()).toBe(42);
     expect(navigate).toHaveBeenCalledWith('/dashboard');
@@ -273,9 +273,56 @@ describe('LoginPage', () => {
     ).toContain('created');
   });
 
+  it('confirms a verified account so the trader knows the code landed', async () => {
+    const { fixture } = setUp({ verified: 'true' });
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-verified-banner"]')?.textContent).toContain(
+      'verified'
+    );
+  });
+
+  it('confirms a changed password', async () => {
+    const { fixture } = setUp({ reset: 'true' });
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-reset-banner"]')?.textContent).toContain(
+      'password'
+    );
+  });
+
   it('shows no banner at all on a plain visit', async () => {
     const { fixture } = setUp();
     await fixture.whenStable();
     expect(root(fixture).querySelector('[data-testid="login-registered-banner"]')).toBeNull();
+    expect(root(fixture).querySelector('[data-testid="login-verified-banner"]')).toBeNull();
+    expect(root(fixture).querySelector('[data-testid="login-reset-banner"]')).toBeNull();
+  });
+
+  it('offers a way into email verification when sign-in is refused', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    setInput(fixture, 'username', '  jane.doe  ');
+    setInput(fixture, 'password', 'correct horse battery7');
+
+    submit(fixture);
+    http
+      .expectOne(AUTH_URL)
+      .flush({ errorCode: 'AUTH-401', message: 'Invalid credentials' }, { status: 401, statusText: 'Unauthorized' });
+    fixture.detectChanges();
+
+    const hint = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="login-verify-hint"] a');
+    expect(hint?.getAttribute('href')).toBe('/verify-otp');
+  });
+
+  it('keeps that hint out of the way until something has gone wrong', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    expect(root(fixture).querySelector('[data-testid="login-verify-hint"]')).toBeNull();
+  });
+
+  it('points a stuck trader at the reset route', async () => {
+    const { fixture } = setUp();
+    await fixture.whenStable();
+    const link = root(fixture).querySelector<HTMLAnchorElement>('[data-testid="forgot-password"]');
+    expect(link?.getAttribute('href')).toBe('/forgot-password');
   });
 });

@@ -34,7 +34,11 @@ public class DatabasePreferenceResolver implements PreferenceResolver {
             throw new PreferenceResolutionException("stored preference has no users row");
         }
         ChannelKind kind = parse(row.getChannel());
-        return Optional.of(new ResolvedChannel(kind, "account:" + accountId));
+        String address = addressFor(kind, row, accountId);
+        if (address == null || address.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ResolvedChannel(kind, address));
     }
 
     private static ChannelKind parse(String channel) {
@@ -43,5 +47,15 @@ public class DatabasePreferenceResolver implements PreferenceResolver {
         } catch (IllegalArgumentException e) {
             throw new PreferenceResolutionException("stored channel is not recognised");
         }
+    }
+
+    private static String addressFor(ChannelKind kind, ResolutionRow row, long accountId) {
+        if (kind == ChannelKind.PUSH) {
+            return "account:" + accountId;
+        }
+        if (row.getContactOverride() != null && !row.getContactOverride().isBlank()) {
+            return row.getContactOverride();
+        }
+        return row.getEmail();
     }
 }
