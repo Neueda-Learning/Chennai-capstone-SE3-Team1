@@ -266,8 +266,10 @@ pipeline {
           echo "BUILD 4/4: Frontend"
 
           docker build \
+            --build-context extra=./Application/Contracts \
             --build-arg "BUILD_ENV=$BUILD_ENV" \
             --build-arg BUILD_APK=openjdk17-jre-headless \
+            --build-arg EXTRA_DEST=/Contracts \
             -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" \
             ./Application/Frontend/frontend-app
 
