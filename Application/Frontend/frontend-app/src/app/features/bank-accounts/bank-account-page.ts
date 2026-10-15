@@ -17,6 +17,8 @@ import {
   TransferResponse
 } from '../../generated/trade-client';
 import { SessionStore } from '../../core/auth/session.store';
+import { renewSession } from '../../core/auth/bearer.interceptor';
+import { newUuid } from '../../core/util/uuid';
 import { BankAccountReaderService, LinkedBankAccount } from '../../core/services/bank-account-reader.service';
 
 type BankState = 'checking' | 'unlinked' | 'linked' | 'failed';
@@ -295,9 +297,9 @@ export class BankAccountPage {
 
     console.info(`[bank] POST ${url} (adopting new accountId ${linked.accountId})`);
 
-    this.auth.refresh({ refreshRequest: { refreshToken } }).subscribe({
-      next: (token) => {
-        this.session.adoptTokens(token.accessToken, linked.accountId, token.refreshToken ?? refreshToken);
+    renewSession(this.auth, this.session).subscribe({
+      next: () => {
+        this.session.adoptTokens(this.session.accessToken() ?? '', linked.accountId, this.session.refreshToken());
         console.info('[bank] session refreshed, accountId now', linked.accountId);
         this.loadBalances(linked.accountId);
       },
@@ -420,10 +422,7 @@ export class BankAccountPage {
 }
 
 function newIdempotencyKey(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `ui-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  return newUuid();
 }
 
 function describeLinkError(error: HttpErrorResponse, tradeApiUrl: string | undefined): string {
