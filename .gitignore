@@ -4,6 +4,11 @@
 .env.*
 !.env.example
 
+# Kubernetes secrets - the filled-in secrets.env is created ONLY at deploy time
+# and must never be committed to git.
+k8s/base/secrets.env
+k8s/base/secrets.env.bak
+
 # Node (services/auth-stub)
 node_modules/
 
