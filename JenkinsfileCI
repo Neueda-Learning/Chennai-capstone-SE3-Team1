@@ -19,6 +19,12 @@ pipeline {
       defaultValue: 'ap-south-1',
       description: 'AWS region for ECR'
     )
+
+    string(
+      name: 'K8S_OVERLAY',
+      defaultValue: 'Application/k8s/overlays/four-lb',
+      description: 'Kubernetes overlay containing urls.env'
+    )
   }
 
   environment {
@@ -40,11 +46,12 @@ pipeline {
 
         script {
           env.AWS_REGION = params.AWS_REGION?.trim() ?: 'ap-south-1'
+          env.K8S_OVERLAY = params.K8S_OVERLAY?.trim() ?: 'Application/k8s/overlays/four-lb'
           env.RELEASE_TAG = "1.${env.BUILD_NUMBER}"
 
           echo "AWS region: ${env.AWS_REGION}"
+          echo "Kubernetes overlay: ${env.K8S_OVERLAY}"
           echo "Release tag: ${env.RELEASE_TAG}"
-          echo "Workspace: ${env.WORKSPACE}"
         }
       }
     }
@@ -55,111 +62,81 @@ pipeline {
           set -Eeuo pipefail
 
           fail() {
-            echo ""
-            echo "=========================================="
-            echo "VALIDATION FAILED: $1"
-            echo "=========================================="
+            echo "VALIDATION FAILED: $1" >&2
             exit 1
           }
 
-          check() {
-            echo ""
-            echo "------------------------------------------"
-            echo "CHECK: $1"
-            echo "------------------------------------------"
-          }
+          echo "=== Checking build tools ==="
 
-          check "Operating system and user"
-          id || fail "Unable to identify the current user"
-          uname -a || true
+          command -v aws >/dev/null ||
+            fail "AWS CLI is not installed or is not in PATH"
 
-          check "AWS CLI installation"
-          command -v aws || fail "AWS CLI is not installed or is not in PATH"
-          aws --version || fail "AWS CLI could not run"
+          command -v docker >/dev/null ||
+            fail "Docker CLI is not installed or is not in PATH"
 
-          check "Docker CLI installation"
-          command -v docker || fail "Docker is not installed or is not in PATH"
-          docker --version || fail "Docker CLI could not run"
+          docker --version ||
+            fail "Docker CLI could not run"
 
-          check "Docker daemon access"
-          if ! docker info; then
-            fail "Docker daemon is unavailable or the Jenkins user lacks permission. Check Docker service and socket permissions."
-          fi
+          docker info >/dev/null ||
+            fail "Docker daemon is unavailable or Jenkins lacks Docker permissions"
 
-          check "Docker Buildx"
-          if ! docker buildx version; then
-            fail "Docker Buildx is missing or unavailable. Install/configure the Buildx plugin."
-          fi
+          echo "=== Checking AWS credentials ==="
 
-          check "AWS credentials and identity"
-          if ! aws sts get-caller-identity; then
-            fail "AWS credentials are unavailable or invalid. Configure an IAM role or another supported credential provider."
-          fi
+          aws sts get-caller-identity ||
+            fail "AWS credentials are missing or invalid"
 
-          check "AWS region"
-          echo "AWS_REGION=$AWS_REGION"
-          aws configure list || true
+          echo "=== Checking Dockerfiles ==="
 
-          check "Required Dockerfiles"
-          files=(
-            "Application/Services/auth-service/Dockerfile"
-            "Application/Services/order-service/Dockerfile"
-            "Application/Services/executor-service/Dockerfile"
-            "Application/Frontend/frontend-app/Dockerfile"
-          )
-
-          for f in "${files[@]}"; do
-            if [[ -f "$f" ]]; then
-              echo "FOUND: $f"
-            else
-              echo "MISSING: $f"
-              fail "Required Dockerfile not found: $f"
-            fi
+          for f in \
+            Application/Services/auth_service/Dockerfile \
+            Application/Services/order_service/Dockerfile \
+            Application/Services/executor-service/Dockerfile \
+            Application/Frontend/frontend-app/Dockerfile
+          do
+            [[ -f "$f" ]] || fail "Missing Dockerfile: $f"
+            echo "FOUND: $f"
           done
 
-          check "Frontend extra build-context directories"
-          for d in Application/Contracts Application/Config; do
-            if [[ -d "$d" ]]; then
-              echo "FOUND: $d"
-            else
-              fail "Required frontend directory not found: $d"
-            fi
+          echo "=== Checking Kubernetes overlay ==="
+
+          [[ -d "$K8S_OVERLAY" ]] ||
+            fail "Overlay directory does not exist: $K8S_OVERLAY"
+
+          [[ -f "$K8S_OVERLAY/urls.env" ]] ||
+            fail "Missing URL configuration: $K8S_OVERLAY/urls.env"
+
+          for key in AUTH_SERVICE_URL ORDER_SERVICE_URL FRONTEND_URL; do
+            value=$(awk -F= -v key="$key" '
+              $1 == key {
+                sub(/^[^=]*=/, "")
+                gsub(/\\r$/, "")
+                print
+                exit
+              }
+            ' "$K8S_OVERLAY/urls.env")
+
+            [[ -n "$value" ]] ||
+              fail "$key is missing or empty in $K8S_OVERLAY/urls.env"
+
+            echo "FOUND: $key"
           done
 
-          check "Backend shared libraries"
-          for d in libs/domain-engine libs/eventbus; do
-            if [[ -d "$d" ]]; then
-              echo "FOUND: $d"
-            else
-              fail "Required shared library directory not found: $d"
-            fi
-          done
+          echo "=== Checking disk space ==="
 
-          check "Available disk space"
-          df -h "$WORKSPACE" || fail "Unable to check workspace disk space"
+          df -h "$WORKSPACE"
 
-          free_gb=$(df -BG --output=avail "$WORKSPACE" | tail -n 1 | tr -dc '0-9')
+          free_gb=$(df -BG --output=avail "$WORKSPACE" |
+            tail -n 1 | tr -dc '0-9')
 
-          if [[ -z "$free_gb" ]]; then
+          [[ -n "$free_gb" ]] ||
             fail "Unable to determine available disk space"
-          fi
 
-          echo "Available space: ${free_gb} GB"
+          (( free_gb >= 3 )) ||
+            fail "Only ${free_gb} GB available; at least 3 GB is required"
 
-          if (( free_gb < 3 )); then
-            fail "Only ${free_gb} GB free; at least 3 GB is required. Inspect Docker disk usage before cleaning up."
-          fi
-
-          check "Docker storage"
-          docker system df || true
-
-          check "Validation summary"
-          account_id=$(aws sts get-caller-identity --query Account --output text) ||
-            fail "Unable to retrieve AWS account ID"
-
-          echo "Agent validation passed"
-          echo "AWS account: $account_id"
+          echo "Validation successful"
           echo "AWS region: $AWS_REGION"
+          echo "Overlay: $K8S_OVERLAY"
           echo "Release tag: $RELEASE_TAG"
           echo "Free disk space: ${free_gb} GB"
         '''
@@ -177,101 +154,21 @@ pipeline {
           env.REGISTRY =
             "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
 
+          echo "AWS account: ${env.AWS_ACCOUNT_ID}"
           echo "ECR registry: ${env.REGISTRY}"
         }
 
         sh '''#!/usr/bin/env bash
           set -Eeuo pipefail
 
-          echo "=========================================="
-          echo "BUILDING IMAGES"
-          echo "Release tag: $RELEASE_TAG"
-          echo "=========================================="
+          echo "======================================"
+          echo "Preparing ECR repositories"
+          echo "======================================"
 
-          echo ""
-          echo "BUILD 1/4: Authentication service"
-          docker build \
-            -t "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" \
-            Application/Services/auth-service
-
-          echo ""
-          echo "BUILD 2/4 and 3/4: Backend services"
-
-          for svc in \
-            "order-service:8081:$ORDER_LOCAL_IMAGE" \
-            "executor-service:8082:$EXECUTOR_LOCAL_IMAGE"
-          do
-            IFS=: read -r dir port image <<< "$svc"
-
-            echo "Building $dir on port $port"
-
-            docker build \
-              -f "Application/Services/$dir/Dockerfile" \
-              --build-arg APP_DIR="$dir" \
-              --build-arg PRE_INSTALL_DIRS="libs/domain-engine libs/eventbus" \
-              --build-arg APP_PORT="$port" \
-              -t "$image:$RELEASE_TAG" \
-              Application/Services
-          done
-
-          echo ""
-          echo "BUILD 4/4: Frontend"
-
-          FE_EXTRA="$WORKSPACE/.fe-extra"
-          rm -rf "$FE_EXTRA"
-          mkdir -p "$FE_EXTRA"
-
-          cleanup_extra() {
-            rm -rf "$FE_EXTRA"
-          }
-          trap cleanup_extra EXIT
-
-          cp -r Application/Contracts Application/Config "$FE_EXTRA/"
-
-          docker build \
-            --build-context "extra=$FE_EXTRA" \
-            --build-arg EXTRA_DEST=/ \
-            --build-arg BUILD_APK=openjdk21-jre-headless \
-            -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" \
-            Application/Frontend/frontend-app
-
-          cleanup_extra
-          trap - EXIT
-
-          echo ""
-          echo "=========================================="
-          echo "BUILT IMAGES"
-          echo "=========================================="
-
-          docker image inspect \
-            "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" \
-            "$ORDER_LOCAL_IMAGE:$RELEASE_TAG" \
-            "$EXECUTOR_LOCAL_IMAGE:$RELEASE_TAG" \
-            "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" \
-            --format '{{.RepoTags}}'
-
-          echo ""
-          echo "=========================================="
-          echo "AUTHENTICATING TO AWS ECR"
-          echo "=========================================="
-
-          aws ecr get-login-password --region "$AWS_REGION" |
-            docker login \
-              --username AWS \
-              --password-stdin \
-              "$REGISTRY"
-
-          declare -A IMAGE_MAP=(
-            ["$AUTH_REPO"]="$AUTH_LOCAL_IMAGE"
-            ["$ORDER_REPO"]="$ORDER_LOCAL_IMAGE"
-            ["$EXECUTOR_REPO"]="$EXECUTOR_LOCAL_IMAGE"
-            ["$FRONTEND_REPO"]="$FRONTEND_LOCAL_IMAGE"
-          )
-
-          echo ""
-          echo "=========================================="
-          echo "PUSHING IMAGES TO ECR"
-          echo "=========================================="
+          # Create repositories only when AWS explicitly reports
+          # that a repository does not exist.
+          ERR_FILE=$(mktemp)
+          trap 'rm -f "$ERR_FILE"' EXIT
 
           for repo in \
             "$AUTH_REPO" \
@@ -279,45 +176,139 @@ pipeline {
             "$EXECUTOR_REPO" \
             "$FRONTEND_REPO"
           do
-            echo ""
-            echo "Processing ECR repository: $repo"
+            echo "Checking repository: $repo"
 
             if aws ecr describe-repositories \
               --region "$AWS_REGION" \
-              --repository-names "$repo" >/dev/null 2>&1; then
+              --repository-names "$repo" \
+              >/dev/null 2>"$ERR_FILE"; then
 
-              echo "Repository already exists: $repo"
+              echo "Repository exists: $repo"
 
             else
-              echo "Repository not found; attempting creation: $repo"
+              if grep -q 'RepositoryNotFoundException' "$ERR_FILE"; then
+                echo "Creating repository: $repo"
 
-              aws ecr create-repository \
-                --region "$AWS_REGION" \
-                --repository-name "$repo" \
-                --image-scanning-configuration scanOnPush=true \
-                --encryption-configuration encryptionType=AES256
+                aws ecr create-repository \
+                  --region "$AWS_REGION" \
+                  --repository-name "$repo" \
+                  --image-scanning-configuration scanOnPush=true \
+                  --encryption-configuration encryptionType=AES256
+
+              else
+                cat "$ERR_FILE" >&2
+                echo "Failed to inspect ECR repository: $repo" >&2
+                exit 1
+              fi
             fi
-
-            local_image="${IMAGE_MAP[$repo]}"
-            source_image="$local_image:$RELEASE_TAG"
-            target_image="$REGISTRY/$repo:$RELEASE_TAG"
-
-            echo "Tagging: $source_image -> $target_image"
-            docker tag "$source_image" "$target_image"
-
-            echo "Pushing: $target_image"
-            docker push "$target_image"
-
-            echo "Successfully pushed: $target_image"
           done
 
-          echo ""
-          echo "=========================================="
+          echo "======================================"
+          echo "Reading frontend URLs"
+          echo "======================================"
+
+          URL_FILE="$K8S_OVERLAY/urls.env"
+
+          read_env_value() {
+            local key="$1"
+            local value
+
+            value=$(awk -F= -v key="$key" '
+              $1 == key {
+                sub(/^[^=]*=/, "")
+                gsub(/\\r$/, "")
+                print
+                exit
+              }
+            ' "$URL_FILE")
+
+            if [[ -z "$value" ]]; then
+              echo "Missing or empty $key in $URL_FILE" >&2
+              exit 1
+            fi
+
+            printf '%s' "$value"
+          }
+
+          AUTH_URL=$(read_env_value AUTH_SERVICE_URL)
+          ORDER_URL=$(read_env_value ORDER_SERVICE_URL)
+          FRONTEND_URL=$(read_env_value FRONTEND_URL)
+
+          # Preserves the original single BUILD_ENV build argument.
+          # The frontend Dockerfile must declare ARG BUILD_ENV
+          # and parse this space-separated KEY=value string.
+          BUILD_ENV="AUTH_SERVICE_URL=$AUTH_URL AUTH_SERVICE_PORT=3000 ORDER_SERVICE_URL=$ORDER_URL ORDER_SERVICE_PORT=8081 FRONTEND_URL=$FRONTEND_URL FRONTEND_PORT=80"
+
+          echo "Frontend URL configuration loaded successfully"
+
+          echo "======================================"
+          echo "Building Docker images"
+          echo "======================================"
+
+          echo "BUILD 1/4: Authentication service"
+
+          docker build \
+            -t "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" \
+            ./Application/Services/auth_service
+
+          echo "BUILD 2/4: Order service"
+
+          docker build \
+            -t "$ORDER_LOCAL_IMAGE:$RELEASE_TAG" \
+            ./Application/Services/order_service
+
+          echo "BUILD 3/4: Executor service"
+
+          docker build \
+            -t "$EXECUTOR_LOCAL_IMAGE:$RELEASE_TAG" \
+            ./Application/Services/executor-service
+
+          echo "BUILD 4/4: Frontend"
+
+          docker build \
+            --build-arg "BUILD_ENV=$BUILD_ENV" \
+            -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" \
+            ./Application/Frontend/frontend-app
+
+          echo "======================================"
+          echo "Authenticating to ECR"
+          echo "======================================"
+
+          aws ecr get-login-password --region "$AWS_REGION" |
+            docker login \
+              --username AWS \
+              --password-stdin \
+              "$REGISTRY"
+
+          echo "======================================"
+          echo "Pushing images to ECR"
+          echo "======================================"
+
+          push_image() {
+            local repo="$1"
+            local local_image="$2"
+            local source_image="$local_image:$RELEASE_TAG"
+            local target_image="$REGISTRY/$repo:$RELEASE_TAG"
+
+            echo "Tagging $source_image"
+            docker tag "$source_image" "$target_image"
+
+            echo "Pushing $target_image"
+            docker push "$target_image"
+
+            echo "Successfully pushed $target_image"
+          }
+
+          push_image "$AUTH_REPO" "$AUTH_LOCAL_IMAGE"
+          push_image "$ORDER_REPO" "$ORDER_LOCAL_IMAGE"
+          push_image "$EXECUTOR_REPO" "$EXECUTOR_LOCAL_IMAGE"
+          push_image "$FRONTEND_REPO" "$FRONTEND_LOCAL_IMAGE"
+
+          echo "======================================"
           echo "CI BUILD COMPLETED SUCCESSFULLY"
-          echo "=========================================="
+          echo "======================================"
           echo "AWS account: $AWS_ACCOUNT_ID"
           echo "AWS region: $AWS_REGION"
-          echo "Release tag: $RELEASE_TAG"
           echo "ECR registry: $REGISTRY"
           echo "IMAGE_TAG=$RELEASE_TAG"
         '''
@@ -327,17 +318,14 @@ pipeline {
 
   post {
     always {
-      echo 'Running CI cleanup...'
+      echo 'Running cleanup'
 
       sh '''#!/usr/bin/env bash
         set +e
 
-        echo "Logging out from ECR if configured"
         if [[ -n "${REGISTRY:-}" ]]; then
           docker logout "$REGISTRY" || true
         fi
-
-        echo "Removing images created by this build"
 
         for image in \
           "$AUTH_LOCAL_IMAGE" \
@@ -345,7 +333,8 @@ pipeline {
           "$EXECUTOR_LOCAL_IMAGE" \
           "$FRONTEND_LOCAL_IMAGE"
         do
-          docker image rm "$image:${RELEASE_TAG:-none}" >/dev/null 2>&1 || true
+          docker image rm "$image:${RELEASE_TAG:-none}" \
+            >/dev/null 2>&1 || true
         done
 
         if [[ -n "${REGISTRY:-}" ]]; then
@@ -361,19 +350,16 @@ pipeline {
           done
         fi
 
-        echo "Pruning builder cache older than 72 hours"
-        docker builder prune -f --filter until=72h >/dev/null 2>&1 || true
-
         echo "Cleanup completed"
       '''
     }
 
     success {
-      echo "CI pipeline succeeded. Release tag: ${env.RELEASE_TAG}"
+      echo "CI succeeded. Image tag: ${env.RELEASE_TAG}"
     }
 
     failure {
-      echo 'CI pipeline failed. Check the first failing CHECK, BUILD, or PUSH message above.'
+      echo 'CI failed. Check the first failing validation, build, or push command.'
     }
   }
 }
