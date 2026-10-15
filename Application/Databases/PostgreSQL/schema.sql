@@ -814,6 +814,6 @@ ALTER TABLE ONLY public.watchlist_instruments
 ALTER TABLE ONLY public.watchlists
     ADD CONSTRAINT watchlists_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.clients(client_id);
 
-
+SELECT format('ALTER DATABASE %I SET search_path = public, auth_db', current_database()) \gexec
 \unrestrict HF69wgU9BTU5mZDDFzytA8LWFn9YiUjnuWQa3koDw0cSsO1nTwgFZRfDNJsF7dQ
 

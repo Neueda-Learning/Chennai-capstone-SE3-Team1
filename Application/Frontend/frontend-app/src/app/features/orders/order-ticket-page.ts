@@ -1,6 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import { newUuid } from '../../core/util/uuid';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of, timer } from 'rxjs';
@@ -576,7 +578,7 @@ export class OrderTicketPage implements OnDestroy {
             side,
             quantity,
             price: limit,
-            idempotencyKey: crypto.randomUUID()
+            idempotencyKey: newUuid()
           }
         },
         'response'

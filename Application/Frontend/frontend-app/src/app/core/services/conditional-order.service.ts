@@ -1,4 +1,5 @@
 import { HttpClient } from '@angular/common/http';
+import { newUuid } from '../util/uuid';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -72,11 +73,7 @@ export const CONDITION_LABELS: Readonly<Record<ConditionType, string>> = {
 };
 
 export function newIdempotencyKey(prefix: string): string {
-  const random =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `${prefix}-${random}`;
+  return `${prefix}-${newUuid()}`;
 }
 
 @Injectable({ providedIn: 'root' })

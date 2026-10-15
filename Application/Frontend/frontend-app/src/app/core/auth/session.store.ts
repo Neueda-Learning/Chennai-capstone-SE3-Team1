@@ -41,6 +41,33 @@ export class SessionStore {
       this.persist();
     }
     this.clearLegacyStore();
+
+    // Every tab of this browser shares the session in localStorage. When another tab renews or signs
+    // out, follow it, so this tab never presents a refresh token that has already been replaced.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (event: StorageEvent) => {
+        if (event.key === SESSION_KEY || event.key === null) {
+          this.syncFromStorage();
+        }
+      });
+    }
+  }
+
+  /**
+   * Re-reads the session another tab may have written. Returns true when it differed from this
+   * tab's (another tab renewed, signed in or signed out meanwhile).
+   */
+  syncFromStorage(): boolean {
+    const stored = this.readFrom(this.store);
+    const token = stored?.accessToken ?? null;
+    const refresh = stored?.refreshToken ?? null;
+    if (token === this.token() && refresh === this.refresh()) {
+      return false;
+    }
+    this.token.set(token);
+    this.refresh.set(refresh);
+    this.account.set(stored?.accountId ?? (token === null ? null : decodeAccountId(token)));
+    return true;
   }
 
   readonly isSignedIn = computed(() => this.token() !== null);
