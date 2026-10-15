@@ -14,6 +14,7 @@ pipeline {
     string(name: 'RDS_PORT', defaultValue: '5432', description: 'RDS PostgreSQL port')
     string(name: 'RDS_DATABASE', defaultValue: 'trading_system_db', description: 'RDS database name')
     string(name: 'RDS_USER', defaultValue: 'postgres', description: 'RDS database user')
+    password(name: 'RDS_PASSWORD', defaultValue: '', description: 'RDS postgres password (masked, never logged)')
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Required ECR tag produced by JenkinsfileCI')
     string(name: 'K8S_OVERLAY', defaultValue: 'k8s/overlays/four-lb', description: 'Must be the same overlay JenkinsfileCI built against (its urls.env is baked into the frontend config.json at CI time)')
     string(name: 'K8S_NAMESPACE', defaultValue: 'default', description: 'Namespace used by the current manifests')
@@ -52,6 +53,10 @@ pipeline {
           env.DB_PORT = params.RDS_PORT.trim()
           env.DB_NAME = params.RDS_DATABASE.trim()
           env.DB_USER = params.RDS_USER.trim()
+          env.DB_PASSWORD = params.RDS_PASSWORD ?: ''
+          if (!env.DB_PASSWORD.trim()) {
+            error('RDS_PASSWORD is required. Enter the RDS postgres password (it is masked).')
+          }
         }
       }
     }
@@ -173,10 +178,16 @@ pipeline {
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          # Secrets are hardcoded here; no Jenkins credential is used.
-          cat > k8s/base/secrets.env <<'SECRETS_EOF'
-# SECRETS. Copy to secrets.env (git-ignored) and fill in. Copied to base/secrets.env and turned into the Secret etp-secrets (guide 7.2).
-DB_PASSWORD=iykykykyk
+          # Secrets from the CD parameters. Keys must match ENV_NAMES in
+          # auth secrets.ts / VaultEnvironmentPostProcessor: POSTGRES_*, JWT_SECRET, etc.
+          # (DB_PASSWORD alone is read by nothing.) RDS_PASSWORD is a masked password
+          # parameter, so the real password never appears in the console.
+          cat > k8s/base/secrets.env <<SECRETS_EOF
+POSTGRES_HOST=$DB_HOST
+POSTGRES_PORT=$DB_PORT
+POSTGRES_DB=$DB_NAME
+POSTGRES_USER=$DB_USER
+POSTGRES_PASSWORD=$DB_PASSWORD
 
 # at least 32 bytes:  node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 JWT_SECRET=whatthehell
