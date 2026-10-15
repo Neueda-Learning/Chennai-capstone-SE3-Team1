@@ -3,7 +3,7 @@
 // The browser cannot read that file, so the scripts here read it and write public/config.json
 // (generate-config.mjs); the app loads that at start-up. The same reader serves the dev-server
 // starter (start.mjs) and Playwright, so no host, port or URL is written anywhere in this project.
-//
+// ADDED NEW changes
 // A value is, in order: a real environment variable, the repo-root .env, Application/Config/services.env.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -29,6 +29,13 @@ export function loadServiceConfig({
   for (const key of Object.keys(values)) {
     if (env[key]) {
       values[key] = env[key];
+    }
+  }
+  // In Docker the files above don't exist (CONFIG_FILE resolves to /Config/services.env),
+  // so honour HOST/PORT/URL env vars even when there was nothing to override.
+  for (const [key, value] of Object.entries(env)) {
+    if (value && !(key in values) && /_(HOST|PORT|URL)$/.test(key)) {
+      values[key] = value;
     }
   }
   return values;
