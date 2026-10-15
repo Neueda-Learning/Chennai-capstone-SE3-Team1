@@ -74,3 +74,15 @@ curl -s http://$FE/_order/actuator/health          # {"status":"UP"...}
 Do not run the Docker Compose stack and the EKS stack against RDS at the same time: together they
 can use up the small instance's connection slots. The RDS security group should allow port 5432
 only from the cluster's NAT gateway address and from the RDS VPC, not from `0.0.0.0/0`.
+
+## Pausing and resuming
+
+```bash
+bash k8s/pause.sh     # all app pods and Kafka to 0; settings, data and load balancers stay
+bash k8s/resume.sh    # Kafka first, then the apps; prints the site address when it answers
+```
+
+Kafka must be running before order-service and executor-service can start. Both have a
+`wait-for-kafka` init container, so if Kafka is down they wait at `Init:0/1` (instead of crashing in a
+loop) and start on their own once it is up. If they sit at `Init:0/1`, Kafka is not running:
+`kubectl scale statefulset kafka --replicas=1`.
