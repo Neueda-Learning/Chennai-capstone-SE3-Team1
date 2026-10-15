@@ -1,0 +1,46 @@
+# Angular static site on nginx. API endpoints are baked into the production image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: etp-frontend
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+               sed -i 's/resolver 127\.0\.0\.11 valid=10s;/resolver 10.100.0.10 valid=10s;/' /etc/nginx/templates/default.conf.template
+               sed -i '/set \$keep_upstream \${FRONTEND_PROXY_KEEP_TARGET};/d' /etc/nginx/templates/default.conf.template
+               sed -i 's/proxy_pass \$keep_upstream;/proxy_pass ${FRONTEND_PROXY_KEEP_TARGET};/' /etc/nginx/templates/default.conf.template
+               exec /docker-entrypoint.sh nginx -g 'daemon off;'
+          ports:
+            - { name: http, containerPort: 80 }
+          envFrom:
+            - configMapRef: { name: etp-urls }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  type: ClusterIP
+  selector: { app: frontend }
+  ports:
+    - { name: http, port: 80, targetPort: http }

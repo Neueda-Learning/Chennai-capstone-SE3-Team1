@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { newIdempotencyKey } from '../../core/services/conditional-order.service';
 
 import { SessionStore } from '../../core/auth/session.store';
 import {
@@ -576,7 +577,7 @@ export class OrderTicketPage implements OnDestroy {
             side,
             quantity,
             price: limit,
-            idempotencyKey: crypto.randomUUID()
+            idempotencyKey: newIdempotencyKey('order')
           }
         },
         'response'
