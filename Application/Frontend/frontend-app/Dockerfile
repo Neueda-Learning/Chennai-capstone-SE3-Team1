@@ -100,7 +100,8 @@ COPY --from=build /site /opt/site-pristine
 
 # nginx config. The nginx image fills the ${FRONTEND_PROXY_*} names from the
 # environment each time the container starts (docker-compose sets them from .env).
-ENV FRONTEND_PROXY_AUTH_PREFIX=_auth FRONTEND_PROXY_AUTH_TARGET=http://auth-service:3000 \
+ENV FRONTEND_PROXY_RESOLVER=127.0.0.11 \
+    FRONTEND_PROXY_AUTH_PREFIX=_auth FRONTEND_PROXY_AUTH_TARGET=http://auth-service:3000 \
     FRONTEND_PROXY_ORDER_PREFIX=_order FRONTEND_PROXY_ORDER_TARGET=http://order-service:8081 \
     FRONTEND_PROXY_KEEP_PATHS=__unused__ FRONTEND_PROXY_KEEP_TARGET=http://order-service:8081 \
     FRONTEND_PROXY_KEEP2_PATHS=__unused2__ FRONTEND_PROXY_KEEP2_TARGET=http://auth-service:3000 \
@@ -117,8 +118,9 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
-  # Docker's DNS, re-resolved so a restarted backend is picked up.
-  resolver 127.0.0.11 valid=10s;
+  # DNS server for the backend names, re-resolved so a restarted backend is picked up.
+  # Docker's is 127.0.0.11 (the default); Kubernetes sets FRONTEND_PROXY_RESOLVER to kube-dns.
+  resolver ${FRONTEND_PROXY_RESOLVER} valid=10s;
 
   gzip on;
   gzip_min_length 1024;

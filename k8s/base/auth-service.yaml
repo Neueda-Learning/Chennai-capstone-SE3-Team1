@@ -1,0 +1,60 @@
+# Node/Nest auth service on port 3000 (AUTH_SERVICE_PORT in services.env).
+# Settings: config.env + secrets.env (env vars) and services.env (file at /config/services.env).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: auth-service }
+  template:
+    metadata:
+      labels: { app: auth-service }
+    spec:
+      # Kubernetes would otherwise add <SERVICE>_PORT=tcp://... variables for every Service, and
+      # FRONTEND_PORT / AUTH_SERVICE_PORT collide with services.env (the app reads them as port numbers).
+      enableServiceLinks: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
+      containers:
+        - name: auth-service
+          image: etp-auth-service
+          ports:
+            - { name: http, containerPort: 3000 }
+          envFrom:
+            - configMapRef: { name: etp-config }
+            - configMapRef: { name: etp-urls }
+            - secretRef: { name: etp-secrets }
+          volumeMounts:
+            - { name: shared-config, mountPath: /config, readOnly: true }
+          # /docs/json answers as soon as Nest is up (/health/ready also checks the DB and Kafka).
+          startupProbe:
+            httpGet: { path: /docs/json, port: http }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: { path: /docs/json, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /docs/json, port: http }
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes:
+        - name: shared-config
+          configMap: { name: etp-shared-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /docs/json      # ALB checks "/" otherwise
+spec:
+  type: ClusterIP
+  selector: { app: auth-service }
+  ports:
+    - { name: http, port: 3000, targetPort: http }

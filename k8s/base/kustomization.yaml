@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - storageclass.yaml
+  - kafka.yaml
+  - kafka-topics-job.yaml
+  - auth-service.yaml
+  - order-service.yaml
+  - executor-service.yaml
+  - frontend.yaml
+configMapGenerator:
+  - name: etp-config
+    envs: [config.env]
+  # Application/Config/services.env, mounted at /config/services.env in the app pods.
+  # Kustomize cannot read files outside k8s/, so it is copied in first:
+  #   cp Application/Config/services.env k8s/base/generated/services.env
+  - name: etp-shared-config
+    files: [services.env=generated/services.env]
+secretGenerator:
+  - name: etp-secrets
+    envs: [secrets.env]                # git-ignored; template: secrets.env.example
+# The tag must be one that was actually pushed to ECR (aws ecr describe-images --repository-name ...).
+# A unique tag per build (commit + suffix) makes every apply roll out exactly that build.
+images:
+  - name: etp-auth-service
+    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-auth-service
+    newTag: 16eef5d-eks1
+  - name: etp-order-service
+    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-order-service
+    newTag: 16eef5d-eks1
+  - name: etp-executor-service
+    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-executor-service
+    newTag: 16eef5d-eks1
+  - name: etp-frontend
+    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-frontend
+    newTag: 16eef5d-eks1

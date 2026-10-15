@@ -1,0 +1,54 @@
+# Angular site on nginx. The browser only ever talks to this pod's address: nginx forwards
+# /_auth/... to auth-service and /_order/... to order-service inside the cluster (same origin, so
+# no CORS and no cross-site cookies). Same image as Docker Compose; only the settings below differ.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      # Kubernetes would otherwise add <SERVICE>_PORT=tcp://... variables for every Service, and
+      # FRONTEND_PORT / AUTH_SERVICE_PORT collide with services.env (the app reads them as port numbers).
+      enableServiceLinks: false
+      containers:
+        - name: frontend
+          image: etp-frontend
+          ports:
+            - { name: http, containerPort: 80 }
+          envFrom:
+            - configMapRef: { name: etp-urls }
+          env:
+            # The page is built with http://localhost:3000 / :8081 inside; each start replaces them
+            # with the relative proxy paths, so it works at whatever address it is opened from.
+            - { name: URL_REWRITES, value: "http://localhost:3000=/_auth http://localhost:8081=/_order" }
+            # nginx needs a DNS server to look the backends up. Docker's is 127.0.0.11 (the image
+            # default); in Kubernetes it is kube-dns. nginx does not use the pod's search domains,
+            # so the targets are full names (<service>.<namespace>.svc.cluster.local).
+            - { name: FRONTEND_PROXY_RESOLVER, value: "kube-dns.kube-system.svc.cluster.local" }
+            - { name: FRONTEND_PROXY_AUTH_TARGET, value: "http://auth-service.default.svc.cluster.local:3000" }
+            - { name: FRONTEND_PROXY_ORDER_TARGET, value: "http://order-service.default.svc.cluster.local:8081" }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  type: ClusterIP
+  selector: { app: frontend }
+  ports:
+    - { name: http, port: 80, targetPort: http }

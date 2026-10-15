@@ -1,0 +1,21 @@
+# STAGE 1 - classic AWS load balancers for the public services: frontend (the site), plus auth and
+# order for direct API testing. The browser itself only needs the frontend one: nginx in the
+# frontend pod forwards /_auth and /_order inside the cluster.
+# The executor has no load balancer: nothing outside the cluster calls it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+configMapGenerator:
+  - name: etp-urls
+    envs: [urls.env]
+patches:
+  - target: { kind: Service, name: frontend }
+    patch: |-
+      - { op: replace, path: /spec/type, value: LoadBalancer }
+  - target: { kind: Service, name: auth-service }
+    patch: |-
+      - { op: replace, path: /spec/type, value: LoadBalancer }
+  - target: { kind: Service, name: order-service }
+    patch: |-
+      - { op: replace, path: /spec/type, value: LoadBalancer }
