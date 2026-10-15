@@ -88,8 +88,8 @@ pipeline {
           echo "=== Checking Dockerfiles ==="
 
           for f in \
-            Application/Services/auth_service/Dockerfile \
-            Application/Services/order_service/Dockerfile \
+            Application/Services/auth-service/Dockerfile \
+            Application/Services/order-service/Dockerfile \
             Application/Services/executor-service/Dockerfile \
             Application/Frontend/frontend-app/Dockerfile
           do
@@ -249,13 +249,13 @@ pipeline {
 
           docker build \
             -t "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" \
-            ./Application/Services/auth_service
+            ./Application/Services/auth-service
 
           echo "BUILD 2/4: Order service"
 
           docker build \
             -t "$ORDER_LOCAL_IMAGE:$RELEASE_TAG" \
-            ./Application/Services/order_service
+            ./Application/Services/order-service
 
           echo "BUILD 3/4: Executor service"
 
