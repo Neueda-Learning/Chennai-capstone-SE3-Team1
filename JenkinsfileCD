@@ -33,7 +33,17 @@ pipeline {
       steps {
         deleteDir()
         checkout scm
-        sh 'git rev-parse HEAD; test -f k8s/base/generated/application.yml'
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          git rev-parse HEAD
+          # kustomization.yaml needs generated/services.env (a copy of
+          # Application/Config/services.env). Both generated/ and secrets.env
+          # are git-ignored, so a fresh clone never has them: create the copy
+          # here instead of testing for a file that cannot exist.
+          mkdir -p k8s/base/generated
+          cp Application/Config/services.env k8s/base/generated/services.env
+          test -f k8s/base/generated/services.env
+        '''
         script {
           if (!params.IMAGE_TAG?.trim()) {
             error('IMAGE_TAG is required. Run JenkinsfileCI first and enter its pushed ECR tag.')
