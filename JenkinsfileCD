@@ -124,7 +124,8 @@ pipeline {
           cp Application/Config/services.env k8s/base/generated/services.env
 
           # Point the bundle at this account's ECR and the chosen tag (workspace copy only, not committed).
-          sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\\$#\\1$REGISTRY/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1$IMAGE_TAG#" k8s/base/kustomization.yaml
+          # The tag is quoted: unquoted, YAML reads 1.3 as a number and kustomize rejects it.
+          sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\\$#\\1$REGISTRY/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1\\"$IMAGE_TAG\\"#" k8s/base/kustomization.yaml
           kubectl kustomize "$K8S_OVERLAY" > rendered.yaml
           echo "images in this deploy:"
           grep -E '^[[:space:]]+image:' rendered.yaml | sort -u
