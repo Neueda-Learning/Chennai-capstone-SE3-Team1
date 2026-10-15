@@ -81,7 +81,7 @@ pipeline {
             docker build -t "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Services/auth-service
             docker build -t "$ORDER_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Services/order-service
             docker build -t "$EXECUTOR_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Services/executor-service
-            sh 'docker build --build-arg "BUILD_ENV=$BUILD_ENV" --build-arg BUILD_APK=openjdk21-jre-headless --build-context extra=/tmp/fe-extra --build-arg EXTRA_DEST=/ -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Frontend/frontend-app'
+            docker build --build-arg "BUILD_ENV=$BUILD_ENV" --build-arg BUILD_APK=openjdk21-jre-headless --build-context extra=/tmp/fe-extra --build-arg EXTRA_DEST=/ -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Frontend/frontend-app
 
             declare -A IMAGE_MAP=(
               ["$AUTH_REPO"]="$AUTH_LOCAL_IMAGE"
