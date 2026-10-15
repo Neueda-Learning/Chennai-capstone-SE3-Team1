@@ -24,14 +24,14 @@ secretGenerator:
 # A unique tag per build (commit + suffix) makes every apply roll out exactly that build.
 images:
   - name: etp-auth-service
-    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-auth-service
-    newTag: 16eef5d-eks1
+    newName: 635520162419.dkr.ecr.ap-south-1.amazonaws.com/etp-auth-service
+    newTag: 06609f2-eks2
   - name: etp-order-service
-    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-order-service
-    newTag: 16eef5d-eks1
+    newName: 635520162419.dkr.ecr.ap-south-1.amazonaws.com/etp-order-service
+    newTag: 06609f2-eks2
   - name: etp-executor-service
-    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-executor-service
-    newTag: 16eef5d-eks1
+    newName: 635520162419.dkr.ecr.ap-south-1.amazonaws.com/etp-executor-service
+    newTag: 06609f2-eks2
   - name: etp-frontend
-    newName: 434661699513.dkr.ecr.ap-south-1.amazonaws.com/etp-frontend
-    newTag: 16eef5d-eks1
+    newName: 635520162419.dkr.ecr.ap-south-1.amazonaws.com/etp-frontend
+    newTag: 06609f2-eks2

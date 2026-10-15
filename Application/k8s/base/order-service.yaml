@@ -1,0 +1,78 @@
+# Spring Boot order/trade API on port 8081 (SERVER_PORT below).
+# Health: Spring Boot Actuator, /actuator/health (there is no /health on this service).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: order-service }
+  template:
+    metadata:
+      labels: { app: order-service }
+    spec:
+      # Kubernetes would otherwise add <SERVICE>_PORT=tcp://... variables for every Service, and
+      # FRONTEND_PORT / AUTH_SERVICE_PORT collide with services.env (the app reads them as port numbers).
+      enableServiceLinks: false
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001 }
+      # Wait until Kafka answers before starting the app. Without this, starting the app while Kafka is
+      # down (resuming in the wrong order, or a slow Kafka disk) crashes it with "No resolvable bootstrap
+      # urls" and restarts it in a loop; with it the pod waits at Init:0/1 and starts by itself.
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z -w 2 kafka 29092; do echo waiting for kafka:29092; sleep 3; done"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 32Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      containers:
+        - name: order-service
+          image: etp-order-service
+          ports:
+            - { name: http, containerPort: 8081 }
+          envFrom:
+            - configMapRef: { name: etp-config }
+            - configMapRef: { name: etp-urls }
+            - secretRef: { name: etp-secrets }
+          env:
+            - { name: SERVER_PORT, value: "8081" }
+            - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError" }
+          volumeMounts:
+            - { name: shared-config, mountPath: /config, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /actuator/health, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 250m, memory: 640Mi }
+            limits: { memory: 1280Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes:
+        - name: shared-config
+          configMap: { name: etp-shared-config }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+spec:
+  type: ClusterIP
+  selector: { app: order-service }
+  ports:
+    - { name: http, port: 8081, targetPort: http }

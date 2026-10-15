@@ -469,9 +469,9 @@ describe('AuthService', () => {
       id: 'rt-1',
       userId: user.id,
       tokenHash: 'a'.repeat(64),
-      expiresAt: new Date('2026-10-12T08:00:00Z'),
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
       revokedAt: null,
-      createdAt: new Date('2026-10-05T08:00:00Z'),
+      createdAt: new Date(Date.now() - 24 * 3600 * 1000),
     };
 
     it('rotates: revokes the presented token and stores a new pair', async () => {
@@ -531,6 +531,13 @@ describe('AuthService', () => {
       expect((caught as AuthServiceException).getStatus()).toBe(401);
     });
 
+    it('refuses a token replaced moments ago without revoking the session (two tabs renewing at once)', async () => {
+      refreshTokens.findByHash.mockResolvedValue({ ...active, revokedAt: new Date(Date.now() - 5000) });
+
+      await expect(service.refresh({ refreshToken: 'presented-token' })).rejects.toBeInstanceOf(AuthServiceException);
+      expect(refreshTokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
     it('rejects an unknown refresh token', async () => {
       refreshTokens.findByHash.mockResolvedValue(null);
 
@@ -571,9 +578,9 @@ describe('AuthService', () => {
       id: 'rt-1',
       userId: user.id,
       tokenHash: 'a'.repeat(64),
-      expiresAt: new Date('2026-10-12T08:00:00Z'),
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
       revokedAt: null,
-      createdAt: new Date('2026-10-05T08:00:00Z'),
+      createdAt: new Date(Date.now() - 24 * 3600 * 1000),
     };
 
     it("revokes only the caller's presented refresh token", async () => {

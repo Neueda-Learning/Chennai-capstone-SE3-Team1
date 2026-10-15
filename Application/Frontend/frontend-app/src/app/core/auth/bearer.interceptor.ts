@@ -32,22 +32,32 @@ function isPublicAuthEndpoint(url: string): boolean {
   );
 }
 
-let renewalInFlight: Observable<TokenResponse> | null = null;
+let renewalInFlight: Observable<void> | null = null;
 
-function renewOnce(auth: AuthService, session: SessionStore): Observable<TokenResponse> {
+/**
+ * Renews the session once, however many requests (or pages) ask at the same moment, and stores the
+ * new tokens. Every caller must use this instead of calling auth.refresh itself: a refresh token is
+ * single-use, and presenting a replaced one makes the auth service treat it as theft.
+ *
+ * If the server refuses our refresh token because another tab of this browser renewed with it a
+ * moment earlier, that tab's new tokens are already in localStorage: they are adopted instead of
+ * signing the user out.
+ */
+export function renewSession(auth: AuthService, session: SessionStore): Observable<void> {
   if (renewalInFlight === null) {
-    const refreshToken = session.refreshToken();
-    if (refreshToken === null) {
+    const used = session.refreshToken();
+    if (used === null) {
       return throwError(() => new Error('No refresh token to renew the session with'));
     }
-    renewalInFlight = auth.refresh({ refreshRequest: { refreshToken } }).pipe(
-      map((tokens) => {
-        session.adoptTokens(
-          tokens.accessToken,
-          session.accountId(),
-          tokens.refreshToken ?? refreshToken
-        );
-        return tokens;
+    renewalInFlight = auth.refresh({ refreshRequest: { refreshToken: used } }).pipe(
+      map((tokens: TokenResponse) => {
+        session.adoptTokens(tokens.accessToken, session.accountId(), tokens.refreshToken ?? used);
+      }),
+      catchError((failure: unknown) => {
+        if (session.syncFromStorage() && session.accessToken() !== null && session.refreshToken() !== used) {
+          return of(undefined);
+        }
+        return throwError(() => failure);
       }),
       shareReplay({ bufferSize: 1, refCount: false }),
       finalize(() => {
@@ -97,7 +107,10 @@ export const bearerInterceptor: HttpInterceptorFn = (request, next) => {
         return endSession(session, router, failure);
       }
 
-      return renewOnce(auth, session).pipe(
+      // Another tab may already have renewed: then its newer access token is in localStorage.
+      session.syncFromStorage();
+      const newerToken = session.accessToken() !== null && session.accessToken() !== accessToken;
+      return (newerToken ? of(undefined) : renewSession(auth, session)).pipe(
         switchMap(() =>
           next(
             request.clone({
