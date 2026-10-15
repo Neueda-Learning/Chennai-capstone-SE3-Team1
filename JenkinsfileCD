@@ -39,7 +39,7 @@ pipeline {
         checkout scm
         script {
           env.AWS_REGION = params.AWS_REGION?.trim() ?: 'ap-south-1'
-          env.EKS_CLUSTER_NAME = params.EKS_CLUSTER_NAME?.trim() ?: 'etp-cluster-3'
+          env.EKS_CLUSTER_NAME = params.EKS_CLUSTER_NAME?.trim() ?: 'etp-cluster-2'
           env.K8S_OVERLAY = params.K8S_OVERLAY?.trim() ?: 'k8s/overlays/four-lb'
           env.K8S_NAMESPACE = params.K8S_NAMESPACE?.trim() ?: 'default'
           // Own kubeconfig per workspace, so the jenkins user's ~/.kube is never touched.
