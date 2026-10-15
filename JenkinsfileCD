@@ -155,7 +155,7 @@ pipeline {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
           # Secrets are hardcoded here; no Jenkins credential is used.
-          cat > k8s/base/secrets.env <<'SECRETS_EOF'
+          cat > Application/k8s/base/secrets.env <<'SECRETS_EOF'
 # SECRETS. Copy to secrets.env (git-ignored) and fill in. Copied to base/secrets.env and turned into the Secret etp-secrets (guide 7.2).
 DB_PASSWORD=iykykykyk
 
@@ -183,7 +183,7 @@ SECRETS_EOF
 
   post {
     always {
-      sh 'rm -f k8s/base/secrets.env'
+      sh 'rm -f Application/k8s/base/secrets.env'
     }
   }
 }
