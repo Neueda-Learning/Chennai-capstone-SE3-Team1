@@ -19,7 +19,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Tag from a CI run, e.g. 1.7. Empty = the newest 1.N tag in ECR')
-    string(name: 'EKS_CLUSTER_NAME', defaultValue: 'etp-cluster-3', description: 'EKS cluster to deploy to')
+    string(name: 'EKS_CLUSTER_NAME', defaultValue: 'etp-cluster-2', description: 'EKS cluster to deploy to')
     string(name: 'AWS_REGION', defaultValue: 'ap-south-1', description: 'AWS region')
     string(name: 'K8S_OVERLAY', defaultValue: 'k8s/overlays/four-lb', description: 'Kustomize overlay')
     string(name: 'K8S_NAMESPACE', defaultValue: 'default', description: 'Namespace the manifests deploy into')
