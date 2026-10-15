@@ -26,7 +26,7 @@ pipeline {
   }
 
   environment {
-    SECRETS_CREDENTIAL_ID = 'etp-secrets-env'
+    SECRETS_CREDENTIAL_ID = 'etp-secrets'
     AUTH_REPO = 'etp-auth-service'
     ORDER_REPO = 'etp-order-service'
     EXECUTOR_REPO = 'etp-executor-service'
