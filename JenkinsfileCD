@@ -21,7 +21,7 @@ pipeline {
   }
 
   environment {
-    EKS_CLUSTER_NAME = 'eks-cluster-3'
+    EKS_CLUSTER_NAME = 'etp-cluster-3'
     AUTH_REPO = 'etp-auth-service'
     ORDER_REPO = 'etp-order-service'
     EXECUTOR_REPO = 'etp-executor-service'
