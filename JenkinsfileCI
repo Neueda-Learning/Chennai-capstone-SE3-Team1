@@ -267,6 +267,7 @@ pipeline {
 
           docker build \
             --build-arg "BUILD_ENV=$BUILD_ENV" \
+            --build-arg BUILD_APK=openjdk17-jre-headless \
             -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" \
             ./Application/Frontend/frontend-app
 
