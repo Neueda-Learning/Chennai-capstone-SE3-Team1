@@ -53,6 +53,7 @@ metadata:
   name: auth-service
   annotations:
     alb.ingress.kubernetes.io/healthcheck-path: /docs/json      # ALB checks "/" otherwise
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing   # CloudFront must reach this ELB
 spec:
   type: ClusterIP
   selector: { app: auth-service }
