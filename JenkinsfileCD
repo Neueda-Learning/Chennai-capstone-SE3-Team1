@@ -1,12 +1,12 @@
-// CI: builds the four images from THIS repository's layout and pushes them to the ECR of the AWS
-// account the Jenkins machine runs in. The tag (1.<build number>) is what JenkinsfileCD deploys.
+// CD: deploys images that JenkinsfileCI pushed (tag 1.<CI build number>) to this account's EKS cluster
+// with the k8s/ bundle (overlay four-lb by default). Runs only when started by hand.
 //
-// The build settings are the ones docker-compose.yml passes from .env (Jenkins has no .env):
-//   order/executor  context Application/Services, Dockerfile <service>/Dockerfile, libraries
-//                   libs/domain-engine and libs/eventbus built first (PRE_INSTALL_DIRS)
-//   frontend        Java for the OpenAPI client generator (BUILD_APK) and Application/Contracts +
-//                   Application/Config handed in as the "extra" build context, copied to / (EXTRA_DEST)
-// The page's backend addresses are not baked in: the frontend rewrites them when it starts.
+// Needs one Jenkins credential, kind "Secret file", ID etp-secrets-env: the filled-in
+// k8s/base/secrets.env (database, JWT, API keys, SMTP; keys as in secrets.env.example). Nothing secret
+// is in this file or in git, and the copy in the workspace is deleted when the run ends.
+//
+// It changes nothing outside the cluster: if the pods cannot reach the database, it stops and says so
+// (allow the EKS node security group on TCP 5432 in the RDS security group yourself).
 pipeline {
   agent any
 
@@ -14,27 +14,23 @@ pipeline {
     timestamps()
     disableConcurrentBuilds()
     skipDefaultCheckout(true)
-    timeout(time: 45, unit: 'MINUTES')
-  }
-
-  triggers {
-    githubPush()
-    pollSCM('H */2 * * *')
+    timeout(time: 40, unit: 'MINUTES')
   }
 
   parameters {
+    string(name: 'IMAGE_TAG', defaultValue: '', description: 'Tag from a CI run, e.g. 1.7. Empty = the newest 1.N tag in ECR')
+    string(name: 'EKS_CLUSTER_NAME', defaultValue: 'etp-cluster-2', description: 'EKS cluster to deploy to')
     string(name: 'AWS_REGION', defaultValue: 'ap-south-1', description: 'AWS region')
+    string(name: 'K8S_OVERLAY', defaultValue: 'k8s/overlays/four-lb', description: 'Kustomize overlay')
+    string(name: 'K8S_NAMESPACE', defaultValue: 'default', description: 'Namespace the manifests deploy into')
   }
 
   environment {
+    SECRETS_CREDENTIAL_ID = 'etp-secrets-env'
     AUTH_REPO = 'etp-auth-service'
     ORDER_REPO = 'etp-order-service'
     EXECUTOR_REPO = 'etp-executor-service'
     FRONTEND_REPO = 'etp-frontend'
-    AUTH_LOCAL_IMAGE = 'auth-service'
-    ORDER_LOCAL_IMAGE = 'order-service'
-    EXECUTOR_LOCAL_IMAGE = 'executor-service'
-    FRONTEND_LOCAL_IMAGE = 'frontend'
   }
 
   stages {
@@ -43,82 +39,172 @@ pipeline {
         checkout scm
         script {
           env.AWS_REGION = params.AWS_REGION?.trim() ?: 'ap-south-1'
-          env.RELEASE_TAG = "1.${env.BUILD_NUMBER}"
+          env.EKS_CLUSTER_NAME = params.EKS_CLUSTER_NAME?.trim() ?: 'etp-cluster-2'
+          env.K8S_OVERLAY = params.K8S_OVERLAY?.trim() ?: 'k8s/overlays/four-lb'
+          env.K8S_NAMESPACE = params.K8S_NAMESPACE?.trim() ?: 'default'
+          // Own kubeconfig per workspace, so the jenkins user's ~/.kube is never touched.
+          env.KUBECONFIG = "${env.WORKSPACE}/.kubeconfig"
         }
       }
     }
 
-    stage('Validate build agent') {
+    stage('Validate agent and cluster') {
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
           fail() { echo "VALIDATION FAILED: $1" >&2; exit 1; }
-          command -v aws >/dev/null    || fail "aws CLI is not installed for the jenkins user"
-          command -v docker >/dev/null || fail "docker is not installed"
-          docker info >/dev/null 2>&1  || fail "the jenkins user cannot use docker (add it to the docker group, restart Jenkins)"
-          docker buildx version >/dev/null 2>&1 || fail "docker buildx is missing (needed for --build-context)"
-          aws sts get-caller-identity >/dev/null || fail "no AWS credentials for the jenkins user (instance role or aws configure)"
-          for f in Application/Services/auth-service/Dockerfile \
-                   Application/Services/order-service/Dockerfile \
-                   Application/Services/executor-service/Dockerfile \
-                   Application/Frontend/frontend-app/Dockerfile; do
-            test -f "$f" || fail "missing $f"
-          done
-          free_gb=$(df -BG --output=avail "$WORKSPACE" | tail -1 | tr -dc 0-9)
-          [ "$free_gb" -ge 3 ] || fail "only ${free_gb} GB free; builds need about 3 GB (docker builder prune)"
-          echo "agent OK: $(aws sts get-caller-identity --query Account --output text), ${free_gb} GB free"
+          command -v aws >/dev/null     || fail "aws CLI is not installed for the jenkins user"
+          command -v kubectl >/dev/null || fail "kubectl is not installed for the jenkins user"
+          aws sts get-caller-identity >/dev/null || fail "no AWS credentials for the jenkins user"
+          test -f "$K8S_OVERLAY/kustomization.yaml" || fail "no overlay at $K8S_OVERLAY"
+          test -f Application/Config/services.env   || fail "missing Application/Config/services.env"
+          status=$(aws eks describe-cluster --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME" --query cluster.status --output text 2>/dev/null) \
+            || fail "cluster $EKS_CLUSTER_NAME not found in $AWS_REGION"
+          [ "$status" = ACTIVE ] || fail "cluster $EKS_CLUSTER_NAME is $status, not ACTIVE"
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME" >/dev/null
+          kubectl get nodes >/dev/null 2>&1 || fail "this AWS identity has no access to $EKS_CLUSTER_NAME (aws eks create-access-entry)"
+          kubectl get nodes
         '''
       }
     }
 
-    stage('Build and push ECR') {
+    stage('Pick and verify images') {
       steps {
         script {
           env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
           env.REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+          def tag = params.IMAGE_TAG?.trim()
+          if (!tag) {
+            tag = sh(script: '''aws ecr describe-images --region "$AWS_REGION" --repository-name "$FRONTEND_REPO" \
+                --query 'sort_by(imageDetails,&imagePushedAt)[].imageTags[]' --output text | tr -s '[:space:]' '\\n' \
+                | grep -E '^1[.][0-9]+$' | tail -1''', returnStdout: true).trim()
+            if (!tag) {
+              error("IMAGE_TAG is empty and ECR has no 1.N tag in ${env.FRONTEND_REPO}. Run the CI job first.")
+            }
+            echo "IMAGE_TAG not given; using the newest CI tag: ${tag}"
+          }
+          env.IMAGE_TAG = tag
         }
         sh '''#!/usr/bin/env bash
-            set -euo pipefail
-            echo "== build $RELEASE_TAG"
-            docker build -t "$AUTH_LOCAL_IMAGE:$RELEASE_TAG" Application/Services/auth-service
+          set -euo pipefail
+          for repo in "$AUTH_REPO" "$ORDER_REPO" "$EXECUTOR_REPO" "$FRONTEND_REPO"; do
+            aws ecr describe-images --region "$AWS_REGION" --repository-name "$repo" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1 || {
+              echo "Image $REGISTRY/$repo:$IMAGE_TAG does not exist. Use a tag a CI run printed as 'CI image tag'." >&2
+              exit 1
+            }
+            echo "found $repo:$IMAGE_TAG"
+          done
+        '''
+      }
+    }
 
-            for svc in order-service:8081:"$ORDER_LOCAL_IMAGE" executor-service:8082:"$EXECUTOR_LOCAL_IMAGE"; do
-              IFS=: read -r dir port image <<< "$svc"
-              docker build -f "Application/Services/$dir/Dockerfile" \
-                --build-arg APP_DIR="$dir" \
-                --build-arg PRE_INSTALL_DIRS="libs/domain-engine libs/eventbus" \
-                --build-arg APP_PORT="$port" \
-                -t "$image:$RELEASE_TAG" Application/Services
+    stage('Prepare bundle') {
+      steps {
+        script {
+          try {
+            withCredentials([file(credentialsId: env.SECRETS_CREDENTIAL_ID, variable: 'SECRETS_FILE')]) {
+              sh 'install -m 600 "$SECRETS_FILE" k8s/base/secrets.env'
+            }
+          } catch (err) {
+            error("Could not read the Jenkins credential '${env.SECRETS_CREDENTIAL_ID}'. Add it under Manage Jenkins > Credentials " +
+                  "(kind: Secret file, ID: ${env.SECRETS_CREDENTIAL_ID}, file: your filled-in k8s/base/secrets.env). (${err})")
+          }
+        }
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          # Every key of the template must be set (names only are printed, never values).
+          missing=""
+          for key in $(grep -E '^[A-Z_]+=' k8s/base/secrets.env.example | cut -d= -f1); do
+            grep -qE "^$key=.+" k8s/base/secrets.env || missing="$missing $key"
+          done
+          [ -z "$missing" ] || { echo "secrets.env credential has no value for:$missing" >&2; exit 1; }
+
+          # Kustomize cannot read outside k8s/, so the shared settings are copied in (as on the server).
+          mkdir -p k8s/base/generated
+          cp Application/Config/services.env k8s/base/generated/services.env
+
+          # Point the bundle at this account's ECR and the chosen tag (workspace copy only, not committed).
+          # The tag is quoted: unquoted, YAML reads 1.3 as a number and kustomize rejects it.
+          sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\\$#\\1$REGISTRY/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1\\"$IMAGE_TAG\\"#" k8s/base/kustomization.yaml
+          kubectl kustomize "$K8S_OVERLAY" > rendered.yaml
+          echo "images in this deploy:"
+          grep -E '^[[:space:]]+image:' rendered.yaml | sort -u
+          grep -q "$REGISTRY/$FRONTEND_REPO:$IMAGE_TAG" rendered.yaml || { echo "image tag was not applied to the bundle" >&2; exit 1; }
+        '''
+      }
+    }
+
+    stage('Check database reachable from the cluster') {
+      steps {
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          val() { grep -E "^$1=" k8s/base/secrets.env | tail -1 | cut -d= -f2- | tr -d "'" | tr -d '"'; }
+          DB_HOST=$(val POSTGRES_HOST); DB_PORT=$(val POSTGRES_PORT); DB_PORT=${DB_PORT:-5432}
+          POD="rds-check-$BUILD_NUMBER"
+          kubectl -n "$K8S_NAMESPACE" delete pod "$POD" --ignore-not-found >/dev/null
+          if ! kubectl -n "$K8S_NAMESPACE" run "$POD" --rm -i --restart=Never --quiet --image=postgres:16-alpine \
+                 --env="H=$DB_HOST" --env="P=$DB_PORT" --command -- sh -c 'pg_isready -h "$H" -p "$P" -t 15'; then
+            echo "The cluster cannot reach the database on port $DB_PORT. Nothing was deployed." >&2
+            echo "Allow the EKS node security group (or the VPC range) on TCP $DB_PORT in the RDS security group, then run again." >&2
+            exit 1
+          fi
+        '''
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          kubectl apply --dry-run=server -f rendered.yaml >/dev/null
+          # A finished Job cannot be changed; re-creating it is safe (topics use --if-not-exists).
+          kubectl -n "$K8S_NAMESPACE" delete job kafka-topics --ignore-not-found
+          kubectl apply -f rendered.yaml
+
+          # Kafka first: order and executor wait for it in their wait-for-kafka init container.
+          kubectl -n "$K8S_NAMESPACE" rollout status statefulset/kafka --timeout=600s
+          failed=""
+          for d in auth-service order-service executor-service frontend; do
+            kubectl -n "$K8S_NAMESPACE" rollout status deployment/$d --timeout=600s || failed="$failed $d"
+          done
+          if [ -n "$failed" ]; then
+            echo "Rollout failed for:$failed" >&2
+            for d in $failed; do
+              kubectl -n "$K8S_NAMESPACE" get pods -l app=$d -o wide || true
+              kubectl -n "$K8S_NAMESPACE" logs deployment/$d --all-containers --tail=60 || true
             done
-
-            FE_EXTRA="$WORKSPACE/.fe-extra"
-            rm -rf "$FE_EXTRA" && mkdir -p "$FE_EXTRA"
-            cp -r Application/Contracts Application/Config "$FE_EXTRA"/
-            docker build \
-              --build-arg BUILD_APK=openjdk21-jre-headless \
-              --build-context extra="$FE_EXTRA" \
-              --build-arg EXTRA_DEST=/ \
-              -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Frontend/frontend-app
-            rm -rf "$FE_EXTRA"
-
-            echo "== push to $REGISTRY"
-            aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
-            declare -A IMAGE_MAP=(
-              ["$AUTH_REPO"]="$AUTH_LOCAL_IMAGE"
-              ["$ORDER_REPO"]="$ORDER_LOCAL_IMAGE"
-              ["$EXECUTOR_REPO"]="$EXECUTOR_LOCAL_IMAGE"
-              ["$FRONTEND_REPO"]="$FRONTEND_LOCAL_IMAGE"
-            )
-            for repo in "${!IMAGE_MAP[@]}"; do
-              aws ecr describe-repositories --region "$AWS_REGION" --repository-names "$repo" >/dev/null 2>&1 || \
-                aws ecr create-repository --region "$AWS_REGION" --repository-name "$repo" \
-                  --image-scanning-configuration scanOnPush=true \
-                  --encryption-configuration encryptionType=AES256 >/dev/null
-              docker tag "${IMAGE_MAP[$repo]}:$RELEASE_TAG" "$REGISTRY/$repo:$RELEASE_TAG"
-              docker push "$REGISTRY/$repo:$RELEASE_TAG"
+            echo "Rolling all four apps back to the previous version." >&2
+            for d in auth-service order-service executor-service frontend; do
+              kubectl -n "$K8S_NAMESPACE" rollout undo deployment/$d || true
             done
-            echo "CI image tag: $RELEASE_TAG"
-            echo "IMAGE_TAG=$RELEASE_TAG"
+            exit 1
+          fi
+          kubectl -n "$K8S_NAMESPACE" get pods -o wide
+        '''
+      }
+    }
+
+    stage('Smoke test') {
+      steps {
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          FE_HOST=$(kubectl -n "$K8S_NAMESPACE" get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+          if [ -z "$FE_HOST" ]; then
+            echo "frontend has no load balancer address in this overlay; skipping the HTTP checks."
+            exit 0
+          fi
+          FE="http://$FE_HOST"
+          code=""
+          for i in $(seq 1 30); do
+            code=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$FE/" || true)
+            [ "$code" = 200 ] && break
+            sleep 10
+          done
+          [ "$code" = 200 ] || { echo "site $FE answered HTTP $code" >&2; exit 1; }
+          curl -fsS -m 15 "$FE/_auth/health/ready"       >/dev/null || { echo "auth-service is not ready behind $FE/_auth" >&2; exit 1; }
+          curl -fsS -m 15 "$FE/_order/actuator/health" | grep -q UP || { echo "order-service is not healthy behind $FE/_order" >&2; exit 1; }
+          echo "Deployed $IMAGE_TAG to $EKS_CLUSTER_NAME"
+          echo "SITE: $FE"
         '''
       }
     }
@@ -126,15 +212,7 @@ pipeline {
 
   post {
     always {
-      // The local copies are in ECR now; drop them and old build cache so the disk does not fill up.
-      sh '''#!/usr/bin/env bash
-        [ -n "${REGISTRY:-}" ] && docker logout "$REGISTRY" || true
-        for i in "$AUTH_LOCAL_IMAGE" "$ORDER_LOCAL_IMAGE" "$EXECUTOR_LOCAL_IMAGE" "$FRONTEND_LOCAL_IMAGE" \
-                 "${REGISTRY:-none}/$AUTH_REPO" "${REGISTRY:-none}/$ORDER_REPO" "${REGISTRY:-none}/$EXECUTOR_REPO" "${REGISTRY:-none}/$FRONTEND_REPO"; do
-          docker image rm "$i:${RELEASE_TAG:-none}" >/dev/null 2>&1 || true
-        done
-        docker builder prune -f --filter until=72h >/dev/null 2>&1 || true
-      '''
+      sh 'rm -rf k8s/base/secrets.env k8s/base/generated rendered.yaml "$WORKSPACE/.kubeconfig"'
     }
   }
 }
