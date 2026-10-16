@@ -94,12 +94,11 @@ pipeline {
             FE_EXTRA="$WORKSPACE/.fe-extra"
             rm -rf "$FE_EXTRA" && mkdir -p "$FE_EXTRA"
             cp -r Application/Contracts Application/Config "$FE_EXTRA"/
-            cd Application/Frontend/frontend-app
             docker build \
-            --build-arg BUILD_APK=openjdk21-jre-headless \
-            --build-context extra="$FE_EXTRA" \
-            --build-arg EXTRA_DEST=/ \
-            -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" .
+              --build-arg BUILD_APK=openjdk21-jre-headless \
+              --build-context extra="$FE_EXTRA" \
+              --build-arg EXTRA_DEST=/ \
+              -t "$FRONTEND_LOCAL_IMAGE:$RELEASE_TAG" ./Application/Frontend/frontend-app
             rm -rf "$FE_EXTRA"
 
             echo "== push to $REGISTRY"
