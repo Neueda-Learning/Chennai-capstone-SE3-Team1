@@ -24,7 +24,7 @@ spec:
           envFrom:
             - configMapRef: { name: etp-config }
             - configMapRef: { name: etp-urls }
-            - secretRef: { name: etp-secrets }
+            - secretRef: { name: etp-secrets-env }
           volumeMounts:
             - { name: shared-config, mountPath: /config, readOnly: true }
           # /docs/json answers as soon as Nest is up (/health/ready also checks the DB and Kafka).

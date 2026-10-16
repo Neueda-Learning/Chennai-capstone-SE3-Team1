@@ -9,7 +9,6 @@ resources:
   - order-service.yaml
   - executor-service.yaml
   - frontend.yaml
-  - secret.yml
 configMapGenerator:
   - name: etp-config
     envs: [config.env]
@@ -18,10 +17,10 @@ configMapGenerator:
   #   cp Application/Config/services.env k8s/base/generated/services.env
   - name: etp-shared-config
     files: [services.env=generated/services.env]
-# The Secret is declared as a plain secret.yml (not secretGenerator) so that
-# Kubernetes creates it with the exact name 'etp-secrets' (no hash suffix).
-# The CD pipeline writes the filled-in values into k8s/base/secrets.env before
-# rendering the bundle, and kustomize builds the Secret from that file.
+# The Secret is built from k8s/base/secrets.env via secretGenerator below (exact
+# name 'etp-secrets-env', no hash suffix, because the pods reference it by that
+# name in secretRef). The CD pipeline writes the filled-in values into
+# k8s/base/secrets.env before rendering the bundle.
 # The Secret is git-ignored; the CD run deletes k8s/base/secrets.env when done.
 # The tag must be one that was actually pushed to ECR (aws ecr describe-images --repository-name ...).
 # A unique tag per build (commit + suffix) makes every apply roll out exactly that build.
@@ -38,3 +37,8 @@ images:
   - name: etp-frontend
     newName: 925645278975.dkr.ecr.ap-south-1.amazonaws.com/etp-frontend
     newTag: 06609f2-eks2
+secretGenerator:
+  - name: etp-secrets-env
+    envs: [secrets.env]
+    options:
+      disableNameSuffixHash: true

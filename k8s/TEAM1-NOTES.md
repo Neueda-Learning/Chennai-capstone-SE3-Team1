@@ -11,7 +11,7 @@ the way it is.
 |---|---|---|---|
 | Service addresses (ports, hosts, URLs) | `Application/Config/services.env`, copied to `base/generated/services.env` | ConfigMap `etp-shared-config`, mounted at `/config/services.env` | Every service reads this file (`SERVICES_CONFIG_FILE`). Kustomize cannot read files outside `k8s/`, so it is copied in. |
 | Cluster overrides | `base/config.env` | ConfigMap `etp-config` (env vars) | An env var beats `services.env`: Kafka is `kafka:29092` in the cluster, not `localhost`. |
-| Secrets | `base/secrets.env` (git-ignored) | Secret `etp-secrets` (env vars) | Names are the ones the code reads: `POSTGRES_*`, `JWT_SECRET`, `FAUXNANCE_API_KEY`, `AUTH_PRIVATE_KEY`, `LLM_API_KEY`, `SMTP_*`. Template: `secrets.env.example`. |
+| Secrets | `base/secrets.env` (git-ignored) | Secret `etp-secrets-env` (env vars) | Names are the ones the code reads: `POSTGRES_*`, `JWT_SECRET`, `FAUXNANCE_API_KEY`, `AUTH_PRIVATE_KEY`, `LLM_API_KEY`, `SMTP_*`. Template: `secrets.env.example`. |
 | Public addresses | `overlays/four-lb/urls.env` | ConfigMap `etp-urls` | Reference only; the app does not depend on them. |
 
 The TrustMe vault is not used in the cluster (no key file in the pods): every service falls back to

@@ -173,9 +173,13 @@ pipeline {
               kubectl -n "$K8S_NAMESPACE" get pods -l app=$d -o wide || true
               kubectl -n "$K8S_NAMESPACE" logs deployment/$d --all-containers --tail=60 || true
             done
-            echo "Rolling all four apps back to the previous version." >&2
+            echo "Rolling back any app that has a previous version (first installs have none)." >&2
             for d in auth-service order-service executor-service frontend; do
-              kubectl -n "$K8S_NAMESPACE" rollout undo deployment/$d || true
+              if kubectl -n "$K8S_NAMESPACE" rollout history deployment/$d >/dev/null 2>&1; then
+                kubectl -n "$K8S_NAMESPACE" rollout undo deployment/$d || true
+              else
+                echo "no previous version for $d (first install); leaving it for inspection." >&2
+              fi
             done
             exit 1
           fi

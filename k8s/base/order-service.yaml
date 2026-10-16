@@ -35,7 +35,7 @@ spec:
           envFrom:
             - configMapRef: { name: etp-config }
             - configMapRef: { name: etp-urls }
-            - secretRef: { name: etp-secrets }
+            - secretRef: { name: etp-secrets-env }
           env:
             - { name: SERVER_PORT, value: "8081" }
             - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError" }
