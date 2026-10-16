@@ -31,6 +31,11 @@ public class CorsConfig {
         if ("localhost".equals(frontendHost)) {
             origins.add("http://127.0.0.1:" + frontendPort);
         }
+        if (frontendPort == 80) {
+            // Browsers omit the default HTTP port from Origin, so the page sends
+            // "http://host" while the configured origin is "http://host:80".
+            origins.add("http://" + frontendHost);
+        }
         return origins;
     }
 

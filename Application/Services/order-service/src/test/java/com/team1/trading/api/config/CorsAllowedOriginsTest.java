@@ -20,4 +20,11 @@ class CorsAllowedOriginsTest {
     void otherHostsAreAllowedAsConfigured() {
         assertThat(CorsConfig.allowedOrigins("ui.example", 8443)).containsExactly("http://ui.example:8443");
     }
+
+    @Test
+    @DisplayName("On the default HTTP port the bare host is allowed too, since browsers omit :80 from Origin")
+    void port80AlsoAllowsBareHost() {
+        assertThat(CorsConfig.allowedOrigins("ui.example", 80))
+                .containsExactly("http://ui.example:80", "http://ui.example");
+    }
 }
