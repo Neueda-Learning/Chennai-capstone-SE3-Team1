@@ -34,12 +34,34 @@ public class CorsConfig {
         return origins;
     }
 
+    /**
+     * The origins above plus any listed in CORS_ALLOWED_ORIGINS (comma- or space-separated, exact
+     * origins such as https://d123.cloudfront.net). Needed when the UI is served from another address,
+     * e.g. HTTPS through CloudFront, where the browser's Origin header is not the http:// one above.
+     */
+    static List<String> allowedOrigins(String frontendHost, int frontendPort, String extraOrigins) {
+        List<String> origins = allowedOrigins(frontendHost, frontendPort);
+        if (extraOrigins != null) {
+            for (String origin : extraOrigins.split("[,\\s]+")) {
+                String trimmed = origin.trim();
+                while (trimmed.endsWith("/")) {
+                    trimmed = trimmed.substring(0, trimmed.length() - 1);
+                }
+                if (!trimmed.isEmpty() && !origins.contains(trimmed)) {
+                    origins.add(trimmed);
+                }
+            }
+        }
+        return origins;
+    }
+
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilterRegistration(
             @Value("${FRONTEND_HOST}") String frontendHost,
-            @Value("${FRONTEND_PORT}") int frontendPort) {
+            @Value("${FRONTEND_PORT}") int frontendPort,
+            @Value("${CORS_ALLOWED_ORIGINS:}") String extraOrigins) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(allowedOrigins(frontendHost, frontendPort));
+        config.setAllowedOrigins(allowedOrigins(frontendHost, frontendPort, extraOrigins));
         config.setAllowedMethods(ALLOWED_METHODS);
         config.setAllowedHeaders(ALLOWED_HEADERS);
         config.setAllowCredentials(false);

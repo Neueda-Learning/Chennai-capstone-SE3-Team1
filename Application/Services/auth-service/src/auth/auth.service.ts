@@ -6,6 +6,7 @@ import { UserRepository, UserRecord } from './user.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService, AccessTokenClaims, TokenPair } from './token.service';
 import { AuthServiceException } from './auth-errors';
+import { REFRESH_REUSE_GRACE_SECONDS } from './token.constants';
 import { OtpService } from './otp.service';
 import { Role } from './dto/role';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -157,6 +158,13 @@ export class AuthService {
     }
 
     const now = new Date();
+
+    if (record.revokedAt && now.getTime() - record.revokedAt.getTime() < REFRESH_REUSE_GRACE_SECONDS * 1000) {
+      // Replaced moments ago: another tab or request renewed with the same token at the same time.
+      // Refuse it, but leave the session alone; the other renewal's tokens are valid.
+      this.logger.warn('refresh_token_reused_within_grace', 'refresh', { userId: record.userId });
+      throw AuthServiceException.unauthorised();
+    }
 
     if (record.revokedAt) {
       await this.refreshTokens.revokeAllForUser(record.userId);

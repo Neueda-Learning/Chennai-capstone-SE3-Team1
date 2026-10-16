@@ -23,7 +23,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "jwt.secret=" + TestJwtBuilder.TEST_SECRET,
         "jwt.issuer=" + TestJwtBuilder.TEST_ISSUER,
-        "spring.datasource.url=jdbc:h2:mem:corsconfig;DB_CLOSE_DELAY=-1"
+        "spring.datasource.url=jdbc:h2:mem:corsconfig;DB_CLOSE_DELAY=-1",
+        "CORS_ALLOWED_ORIGINS=https://d123.cloudfront.net"
 })
 @DisplayName("CORS preflight handling")
 class CorsConfigTest {
@@ -103,6 +104,33 @@ class CorsConfigTest {
             mockMvc.perform(get("/api/v1/accounts/1/balance").header("Origin", allowedOrigin))
                     .andExpect(status().isUnauthorized())
                     .andExpect(header().string("Access-Control-Allow-Origin", allowedOrigin));
+        }
+    }
+
+    @Nested
+    @DisplayName("Also trusts the origins in CORS_ALLOWED_ORIGINS (e.g. the CloudFront address)")
+    class ExtraOrigins {
+
+        private static final String CLOUDFRONT = "https://d123.cloudfront.net";
+
+        @Test
+        void a_post_from_the_extra_origin_is_not_refused_as_cors() throws Exception {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .post("/api/v1/bank-accounts")
+                            .header("Origin", CLOUDFRONT)
+                            .contentType("application/json")
+                            .content("{}"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(header().string("Access-Control-Allow-Origin", CLOUDFRONT));
+        }
+
+        @Test
+        void a_preflight_from_the_extra_origin_is_allowed() throws Exception {
+            mockMvc.perform(options("/api/v1/accounts/1/balance")
+                            .header("Origin", CLOUDFRONT)
+                            .header("Access-Control-Request-Method", "POST"))
+                    .andExpect(status().is2xxSuccessful())
+                    .andExpect(header().string("Access-Control-Allow-Origin", CLOUDFRONT));
         }
     }
 

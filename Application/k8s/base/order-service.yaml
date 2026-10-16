@@ -58,6 +58,7 @@ kind: Service
 metadata:
   name: order-service
   annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing   # CloudFront must reach this ELB
     alb.ingress.kubernetes.io/healthcheck-path: /health
 spec:
   type: ClusterIP
