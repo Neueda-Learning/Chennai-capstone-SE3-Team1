@@ -20,4 +20,19 @@ class CorsAllowedOriginsTest {
     void otherHostsAreAllowedAsConfigured() {
         assertThat(CorsConfig.allowedOrigins("ui.example", 8443)).containsExactly("http://ui.example:8443");
     }
+
+    @Test
+    @DisplayName("Origins in CORS_ALLOWED_ORIGINS are added, trimmed, without trailing slashes or duplicates")
+    void extraOriginsAreAdded() {
+        assertThat(CorsConfig.allowedOrigins("ui.example", 80,
+                " https://d123.cloudfront.net/, https://app.example.com  http://ui.example:80"))
+                .containsExactly("http://ui.example:80", "https://d123.cloudfront.net", "https://app.example.com");
+    }
+
+    @Test
+    @DisplayName("No CORS_ALLOWED_ORIGINS (unset or blank) changes nothing")
+    void blankExtraOriginsChangeNothing() {
+        assertThat(CorsConfig.allowedOrigins("ui.example", 8443, "")).containsExactly("http://ui.example:8443");
+        assertThat(CorsConfig.allowedOrigins("ui.example", 8443, null)).containsExactly("http://ui.example:8443");
+    }
 }
