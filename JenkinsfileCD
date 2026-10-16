@@ -21,7 +21,7 @@ pipeline {
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Tag from a CI run, e.g. 1.7. Empty = the newest 1.N tag in ECR')
     string(name: 'EKS_CLUSTER_NAME', defaultValue: 'etp-cluster-2', description: 'EKS cluster to deploy to')
     string(name: 'AWS_REGION', defaultValue: 'ap-south-1', description: 'AWS region')
-    string(name: 'K8S_OVERLAY', defaultValue: 'k8s/overlays/four-lb', description: 'Kustomize overlay')
+    string(name: 'K8S_OVERLAY', defaultValue: 'Application/k8s/overlays/four-lb', description: 'Kustomize overlay')
     string(name: 'K8S_NAMESPACE', defaultValue: 'default', description: 'Namespace the manifests deploy into')
   }
 
@@ -40,7 +40,11 @@ pipeline {
         script {
           env.AWS_REGION = params.AWS_REGION?.trim() ?: 'ap-south-1'
           env.EKS_CLUSTER_NAME = params.EKS_CLUSTER_NAME?.trim() ?: 'etp-cluster-2'
-          env.K8S_OVERLAY = params.K8S_OVERLAY?.trim() ?: 'k8s/overlays/four-lb'
+          def overlay = params.K8S_OVERLAY?.trim() ?: 'Application/k8s/overlays/four-lb'
+          if (!overlay.startsWith('Application/')) {
+            overlay = "Application/${overlay}"
+          }
+          env.K8S_OVERLAY = overlay
           env.K8S_NAMESPACE = params.K8S_NAMESPACE?.trim() ?: 'default'
           // Own kubeconfig per workspace, so the jenkins user's ~/.kube is never touched.
           env.KUBECONFIG = "${env.WORKSPACE}/.kubeconfig"
@@ -101,31 +105,53 @@ pipeline {
     stage('Prepare bundle') {
       steps {
         script {
+          def loaded = false
           try {
             withCredentials([file(credentialsId: env.SECRETS_CREDENTIAL_ID, variable: 'SECRETS_FILE')]) {
-              sh 'install -m 600 "$SECRETS_FILE" k8s/base/secrets.env'
+              sh 'install -m 600 "$SECRETS_FILE" Application/k8s/base/secrets.env'
+              loaded = true
             }
           } catch (err) {
-            error("Could not read the Jenkins credential '${env.SECRETS_CREDENTIAL_ID}'. Add it under Manage Jenkins > Credentials " +
-                  "(kind: Secret file, ID: ${env.SECRETS_CREDENTIAL_ID}, file: your filled-in k8s/base/secrets.env). (${err})")
+            echo "Jenkins credential '${env.SECRETS_CREDENTIAL_ID}' not found or failed to load (${err}). Falling back to existing secrets in the cluster..."
+          }
+          if (!loaded) {
+            sh '''#!/usr/bin/env bash
+              set -euo pipefail
+              SECRET_NAME=$(kubectl -n "$K8S_NAMESPACE" get secrets -o name | grep 'secret/etp-secrets-' | head -1 | cut -d/ -f2 || true)
+              if [ -n "$SECRET_NAME" ]; then
+                echo "Exporting secrets from cluster secret $SECRET_NAME into Application/k8s/base/secrets.env"
+                kubectl -n "$K8S_NAMESPACE" get secret "$SECRET_NAME" -o json | python3 -c '
+import sys, json, base64
+data = json.load(sys.stdin).get("data", {})
+with open("Application/k8s/base/secrets.env", "w") as f:
+    for k, v in data.items():
+        val = base64.b64decode(v).decode("utf-8")
+        f.write(f"{k}={val}\\n")
+'
+                chmod 600 Application/k8s/base/secrets.env
+              else
+                echo "ERROR: Could not read Jenkins credential '${SECRETS_CREDENTIAL_ID}' and no etp-secrets found in cluster." >&2
+                exit 1
+              fi
+            '''
           }
         }
         sh '''#!/usr/bin/env bash
           set -euo pipefail
           # Every key of the template must be set (names only are printed, never values).
           missing=""
-          for key in $(grep -E '^[A-Z_]+=' k8s/base/secrets.env.example | cut -d= -f1); do
-            grep -qE "^$key=.+" k8s/base/secrets.env || missing="$missing $key"
+          for key in $(grep -E '^[A-Z_]+=' Application/k8s/base/secrets.env.example | cut -d= -f1); do
+            grep -qE "^$key=.+" Application/k8s/base/secrets.env || missing="$missing $key"
           done
           [ -z "$missing" ] || { echo "secrets.env credential has no value for:$missing" >&2; exit 1; }
 
           # Kustomize cannot read outside k8s/, so the shared settings are copied in (as on the server).
-          mkdir -p k8s/base/generated
-          cp Application/Config/services.env k8s/base/generated/services.env
+          mkdir -p Application/k8s/base/generated
+          cp Application/Config/services.env Application/k8s/base/generated/services.env
 
           # Point the bundle at this account's ECR and the chosen tag (workspace copy only, not committed).
           # The tag is quoted: unquoted, YAML reads 1.3 as a number and kustomize rejects it.
-          sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\\$#\\1$REGISTRY/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1\\"$IMAGE_TAG\\"#" k8s/base/kustomization.yaml
+          sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\$#\\1\${REGISTRY}/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1\\\"\${IMAGE_TAG}\\\"#" Application/k8s/base/kustomization.yaml
           kubectl kustomize "$K8S_OVERLAY" > rendered.yaml
           echo "images in this deploy:"
           grep -E '^[[:space:]]+image:' rendered.yaml | sort -u
@@ -138,7 +164,7 @@ pipeline {
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          val() { grep -E "^$1=" k8s/base/secrets.env | tail -1 | cut -d= -f2- | tr -d "'" | tr -d '"'; }
+          val() { grep -E "^$1=" Application/k8s/base/secrets.env | tail -1 | cut -d= -f2- | tr -d "'" | tr -d '"'; }
           DB_HOST=$(val POSTGRES_HOST); DB_PORT=$(val POSTGRES_PORT); DB_PORT=${DB_PORT:-5432}
           POD="rds-check-$BUILD_NUMBER"
           kubectl -n "$K8S_NAMESPACE" delete pod "$POD" --ignore-not-found >/dev/null
