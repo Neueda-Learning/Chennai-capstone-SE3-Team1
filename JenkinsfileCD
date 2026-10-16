@@ -151,7 +151,6 @@ with open("Application/k8s/base/secrets.env", "w") as f:
 
           # Point the bundle at this account's ECR and the chosen tag (workspace copy only, not committed).
           # The tag is quoted: unquoted, YAML reads 1.3 as a number and kustomize rejects it.
-          # Groovy eats one level of backslashes in this ''' string, so \\$ reaches bash as \$ (a literal $ anchor).
           sed -i -E "s#^([[:space:]]+newName:[[:space:]]*).*/(etp-[a-z-]+)[[:space:]]*\\$#\\1${REGISTRY}/\\2#; s#^([[:space:]]+newTag:[[:space:]]*).*#\\1\\\"${IMAGE_TAG}\\\"#" Application/k8s/base/kustomization.yaml
           kubectl kustomize "$K8S_OVERLAY" > rendered.yaml
           echo "images in this deploy:"
